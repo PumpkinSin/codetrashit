@@ -9,6 +9,8 @@
 // @match        https://book.douban.com/subject/*
 // @grant        GM_setClipboard
 // @grant        GM_notification
+// @downloadURL https://update.greasyfork.org/scripts/564680/%E8%B1%86%E7%93%A3%E4%B9%A6%E7%B1%8D%E5%A4%8D%E5%88%B6ID.user.js
+// @updateURL https://update.greasyfork.org/scripts/564680/%E8%B1%86%E7%93%A3%E4%B9%A6%E7%B1%8D%E5%A4%8D%E5%88%B6ID.meta.js
 // ==/UserScript==
 
 (function () {
