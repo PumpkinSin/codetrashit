@@ -2,7 +2,7 @@
 // @name         豆瓣书籍复制ID
 // @namespace    http://tampermonkey.net/
 // @version      1.2
-// @description  在豆瓣书籍搜索页面（专用/通用）和详情页面添加复制按钮，复制格式化的豆瓣ID（douban:XXXXXXX）
+// @description  在豆瓣书籍搜索页面（专用/通用）和详情页面添加复制按钮，复制格式化的豆瓣ID（douban:XXXXXXX），配合https://github.com/PumpkinSin/codetrashit/tree/main/calibre-douban使用。
 // @author       ai
 // @match        https://search.douban.com/book/subject_search*
 // @match        https://www.douban.com/search?q=*
