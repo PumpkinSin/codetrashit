@@ -38,7 +38,7 @@
         const button = document.createElement('button');
         button.textContent = '复制ID';
         button.style.cssText = buttonStyle;
-        button.title = `复制: douban:${bookId}`;
+        button.title = `复制: doubanbook:${bookId}`;
 
         // 鼠标悬停效果
         button.addEventListener('mouseenter', function () {
@@ -52,7 +52,7 @@
         button.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
-            const textToCopy = `douban:${bookId}`;
+            const textToCopy = `doubanbook:${bookId}`;
 
             // 使用GM_setClipboard复制到剪贴板
             GM_setClipboard(textToCopy);
