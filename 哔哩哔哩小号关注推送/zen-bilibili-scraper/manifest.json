@@ -1,0 +1,39 @@
+{
+  "manifest_version": 2,
+  "name": "Bilibili 小号动态抓取器",
+  "version": "1.1.0",
+  "description": "后台极慢速抓取 Bilibili 小号的视频动态，发送到本地聚合服务",
+  "permissions": [
+    "alarms",
+    "storage",
+    "cookies",
+    "https://api.bilibili.com/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ],
+    "persistent": true
+  },
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_title": "小号抓取配置"
+  },
+  "options_ui": {
+    "page": "popup.html",
+    "open_in_tab": true
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "bilibili-alt-scraper@local",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ],
+        "optional": []
+      }
+    }
+  }
+}

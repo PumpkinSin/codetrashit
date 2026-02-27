@@ -1,0 +1,3136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频封面制作</title>
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect x='4' y='8' width='56' height='48' rx='6' fill='%237c5bf5'/><rect x='10' y='14' width='20' height='16' rx='3' fill='%23fff' opacity='.9'/><rect x='34' y='14' width='20' height='16' rx='3' fill='%23e27aff' opacity='.7'/><rect x='10' y='34' width='44' height='16' rx='3' fill='%23fff' opacity='.5'/><circle cx='52' cy='12' r='5' fill='%23e74c5e'/></svg>">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <style>
+        /* ====== Reset & Variables ====== */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #0f0f1a;
+            --bg-panel: #181825;
+            --bg-card: #1e1e32;
+            --border: #2a2a40;
+            --accent: #7c5bf5;
+            --accent-hover: #9b7afa;
+            --danger: #e74c5e;
+            --text: #e2e2f0;
+            --text-dim: #8888a8;
+            --radius: 10px;
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ====== Header ====== */
+        header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0 24px;
+            height: 48px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        header h1 {
+            font-size: 16px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), #e27aff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            white-space: nowrap;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .toolbar select,
+        .toolbar button,
+        .toolbar input[type="color"] {
+            font-size: 12px;
+            padding: 5px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            cursor: pointer;
+            transition: all .2s;
+        }
+
+        .toolbar input[type="color"] {
+            width: 32px;
+            height: 30px;
+            padding: 2px;
+        }
+
+        .toolbar select:hover,
+        .toolbar button:hover {
+            border-color: var(--accent);
+        }
+
+        .toolbar .btn-icon {
+            padding: 5px 8px;
+            font-size: 14px;
+            min-width: 30px;
+        }
+
+        .toolbar .btn-icon:disabled {
+            opacity: 0.3;
+            cursor: default;
+        }
+
+        .toolbar .tb-sep {
+            width: 1px;
+            height: 20px;
+            background: var(--border);
+            flex-shrink: 0;
+        }
+
+        .btn-export {
+            background: linear-gradient(135deg, var(--accent), #6641d9) !important;
+            border: none !important;
+            font-weight: 600;
+            color: #fff !important;
+        }
+
+        .btn-export:hover {
+            opacity: .9;
+            transform: translateY(-1px);
+        }
+
+        /* ====== Project Tabs Bar ====== */
+        .project-tabs-bar {
+            display: flex;
+            align-items: center;
+            flex: 1;
+            min-width: 0;
+            gap: 2px;
+            overflow-x: auto;
+            padding: 0 4px;
+        }
+
+        .project-tab {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 5px 12px;
+            border-radius: 6px 6px 0 0;
+            background: transparent;
+            color: var(--text-dim);
+            font-size: 11px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            transition: all .15s;
+            white-space: nowrap;
+            max-width: 160px;
+        }
+
+        .project-tab:hover {
+            background: var(--bg-panel);
+            color: var(--text);
+        }
+
+        .project-tab.active {
+            background: var(--bg-panel);
+            color: var(--accent-hover);
+            border-color: var(--border);
+            font-weight: 600;
+        }
+
+        .project-tab .ptab-close {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-size: 10px;
+            padding: 0 2px;
+            opacity: 0;
+            transition: opacity .15s;
+            line-height: 1;
+        }
+
+        .project-tab:hover .ptab-close {
+            opacity: 1;
+        }
+
+        .project-tab .ptab-close:hover {
+            color: var(--danger);
+        }
+
+        .btn-new-project {
+            background: none;
+            border: 1px dashed var(--border);
+            border-radius: 6px;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-size: 14px;
+            width: 28px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .15s;
+            flex-shrink: 0;
+            margin-left: 4px;
+        }
+
+        .btn-new-project:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* ====== New Project Modal ====== */
+        .new-project-modal {
+            background: var(--bg-panel);
+            border-radius: 12px;
+            padding: 24px;
+            min-width: 360px;
+            max-width: 420px;
+            box-shadow: var(--shadow);
+        }
+
+        .new-project-modal h3 {
+            margin-bottom: 16px;
+            font-size: 16px;
+        }
+
+        .new-project-modal .np-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .new-project-modal label {
+            font-size: 12px;
+            color: var(--text-dim);
+            min-width: 70px;
+        }
+
+        .new-project-modal input,
+        .new-project-modal select {
+            flex: 1;
+            padding: 7px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            font-size: 12px;
+        }
+
+        .new-project-modal .np-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 16px;
+        }
+
+        .new-project-modal .np-actions button {
+            padding: 7px 18px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            cursor: pointer;
+            font-size: 12px;
+            transition: all .15s;
+        }
+
+        .new-project-modal .np-actions button.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        /* ====== Custom Resolution Modal ====== */
+        .custom-res-modal {
+            background: var(--bg-panel);
+            border-radius: 12px;
+            padding: 24px;
+            min-width: 340px;
+            box-shadow: var(--shadow);
+        }
+
+        .custom-res-modal h3 {
+            margin-bottom: 16px;
+            font-size: 15px;
+        }
+
+        .custom-res-modal .cr-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .custom-res-modal input {
+            width: 80px;
+            padding: 7px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .custom-res-modal .saved-res-list {
+            max-height: 120px;
+            overflow-y: auto;
+            margin-bottom: 12px;
+        }
+
+        .custom-res-modal .saved-res-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            color: var(--text-dim);
+            transition: all .1s;
+        }
+
+        .custom-res-modal .saved-res-item:hover {
+            background: rgba(124, 91, 245, 0.1);
+            color: var(--text);
+        }
+
+        .custom-res-modal .saved-res-item .sr-del {
+            margin-left: auto;
+            background: none;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            font-size: 10px;
+            opacity: 0;
+            transition: opacity .1s;
+        }
+
+        .custom-res-modal .saved-res-item:hover .sr-del {
+            opacity: 1;
+        }
+
+        .custom-res-modal .cr-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .custom-res-modal .cr-actions button {
+            padding: 7px 16px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .custom-res-modal .cr-actions button.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        /* ====== Layout ====== */
+        .main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ====== Left Panel ====== */
+        .panel {
+            width: 260px;
+            min-width: 220px;
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .panel-section {
+            padding: 12px 14px;
+        }
+
+        .panel-section h3 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .panel-section h3::before {
+            content: '';
+            width: 3px;
+            height: 14px;
+            background: var(--accent);
+            border-radius: 2px;
+        }
+
+        .asset-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+
+        .asset-thumb {
+            aspect-ratio: 1;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all .2s;
+            background: var(--bg-card);
+            position: relative;
+        }
+
+        .asset-thumb:hover {
+            border-color: var(--accent);
+            transform: scale(1.05);
+            box-shadow: 0 0 12px rgba(124, 91, 245, 0.3);
+        }
+
+        .asset-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .asset-thumb .thumb-name {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            font-size: 9px;
+            padding: 2px 4px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #ccc;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            opacity: 0;
+            transition: opacity .2s;
+        }
+
+        .asset-thumb:hover .thumb-name {
+            opacity: 1;
+        }
+
+        .empty-hint {
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 12px;
+            padding: 20px 10px;
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--border);
+            margin: 0 14px;
+        }
+
+        /* ====== Folder Favorites Tabs ====== */
+        .fav-folders-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px 4px;
+        }
+
+        .fav-folders-header h3 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin: 0;
+        }
+
+        .fav-folders-header h3::before {
+            content: '';
+            width: 3px;
+            height: 14px;
+            background: var(--accent);
+            border-radius: 2px;
+        }
+
+        .btn-add-folder {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--accent);
+            cursor: pointer;
+            font-size: 16px;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .2s;
+            padding: 0;
+        }
+
+        .btn-add-folder:hover {
+            background: rgba(124, 91, 245, 0.15);
+            border-color: var(--accent);
+            transform: scale(1.1);
+        }
+
+        .folder-accordion {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .folder-acc-item {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .folder-acc-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 14px;
+            cursor: pointer;
+            transition: all .15s;
+            user-select: none;
+        }
+
+        .folder-acc-header:hover {
+            background: rgba(124, 91, 245, 0.08);
+        }
+
+        .folder-acc-arrow {
+            font-size: 10px;
+            color: var(--text-dim);
+            transition: transform .2s;
+            flex-shrink: 0;
+        }
+
+        .folder-acc-item.open .folder-acc-arrow {
+            transform: rotate(90deg);
+        }
+
+        .folder-acc-name {
+            flex: 1;
+            font-size: 12px;
+            color: var(--text);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .folder-acc-count {
+            font-size: 10px;
+            color: var(--text-dim);
+            flex-shrink: 0;
+        }
+
+        .folder-acc-remove {
+            background: none;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            font-size: 10px;
+            padding: 2px 4px;
+            opacity: 0;
+            transition: opacity .15s;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
+        .folder-acc-header:hover .folder-acc-remove {
+            opacity: 1;
+        }
+
+        /* ====== Game Assets Section (left panel trigger) ====== */
+        .game-assets-section {
+            padding: 0 12px 8px;
+        }
+
+        .game-assets-section h3 {
+            margin: 8px 0 6px;
+            font-size: 13px;
+        }
+
+        .game-open-btn {
+            width: 100%;
+            padding: 8px 0;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all .15s;
+        }
+
+        .game-open-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* ====== Game Flyout Overlay ====== */
+        .game-flyout-overlay {
+            position: fixed;
+            top: 48px;
+            left: 260px;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 500;
+            display: flex;
+            animation: fadeIn .15s;
+        }
+
+        .game-flyout-panel {
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            width: 100%;
+            max-width: 700px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .game-flyout-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .game-flyout-header h3 {
+            font-size: 14px;
+            flex: 1;
+        }
+
+        .game-flyout-close {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .game-flyout-close:hover {
+            color: var(--text);
+        }
+
+        .game-flyout-tabs {
+            display: flex;
+            gap: 4px;
+            padding: 8px 16px;
+            flex-wrap: wrap;
+        }
+
+        .game-tab {
+            padding: 5px 14px;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            color: var(--text-dim);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all .15s;
+        }
+
+        .game-tab:hover {
+            border-color: var(--accent);
+            color: var(--text);
+        }
+
+        .game-tab.active {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+
+        .game-flyout-search {
+            padding: 0 16px 8px;
+        }
+
+        .game-flyout-search input {
+            width: 100%;
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+            font-size: 12px;
+        }
+
+        .game-flyout-grid {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 16px 16px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+            gap: 6px;
+            align-content: start;
+        }
+
+        .game-char-thumb {
+            position: relative;
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: transform .12s, border-color .12s;
+            padding-bottom: 100%;
+            height: 0;
+        }
+
+        .game-char-thumb:hover {
+            transform: scale(1.06);
+            border-color: var(--accent);
+            z-index: 2;
+        }
+
+        .game-char-thumb.rarity-5 {
+            border-color: #c89b3c;
+        }
+
+        .game-char-thumb.rarity-5:hover {
+            border-color: #ffd700;
+        }
+
+        .game-char-thumb img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .game-char-name {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.65);
+            color: #fff;
+            font-size: 9px;
+            padding: 2px 3px;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .game-loading,
+        .game-flyout-grid>.empty-hint {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 20px;
+            color: var(--text-dim);
+            font-size: 12px;
+        }
+
+        .game-char-thumb.img-failed {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 50, 50, 0.08);
+            border-color: rgba(255, 50, 50, 0.3);
+        }
+
+        .game-char-thumb.img-failed img {
+            display: none;
+        }
+
+        .game-char-thumb .retry-btn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(124, 91, 245, 0.8);
+            border: none;
+            color: #fff;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 10px;
+            cursor: pointer;
+            z-index: 3;
+            white-space: nowrap;
+        }
+
+        .game-char-thumb .retry-btn:hover {
+            background: var(--accent);
+        }
+
+        .btn-retry-all {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            padding: 3px 10px;
+            transition: all .15s;
+        }
+
+        .btn-retry-all:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* ====== Image Browser Flyout ====== */
+        .img-browser-overlay {
+            position: fixed;
+            top: 48px;
+            left: 260px;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 500;
+            display: flex;
+            animation: fadeIn .15s;
+        }
+
+        .img-browser-panel {
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 4px 0 30px rgba(0, 0, 0, 0.5);
+            animation: slideRight .2s;
+        }
+
+        @keyframes slideRight {
+            from {
+                transform: translateX(-30px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .img-browser-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 18px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .img-browser-header h3 {
+            font-size: 14px;
+            color: var(--text);
+            margin: 0;
+            flex: 1;
+        }
+
+        .img-browser-header .img-count {
+            font-size: 11px;
+            color: var(--text-dim);
+        }
+
+        .img-browser-search {
+            padding: 8px 18px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .img-browser-search input {
+            width: 100%;
+            padding: 7px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            font-size: 12px;
+        }
+
+        .img-browser-search input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .img-browser-close {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            cursor: pointer;
+            font-size: 12px;
+            padding: 6px 14px;
+            transition: all .15s;
+        }
+
+        .img-browser-close:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .img-browser-grid {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 18px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 8px;
+            align-content: start;
+        }
+
+        /* ====== Add Folder Modal ====== */
+        .folder-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn .15s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .folder-modal {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            width: 440px;
+            max-height: 70vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+            animation: slideUp .2s;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .folder-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .folder-modal-header h3 {
+            font-size: 14px;
+            color: var(--text);
+            margin: 0;
+        }
+
+        .folder-modal-close {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 18px;
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .folder-modal-close:hover {
+            color: var(--text);
+        }
+
+        .folder-modal-path {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 18px;
+            font-size: 11px;
+            color: var(--text-dim);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .folder-modal-path .path-text {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .folder-modal-path button {
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            cursor: pointer;
+            font-size: 11px;
+            white-space: nowrap;
+            transition: all .15s;
+        }
+
+        .folder-modal-path button:hover {
+            border-color: var(--accent);
+        }
+
+        .folder-modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .folder-browse-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all .15s;
+            font-size: 13px;
+            color: var(--text);
+        }
+
+        .folder-browse-item:hover {
+            background: rgba(124, 91, 245, 0.12);
+        }
+
+        .folder-browse-item .folder-icon {
+            font-size: 16px;
+        }
+
+        .folder-modal-footer {
+            display: flex;
+            gap: 8px;
+            padding: 12px 18px;
+            border-top: 1px solid var(--border);
+        }
+
+        .folder-modal-footer input {
+            flex: 1;
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            font-size: 12px;
+        }
+
+        .folder-modal-footer .btn-confirm {
+            padding: 6px 16px;
+            border-radius: 6px;
+            border: none;
+            background: linear-gradient(135deg, var(--accent), #6641d9);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity .2s;
+        }
+
+        .folder-modal-footer .btn-confirm:hover {
+            opacity: 0.85;
+        }
+
+        /* ====== Layer Panel ====== */
+        .layer-list {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .layer-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            background: var(--bg-card);
+            cursor: pointer;
+            transition: all .15s;
+            font-size: 12px;
+            user-select: none;
+        }
+
+        .layer-item:hover {
+            background: #252540;
+        }
+
+        .layer-item.active {
+            background: rgba(124, 91, 245, 0.2);
+            border: 1px solid var(--accent);
+        }
+
+        .layer-item:not(.active) {
+            border: 1px solid transparent;
+        }
+
+        .layer-item .layer-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .layer-item .layer-preview {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            background: var(--border);
+            overflow: hidden;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .layer-btn {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px;
+            border-radius: 3px;
+            transition: all .15s;
+            line-height: 1;
+        }
+
+        .layer-btn:hover {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .layer-btn.off {
+            opacity: 0.3;
+        }
+
+        /* ====== Canvas Area ====== */
+        .canvas-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background:
+                radial-gradient(ellipse at center, #1a1a30 0%, var(--bg) 70%);
+            overflow: hidden;
+            padding: 24px;
+        }
+
+        .canvas-wrapper {
+            box-shadow: var(--shadow), 0 0 60px rgba(124, 91, 245, 0.08);
+            border-radius: 4px;
+            line-height: 0;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* ====== Right Panel ====== */
+        .props-panel {
+            width: 260px;
+            min-width: 220px;
+            background: var(--bg-panel);
+            border-left: 1px solid var(--border);
+            padding: 14px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .props-panel h3 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+        }
+
+        .prop-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .prop-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .prop-row label {
+            font-size: 12px;
+            color: var(--text-dim);
+            min-width: 40px;
+        }
+
+        .prop-row input[type="number"] {
+            width: 64px;
+            padding: 4px 6px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .prop-row input[type="color"] {
+            width: 32px;
+            height: 26px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-card);
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .prop-row input[type="range"] {
+            flex: 1;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            cursor: pointer;
+            transition: all .2s;
+        }
+
+        .btn-small:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .btn-danger {
+            color: var(--danger) !important;
+            border-color: var(--danger) !important;
+        }
+
+        .btn-danger:hover {
+            background: var(--danger) !important;
+            color: #fff !important;
+        }
+
+        .text-props {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .text-props input[type="text"],
+        .text-props select {
+            width: 100%;
+            padding: 5px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            font-size: 12px;
+        }
+
+        #no-selection-hint {
+            color: var(--text-dim);
+            font-size: 12px;
+            text-align: center;
+            padding: 30px 10px;
+        }
+
+        /* ====== Font Favorites ====== */
+        .fav-section {
+            border-top: 1px solid var(--border);
+            padding-top: 12px;
+        }
+
+        .fav-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .fav-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            background: var(--bg-card);
+            cursor: pointer;
+            transition: all .15s;
+            font-size: 11px;
+            border: 1px solid transparent;
+        }
+
+        .fav-item:hover {
+            border-color: var(--accent);
+            background: rgba(124, 91, 245, 0.1);
+        }
+
+        .fav-item .fav-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .fav-item .fav-preview {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .fav-item .fav-del {
+            background: none;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity .15s;
+            padding: 2px 4px;
+        }
+
+        .fav-item:hover .fav-del {
+            opacity: 1;
+        }
+
+        .fav-save-row {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .fav-save-row input {
+            flex: 1;
+            padding: 5px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text);
+            font-size: 11px;
+        }
+
+        .fav-save-row button {
+            padding: 5px 10px;
+            border-radius: 4px;
+            border: 1px solid var(--accent);
+            background: var(--accent);
+            color: #fff;
+            font-size: 11px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        /* ====== Scrollbar ====== */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #444;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>✦ 视频封面制作</h1>
+        <div class="project-tabs-bar" id="project-tabs-bar">
+            <!-- project tabs rendered by JS -->
+        </div>
+        <div class="toolbar">
+            <button id="btn-undo" class="btn-icon" title="撤销 (Ctrl+Z)">↩</button>
+            <button id="btn-redo" class="btn-icon" title="重做 (Ctrl+Y)">↪</button>
+            <div class="tb-sep"></div>
+            <button id="btn-add-text" title="添加文字">𝐓 文字</button>
+            <select id="aspect-ratio">
+                <option value="1920x1080">16:9 (1920×1080)</option>
+                <option value="1080x1920">9:16 (1080×1920)</option>
+                <option value="1080x1080">1:1 (1080×1080)</option>
+                <option value="1440x1080">4:3 (1440×1080)</option>
+                <option value="custom">✏ 自定义…</option>
+            </select>
+            <input type="color" id="bg-color" value="#ffffff" title="背景颜色">
+            <button id="btn-bg-transparent" title="透明背景">🚫</button>
+            <button id="btn-export" class="btn-export">⬇ 导出 PNG</button>
+        </div>
+    </header>
+
+    <div class="main">
+        <!-- Left: Asset Panel -->
+        <aside class="panel" id="asset-panel">
+            <div class="fav-folders-header">
+                <h3>📁 收藏文件夹</h3>
+                <button class="btn-add-folder" id="btn-add-folder" title="添加文件夹">＋</button>
+            </div>
+            <div class="folder-accordion" id="folder-accordion"></div>
+            <div class="divider"></div>
+            <div class="panel-section game-assets-section">
+                <h3>🎮 游戏素材</h3>
+                <button class="game-open-btn" id="btn-open-game-panel">打开素材面板 ▸</button>
+            </div>
+            <div class="divider"></div>
+            <div class="panel-section">
+                <h3>图层</h3>
+                <div class="layer-list" id="layer-list"></div>
+            </div>
+        </aside>
+
+        <!-- Center: Canvas -->
+        <div class="canvas-area">
+            <div class="canvas-wrapper" id="canvas-wrapper">
+                <canvas id="c"></canvas>
+            </div>
+        </div>
+
+        <!-- Right: Properties -->
+        <aside class="props-panel" id="props-panel">
+            <div id="no-selection-hint">点击画布上的元素<br>查看和编辑属性</div>
+
+            <div id="obj-props" style="display:none;">
+                <h3>对象属性</h3>
+                <div class="prop-group">
+                    <div class="prop-row">
+                        <label>X</label>
+                        <input type="number" id="prop-x" step="1">
+                        <label>Y</label>
+                        <input type="number" id="prop-y" step="1">
+                    </div>
+                    <div class="prop-row">
+                        <label>宽</label>
+                        <input type="number" id="prop-w" step="1" min="1">
+                        <label>高</label>
+                        <input type="number" id="prop-h" step="1" min="1">
+                    </div>
+                    <div class="prop-row">
+                        <label>旋转</label>
+                        <input type="number" id="prop-angle" step="1">
+                        <label>°</label>
+                    </div>
+                    <div class="prop-row">
+                        <label>透明</label>
+                        <input type="range" id="prop-opacity" min="0" max="100" value="100">
+                        <span id="prop-opacity-val">100%</span>
+                    </div>
+                    <div class="prop-row" style="gap:6px; margin-top:6px;">
+                        <button class="btn-small" id="btn-bring-front">🔼 置顶</button>
+                        <button class="btn-small" id="btn-send-back">🔽 置底</button>
+                        <button class="btn-small btn-danger" id="btn-delete">🗑 删除</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="text-props" style="display:none;">
+                <h3>文字属性</h3>
+                <div class="text-props">
+                    <input type="text" id="prop-text" placeholder="文字内容">
+                    <div class="prop-row">
+                        <label>字号</label>
+                        <input type="number" id="prop-fontsize" value="72" min="8" max="400">
+                    </div>
+                    <div class="prop-row">
+                        <label>颜色</label>
+                        <input type="color" id="prop-fill" value="#ffffff">
+                    </div>
+                    <div class="prop-row">
+                        <label>描边</label>
+                        <input type="color" id="prop-stroke" value="#000000">
+                        <input type="number" id="prop-strokewidth" value="0" min="0" max="20" style="width:48px;">
+                    </div>
+                    <div class="prop-row">
+                        <label>阴影色</label>
+                        <input type="color" id="prop-shadow-color" value="#000000">
+                    </div>
+                    <div class="prop-row">
+                        <label>阴影X</label>
+                        <input type="number" id="prop-shadow-x" value="0" style="width:48px;">
+                        <label>Y</label>
+                        <input type="number" id="prop-shadow-y" value="0" style="width:48px;">
+                    </div>
+                    <div class="prop-row">
+                        <label>模糊</label>
+                        <input type="range" id="prop-shadow-blur" min="0" max="40" value="0">
+                        <span id="prop-shadow-blur-val">0</span>
+                    </div>
+                    <select id="prop-fontfamily">
+                        <option>Microsoft YaHei</option>
+                    </select>
+                    <select id="prop-fontweight">
+                        <option value="normal">常规</option>
+                        <option value="bold" selected>粗体</option>
+                    </select>
+                </div>
+
+                <!-- Font Effect Favorites -->
+                <div class="fav-section">
+                    <h3>⭐ 收藏字效</h3>
+                    <div class="fav-list" id="fav-list"></div>
+                    <div class="fav-save-row">
+                        <input type="text" id="fav-name-input" placeholder="效果名称…">
+                        <button id="btn-save-fav">💾 收藏</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        // ============ State ============
+        let canvasW = 1920, canvasH = 1080;
+        const DISPLAY_SCALE = 0.5;
+
+        // ============ Fabric Canvas ============
+        const canvas = new fabric.Canvas('c', {
+            width: canvasW * DISPLAY_SCALE,
+            height: canvasH * DISPLAY_SCALE,
+            backgroundColor: '#ffffff',
+            preserveObjectStacking: true,
+            selection: true,
+        });
+        canvas.setZoom(DISPLAY_SCALE);
+
+        // ============ Sleek Control Handle Style ============
+        fabric.Object.prototype.set({
+            cornerStyle: 'circle',
+            cornerSize: 8,
+            cornerColor: '#ffffff',
+            cornerStrokeColor: '#7c5bf5',
+            transparentCorners: false,
+            borderColor: 'rgba(124,91,245,0.6)',
+            borderScaleFactor: 1.5,
+            borderDashArray: [4, 3],
+            padding: 6,
+        });
+        // Hide the middle-top rotate handle visual (use corner rotation instead)
+        fabric.Object.prototype.controls.mtr.offsetY = -20;
+
+        // ============ Multi-Project System ============
+        let projects = [];
+        let activeProjectId = null;
+
+        function generateId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+        function createProject(name, resolution, copyFromId) {
+            const [w, h] = resolution.split('x').map(Number);
+            const proj = {
+                id: generateId(),
+                name: name || '未命名',
+                width: w,
+                height: h,
+                bgColor: '#ffffff',
+                canvasJSON: null,
+                undoStack: [],
+                redoStack: [],
+            };
+
+            if (copyFromId) {
+                const src = projects.find(p => p.id === copyFromId);
+                if (src) {
+                    // Save source first if it's the active one
+                    if (src.id === activeProjectId) {
+                        src.canvasJSON = JSON.stringify(canvas.toJSON(['_customName']));
+                        src.bgColor = canvas.backgroundColor || '#ffffff';
+                    }
+                    proj.canvasJSON = src.canvasJSON;
+                    proj.bgColor = src.bgColor;
+                }
+            }
+
+            projects.push(proj);
+            switchToProject(proj.id);
+            renderProjectTabs();
+            return proj;
+        }
+
+        function saveCurrentProject() {
+            if (!activeProjectId) return;
+            const proj = projects.find(p => p.id === activeProjectId);
+            if (!proj) return;
+            proj.canvasJSON = JSON.stringify(canvas.toJSON(['_customName']));
+            proj.width = canvasW;
+            proj.height = canvasH;
+            proj.bgColor = canvas.backgroundColor || '#ffffff';
+            proj.undoStack = [...undoStack];
+            proj.redoStack = [...redoStack];
+        }
+
+        function switchToProject(id) {
+            if (activeProjectId && activeProjectId !== id) {
+                saveCurrentProject();
+            }
+            const proj = projects.find(p => p.id === id);
+            if (!proj) return;
+            activeProjectId = id;
+
+            canvasW = proj.width;
+            canvasH = proj.height;
+            canvas.setWidth(canvasW * DISPLAY_SCALE);
+            canvas.setHeight(canvasH * DISPLAY_SCALE);
+
+            // Update aspect ratio selector
+            const arSelect = document.getElementById('aspect-ratio');
+            const val = canvasW + 'x' + canvasH;
+            const opt = Array.from(arSelect.options).find(o => o.value === val);
+            if (opt) { arSelect.value = val; } else { arSelect.value = 'custom'; }
+
+            // Restore undo/redo stacks
+            undoStack.length = 0;
+            redoStack.length = 0;
+            if (proj.undoStack) undoStack.push(...proj.undoStack);
+            if (proj.redoStack) redoStack.push(...proj.redoStack);
+
+            isUndoRedoing = true;
+            if (proj.canvasJSON) {
+                canvas.loadFromJSON(proj.canvasJSON, () => {
+                    canvas.setBackgroundColor(proj.bgColor || '#ffffff', () => { });
+                    canvas.setZoom(DISPLAY_SCALE);
+                    canvas.renderAll();
+                    updateLayerPanel();
+                    updatePropsPanel();
+                    isUndoRedoing = false;
+                });
+            } else {
+                canvas.clear();
+                canvas.setBackgroundColor(proj.bgColor || '#ffffff', () => { });
+                canvas.setZoom(DISPLAY_SCALE);
+                canvas.renderAll();
+                updateLayerPanel();
+                updatePropsPanel();
+                isUndoRedoing = false;
+            }
+
+            document.getElementById('bg-color').value = proj.bgColor || '#ffffff';
+            renderProjectTabs();
+        }
+
+        function removeProject(id) {
+            if (projects.length <= 1) return; // keep at least 1
+            const idx = projects.findIndex(p => p.id === id);
+            if (idx < 0) return;
+            projects.splice(idx, 1);
+            if (activeProjectId === id) {
+                const newIdx = Math.min(idx, projects.length - 1);
+                switchToProject(projects[newIdx].id);
+            }
+            renderProjectTabs();
+        }
+
+        function renderProjectTabs() {
+            const bar = document.getElementById('project-tabs-bar');
+            // Remove existing tabs (keep the + button)
+            bar.innerHTML = '';
+            projects.forEach(proj => {
+                const tab = document.createElement('div');
+                tab.className = 'project-tab' + (proj.id === activeProjectId ? ' active' : '');
+                tab.innerHTML = `
+                    <span style="overflow:hidden;text-overflow:ellipsis;">${proj.name}</span>
+                    <span style="font-size:9px;color:var(--text-dim);">${proj.width}×${proj.height}</span>
+                    ${projects.length > 1 ? '<button class="ptab-close" title="关闭">✕</button>' : ''}
+                `;
+                tab.addEventListener('click', e => {
+                    if (e.target.closest('.ptab-close')) return;
+                    switchToProject(proj.id);
+                });
+                const closeBtn = tab.querySelector('.ptab-close');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', e => {
+                        e.stopPropagation();
+                        removeProject(proj.id);
+                    });
+                }
+                bar.appendChild(tab);
+            });
+            const addBtn = document.createElement('button');
+            addBtn.className = 'btn-new-project';
+            addBtn.title = '新建工程';
+            addBtn.textContent = '＋';
+            addBtn.addEventListener('click', () => openNewProjectModal());
+            bar.appendChild(addBtn);
+        }
+
+        function openNewProjectModal() {
+            const overlay = document.createElement('div');
+            overlay.className = 'folder-modal-overlay';
+            overlay.innerHTML = `
+                <div class="new-project-modal">
+                    <h3>📐 新建工程</h3>
+                    <div class="np-row">
+                        <label>工程名称</label>
+                        <input type="text" id="np-name" placeholder="新工程" value="新工程">
+                    </div>
+                    <div class="np-row">
+                        <label>分辨率</label>
+                        <select id="np-resolution">
+                            <option value="1920x1080">16:9 (1920×1080)</option>
+                            <option value="1080x1920">9:16 (1080×1920)</option>
+                            <option value="1080x1080">1:1 (1080×1080)</option>
+                            <option value="1440x1080">4:3 (1440×1080)</option>
+                            <option value="custom">✏ 自定义…</option>
+                        </select>
+                    </div>
+                    <div class="np-row">
+                        <label>复制自</label>
+                        <select id="np-copy-from">
+                            <option value="">不复制（空白）</option>
+                        </select>
+                    </div>
+                    <div class="np-actions">
+                        <button class="np-cancel">取消</button>
+                        <button class="np-ok primary">✓ 创建</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+
+            // Add saved custom resolutions to the resolution select
+            const resSelect = overlay.querySelector('#np-resolution');
+            const savedRes = JSON.parse(localStorage.getItem('custom_resolutions') || '[]');
+            if (savedRes.length > 0) {
+                const sep = document.createElement('option');
+                sep.disabled = true;
+                sep.textContent = '── 自定义 ──';
+                resSelect.appendChild(sep);
+                savedRes.forEach(r => {
+                    const opt = document.createElement('option');
+                    opt.value = r;
+                    const [w, h] = r.split('x');
+                    opt.textContent = `${w}×${h}`;
+                    resSelect.appendChild(opt);
+                });
+            }
+
+            // Custom resolution row (hidden initially)
+            const npResRow = overlay.querySelector('#np-resolution').closest('.np-row');
+            const customRow = document.createElement('div');
+            customRow.className = 'np-row';
+            customRow.id = 'np-custom-row';
+            customRow.style.display = 'none';
+            customRow.innerHTML = `
+                <label>自定义</label>
+                <input type="number" id="np-cw" value="1920" min="100" max="7680" style="width:80px;text-align:center;">
+                <span style="color:var(--text-dim);font-size:12px;">×</span>
+                <input type="number" id="np-ch" value="1080" min="100" max="7680" style="width:80px;text-align:center;">
+            `;
+            npResRow.after(customRow);
+
+            // Toggle custom row visibility
+            overlay.querySelector('#np-resolution').addEventListener('change', (e) => {
+                customRow.style.display = e.target.value === 'custom' ? '' : 'none';
+            });
+
+            // Populate copy-from
+            const copySelect = overlay.querySelector('#np-copy-from');
+            projects.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = `${p.name} (${p.width}×${p.height})`;
+                copySelect.appendChild(opt);
+            });
+
+            overlay.querySelector('.np-cancel').addEventListener('click', () => overlay.remove());
+            overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+            overlay.querySelector('.np-ok').addEventListener('click', () => {
+                const name = overlay.querySelector('#np-name').value.trim() || '新工程';
+                let res = overlay.querySelector('#np-resolution').value;
+                if (res === 'custom') {
+                    const cw = parseInt(overlay.querySelector('#np-cw').value) || 1920;
+                    const ch = parseInt(overlay.querySelector('#np-ch').value) || 1080;
+                    if (cw < 100 || ch < 100) { alert('分辨率最小为 100'); return; }
+                    res = cw + 'x' + ch;
+                }
+                const copyFrom = overlay.querySelector('#np-copy-from').value || null;
+                createProject(name, res, copyFrom);
+                overlay.remove();
+            });
+        }
+
+        // ============ Custom Resolution Modal ============
+        function openCustomResolutionModal() {
+            const savedRes = JSON.parse(localStorage.getItem('custom_resolutions') || '[]');
+            const overlay = document.createElement('div');
+            overlay.className = 'folder-modal-overlay';
+            overlay.innerHTML = `
+                <div class="custom-res-modal">
+                    <h3>✏ 自定义分辨率</h3>
+                    <div class="cr-row">
+                        <span style="font-size:12px;color:var(--text-dim)">宽</span>
+                        <input type="number" id="cr-w" value="${canvasW}" min="100" max="7680">
+                        <span style="font-size:12px;color:var(--text-dim)">×</span>
+                        <span style="font-size:12px;color:var(--text-dim)">高</span>
+                        <input type="number" id="cr-h" value="${canvasH}" min="100" max="7680">
+                    </div>
+                    ${savedRes.length > 0 ? '<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;">已保存的自定义分辨率：</div><div class="saved-res-list" id="cr-saved-list"></div>' : ''}
+                    <div class="cr-actions">
+                        <button id="cr-save-btn" title="保存当前输入的分辨率到列表">💾 保存</button>
+                        <button id="cr-cancel">取消</button>
+                        <button id="cr-ok" class="primary">✓ 应用</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+
+            // Render saved list
+            const listEl = overlay.querySelector('#cr-saved-list');
+            if (listEl) {
+                renderSavedResList(listEl, savedRes, overlay);
+            }
+
+            overlay.addEventListener('click', e => { if (e.target === overlay) { restoreAspectSelect(); overlay.remove(); } });
+            overlay.querySelector('#cr-cancel').addEventListener('click', () => { restoreAspectSelect(); overlay.remove(); });
+
+            overlay.querySelector('#cr-save-btn').addEventListener('click', () => {
+                const w = parseInt(overlay.querySelector('#cr-w').value);
+                const h = parseInt(overlay.querySelector('#cr-h').value);
+                if (!w || !h || w < 100 || h < 100) return;
+                const key = w + 'x' + h;
+                const list = JSON.parse(localStorage.getItem('custom_resolutions') || '[]');
+                if (!list.includes(key)) {
+                    list.push(key);
+                    localStorage.setItem('custom_resolutions', JSON.stringify(list));
+                    // Refresh saved list in modal
+                    let sl = overlay.querySelector('#cr-saved-list');
+                    if (!sl) {
+                        const container = overlay.querySelector('.custom-res-modal');
+                        const label = document.createElement('div');
+                        label.style.cssText = 'font-size:11px;color:var(--text-dim);margin-bottom:6px;';
+                        label.textContent = '已保存的自定义分辨率：';
+                        sl = document.createElement('div');
+                        sl.className = 'saved-res-list';
+                        sl.id = 'cr-saved-list';
+                        container.insertBefore(sl, overlay.querySelector('.cr-actions'));
+                        container.insertBefore(label, sl);
+                    }
+                    renderSavedResList(sl, list, overlay);
+                    // Also refresh the main aspect-ratio select
+                    refreshAspectRatioSelect();
+                }
+            });
+
+            overlay.querySelector('#cr-ok').addEventListener('click', () => {
+                const w = parseInt(overlay.querySelector('#cr-w').value);
+                const h = parseInt(overlay.querySelector('#cr-h').value);
+                if (!w || !h || w < 100 || h < 100) return;
+                applyCustomResolution(w, h);
+                overlay.remove();
+            });
+        }
+
+        function renderSavedResList(el, list, overlay) {
+            el.innerHTML = '';
+            list.forEach((res, i) => {
+                const [w, h] = res.split('x');
+                const item = document.createElement('div');
+                item.className = 'saved-res-item';
+                item.innerHTML = `<span>📐 ${w} × ${h}</span><button class="sr-del">✕</button>`;
+                item.addEventListener('click', e => {
+                    if (e.target.closest('.sr-del')) return;
+                    overlay.querySelector('#cr-w').value = w;
+                    overlay.querySelector('#cr-h').value = h;
+                });
+                item.querySelector('.sr-del').addEventListener('click', e => {
+                    e.stopPropagation();
+                    const lst = JSON.parse(localStorage.getItem('custom_resolutions') || '[]');
+                    lst.splice(lst.indexOf(res), 1);
+                    localStorage.setItem('custom_resolutions', JSON.stringify(lst));
+                    renderSavedResList(el, lst, overlay);
+                    refreshAspectRatioSelect();
+                });
+                el.appendChild(item);
+            });
+        }
+
+        function applyCustomResolution(w, h) {
+            canvasW = w;
+            canvasH = h;
+            canvas.setWidth(w * DISPLAY_SCALE);
+            canvas.setHeight(h * DISPLAY_SCALE);
+            canvas.setZoom(DISPLAY_SCALE);
+            canvas.renderAll();
+            // Update select
+            const arSelect = document.getElementById('aspect-ratio');
+            const val = w + 'x' + h;
+            const opt = Array.from(arSelect.options).find(o => o.value === val);
+            if (opt) { arSelect.value = val; } else { arSelect.value = 'custom'; }
+            renderProjectTabs(); // update tab size display
+        }
+
+        function restoreAspectSelect() {
+            const arSelect = document.getElementById('aspect-ratio');
+            const val = canvasW + 'x' + canvasH;
+            const opt = Array.from(arSelect.options).find(o => o.value === val);
+            if (opt) { arSelect.value = val; } else { arSelect.value = 'custom'; }
+        }
+
+        function refreshAspectRatioSelect() {
+            const select = document.getElementById('aspect-ratio');
+            // Remove old custom options
+            const customSep = Array.from(select.options).find(o => o.textContent.includes('── 自定义'));
+            if (customSep) {
+                let idx = customSep.index;
+                while (select.options.length > idx + 1) { // keep '✏ 自定义…' which is 'custom'
+                    if (select.options[idx + 1] && select.options[idx + 1].value === 'custom') break;
+                    select.remove(idx + 1);
+                }
+                select.remove(idx); // remove separator
+            }
+            // Re-add saved custom resolutions before the 'custom' option
+            const savedRes = JSON.parse(localStorage.getItem('custom_resolutions') || '[]');
+            if (savedRes.length > 0) {
+                const customOpt = select.querySelector('option[value="custom"]');
+                const sep = document.createElement('option');
+                sep.disabled = true;
+                sep.textContent = '── 自定义 ──';
+                select.insertBefore(sep, customOpt);
+                savedRes.forEach(r => {
+                    const [w, h] = r.split('x');
+                    const opt = document.createElement('option');
+                    opt.value = r;
+                    opt.textContent = `${w}×${h}`;
+                    select.insertBefore(opt, customOpt);
+                });
+            }
+        }
+
+        // Init saved resolutions into the select on load
+        refreshAspectRatioSelect();
+
+        // Undo/Redo buttons
+        document.getElementById('btn-undo').addEventListener('click', () => undo());
+        document.getElementById('btn-redo').addEventListener('click', () => redo());
+
+        // ============ Undo / Redo ============
+        const undoStack = [];
+        const redoStack = [];
+        let isUndoRedoing = false;
+        const MAX_UNDO = 50;
+
+        function saveState() {
+            if (isUndoRedoing) return;
+            const json = canvas.toJSON(['_customName']);
+            undoStack.push(JSON.stringify(json));
+            if (undoStack.length > MAX_UNDO) undoStack.shift();
+            redoStack.length = 0; // clear redo on new action
+        }
+
+        function loadState(json) {
+            isUndoRedoing = true;
+            canvas.loadFromJSON(json, () => {
+                canvas.setZoom(DISPLAY_SCALE);
+                canvas.renderAll();
+                updateLayerPanel();
+                updatePropsPanel();
+                isUndoRedoing = false;
+            });
+        }
+
+        function undo() {
+            if (undoStack.length < 2) return;
+            const current = undoStack.pop();
+            redoStack.push(current);
+            const prev = undoStack[undoStack.length - 1];
+            loadState(prev);
+        }
+
+        function redo() {
+            if (redoStack.length === 0) return;
+            const next = redoStack.pop();
+            undoStack.push(next);
+            loadState(next);
+        }
+
+        // Hook canvas events for undo
+        canvas.on('object:added', () => { saveState(); updateLayerPanel(); });
+        canvas.on('object:removed', () => { saveState(); updateLayerPanel(); });
+        canvas.on('object:modified', () => { saveState(); updateLayerPanel(); });
+
+        // Save initial state
+        setTimeout(() => saveState(), 200);
+
+        // ============ Copy / Paste ============
+        let _clipboard = null;
+
+        function copyObject() {
+            const active = canvas.getActiveObject();
+            if (!active) return;
+            active.clone((cloned) => {
+                _clipboard = cloned;
+            }, ['_customName']);
+        }
+
+        function pasteObject() {
+            if (!_clipboard) return;
+            _clipboard.clone((cloned) => {
+                canvas.discardActiveObject();
+                cloned.set({
+                    left: cloned.left + 30,
+                    top: cloned.top + 30,
+                    evented: true,
+                });
+                if (cloned.type === 'activeSelection') {
+                    cloned.canvas = canvas;
+                    cloned.forEachObject((obj) => canvas.add(obj));
+                    cloned.setCoords();
+                } else {
+                    canvas.add(cloned);
+                }
+                // Shift clipboard for next paste
+                _clipboard.left += 30;
+                _clipboard.top += 30;
+                canvas.setActiveObject(cloned);
+                canvas.requestRenderAll();
+            }, ['_customName']);
+        }
+
+        // ============ Folder Favorites (Accordion) ============
+        let currentFolderFavorites = [];
+        const folderImageCache = {}; // cache loaded images per path
+
+        async function loadFolderFavorites() {
+            try {
+                const res = await fetch('/api/favorites');
+                currentFolderFavorites = await res.json();
+                renderFolderAccordion();
+            } catch (err) {
+                console.error('加载收藏夹失败:', err);
+            }
+        }
+
+        function renderFolderAccordion() {
+            const container = document.getElementById('folder-accordion');
+            container.innerHTML = '';
+            if (currentFolderFavorites.length === 0) {
+                container.innerHTML = '<div class="empty-hint">暂无收藏文件夹<br>点击 ＋ 添加</div>';
+                return;
+            }
+            currentFolderFavorites.forEach((fav, idx) => {
+                const item = document.createElement('div');
+                item.className = 'folder-acc-item';
+                item.innerHTML = `
+                    <div class="folder-acc-header">
+                        <span class="folder-acc-arrow">▶</span>
+                        <span class="folder-acc-name">📁 ${fav.name}</span>
+                        <span class="folder-acc-count"></span>
+                        <button class="folder-acc-remove" title="取消收藏">✕</button>
+                    </div>
+                `;
+
+                const header = item.querySelector('.folder-acc-header');
+                const countEl = item.querySelector('.folder-acc-count');
+
+                // Pre-load count
+                if (folderImageCache[fav.path]) {
+                    countEl.textContent = folderImageCache[fav.path].length + ' 张';
+                }
+
+                header.addEventListener('click', async (e) => {
+                    if (e.target.closest('.folder-acc-remove')) return;
+                    // Toggle: if the same folder is already open, close it
+                    if (_openBrowserFolderPath === fav.path) {
+                        closeImageBrowser();
+                        return;
+                    }
+                    openImageBrowser(fav.name, fav.path, countEl);
+                });
+
+                item.querySelector('.folder-acc-remove').addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    await fetch(`/api/favorites?path=${encodeURIComponent(fav.path)}`, { method: 'DELETE' });
+                    delete folderImageCache[fav.path];
+                    loadFolderFavorites();
+                });
+
+                container.appendChild(item);
+            });
+        }
+
+        // ============ Image Browser Flyout ============
+        let _openBrowserFolderPath = null;
+
+        function closeImageBrowser() {
+            const existing = document.querySelector('.img-browser-overlay');
+            if (existing) existing.remove();
+            _openBrowserFolderPath = null;
+            // Remove 'open' class from all folder items
+            document.querySelectorAll('.folder-acc-item.open').forEach(el => el.classList.remove('open'));
+        }
+
+        async function openImageBrowser(folderName, folderPath, countEl) {
+            // Close existing browser if any
+            closeImageBrowser();
+
+            const overlay = document.createElement('div');
+            overlay.className = 'img-browser-overlay';
+            overlay.innerHTML = `
+                <div class="img-browser-panel">
+                    <div class="img-browser-header">
+                        <h3>📁 ${folderName}</h3>
+                        <span class="img-count">加载中…</span>
+                        <button class="img-browser-close">✕ 关闭</button>
+                    </div>
+                    <div class="img-browser-search">
+                        <input type="text" placeholder="🔍 搜索图片名称…" id="img-browser-filter">
+                    </div>
+                    <div class="img-browser-grid" id="img-browser-grid">
+                        <div class="empty-hint">加载中…</div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+
+            // Track the open folder and mark it
+            _openBrowserFolderPath = folderPath;
+            document.querySelectorAll('.folder-acc-item').forEach(el => {
+                const nameEl = el.querySelector('.folder-acc-name');
+                if (nameEl && nameEl.textContent.includes(folderName)) {
+                    el.classList.add('open');
+                }
+            });
+
+            // Close on overlay click (clicking blank area) or button
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) closeImageBrowser();
+            });
+            overlay.querySelector('.img-browser-close').addEventListener('click', () => closeImageBrowser());
+
+            // ESC to close
+            const escHandler = (e) => {
+                if (e.key === 'Escape') { closeImageBrowser(); document.removeEventListener('keydown', escHandler); }
+            };
+            document.addEventListener('keydown', escHandler);
+
+            const grid = document.getElementById('img-browser-grid');
+            const countSpan = overlay.querySelector('.img-count');
+            const filterInput = document.getElementById('img-browser-filter');
+
+            let allImages = [];
+
+            // Use cache or fetch
+            if (folderImageCache[folderPath]) {
+                allImages = folderImageCache[folderPath];
+            } else {
+                try {
+                    const res = await fetch(`/api/browse?path=${encodeURIComponent(folderPath)}`);
+                    const data = await res.json();
+                    allImages = data.images || [];
+                    folderImageCache[folderPath] = allImages;
+                } catch (err) {
+                    grid.innerHTML = '<div class="empty-hint">加载失败</div>';
+                    return;
+                }
+            }
+
+            // Update count
+            countSpan.textContent = allImages.length + ' 张图片';
+            if (countEl) countEl.textContent = allImages.length + ' 张';
+
+            function renderImages(images) {
+                grid.innerHTML = '';
+                if (images.length === 0) {
+                    grid.innerHTML = '<div class="empty-hint">无匹配结果</div>';
+                    return;
+                }
+                for (const img of images) {
+                    const thumb = document.createElement('div');
+                    thumb.className = 'asset-thumb';
+                    thumb.innerHTML = `
+                        <img src="${img.url}" loading="lazy" alt="${img.name}">
+                        <div class="thumb-name">${img.name}</div>
+                    `;
+                    thumb.addEventListener('click', () => addImageToCanvas(img.url));
+                    grid.appendChild(thumb);
+                }
+            }
+
+            renderImages(allImages);
+
+            // Search filter
+            filterInput.addEventListener('input', () => {
+                const q = filterInput.value.trim().toLowerCase();
+                if (!q) {
+                    renderImages(allImages);
+                    countSpan.textContent = allImages.length + ' 张图片';
+                } else {
+                    const filtered = allImages.filter(img => img.name.toLowerCase().includes(q));
+                    renderImages(filtered);
+                    countSpan.textContent = `${filtered.length} / ${allImages.length} 张图片`;
+                }
+            });
+        }
+
+        // ============ Add Folder Modal ============
+        let browseCurrentPath = '';
+
+        document.getElementById('btn-add-folder').addEventListener('click', async () => {
+            openFolderModal();
+        });
+
+        async function openFolderModal() {
+            // Start from drives
+            const overlay = document.createElement('div');
+            overlay.className = 'folder-modal-overlay';
+            overlay.innerHTML = `
+                <div class="folder-modal">
+                    <div class="folder-modal-header">
+                        <h3>📁 选择文件夹</h3>
+                        <button class="folder-modal-close">✕</button>
+                    </div>
+                    <div class="folder-modal-path">
+                        <span class="path-text" id="modal-path-text">加载中…</span>
+                        <button id="modal-btn-up" style="display:none">⬆ 上级</button>
+                    </div>
+                    <div class="folder-modal-body" id="modal-folder-list"></div>
+                    <div class="folder-modal-footer">
+                        <input type="text" id="modal-folder-name" placeholder="收藏名称（留空使用文件夹名）">
+                        <button class="btn-confirm" id="modal-btn-add" disabled>⭐ 收藏此文件夹</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+
+            overlay.querySelector('.folder-modal-close').addEventListener('click', () => overlay.remove());
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) overlay.remove();
+            });
+
+            document.getElementById('modal-btn-up').addEventListener('click', () => {
+                if (browseCurrentPath) {
+                    // Go to parent
+                    const parts = browseCurrentPath.replace(/[\\/]+$/, '').split(/[\\/]/);
+                    if (parts.length <= 1) {
+                        // Back to drives
+                        browseCurrentPath = '';
+                        loadDrives();
+                    } else {
+                        parts.pop();
+                        let parentPath = parts.join('\\');
+                        if (parentPath.length === 2 && parentPath[1] === ':') parentPath += '\\';
+                        browseTo(parentPath);
+                    }
+                }
+            });
+
+            document.getElementById('modal-btn-add').addEventListener('click', async () => {
+                if (!browseCurrentPath) return;
+                const nameInput = document.getElementById('modal-folder-name');
+                const name = nameInput.value.trim();
+                try {
+                    const res = await fetch('/api/favorites', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: browseCurrentPath, name }),
+                    });
+                    if (res.ok) {
+                        overlay.remove();
+                        activeFolderIndex = currentFolderFavorites.length; // new one will be last
+                        loadFolderFavorites();
+                    } else {
+                        const err = await res.json();
+                        alert(err.detail || '添加失败');
+                    }
+                } catch (e) {
+                    alert('添加失败: ' + e.message);
+                }
+            });
+
+            loadDrives();
+        }
+
+        async function loadDrives() {
+            const list = document.getElementById('modal-folder-list');
+            const pathText = document.getElementById('modal-path-text');
+            const btnUp = document.getElementById('modal-btn-up');
+            const btnAdd = document.getElementById('modal-btn-add');
+            list.innerHTML = '<div class="empty-hint">加载中…</div>';
+            pathText.textContent = '选择驱动器';
+            btnUp.style.display = 'none';
+            btnAdd.disabled = true;
+            browseCurrentPath = '';
+            try {
+                const res = await fetch('/api/drives');
+                const drives = await res.json();
+                list.innerHTML = '';
+                drives.forEach(d => {
+                    const item = document.createElement('div');
+                    item.className = 'folder-browse-item';
+                    item.innerHTML = `<span class="folder-icon">💾</span> ${d.name}`;
+                    item.addEventListener('click', () => browseTo(d.path));
+                    list.appendChild(item);
+                });
+            } catch (e) {
+                list.innerHTML = '<div class="empty-hint">加载失败</div>';
+            }
+        }
+
+        async function browseTo(path) {
+            const list = document.getElementById('modal-folder-list');
+            const pathText = document.getElementById('modal-path-text');
+            const btnUp = document.getElementById('modal-btn-up');
+            const btnAdd = document.getElementById('modal-btn-add');
+            list.innerHTML = '<div class="empty-hint">加载中…</div>';
+            try {
+                const res = await fetch(`/api/browse?path=${encodeURIComponent(path)}`);
+                const data = await res.json();
+                browseCurrentPath = data.current;
+                pathText.textContent = browseCurrentPath;
+                btnUp.style.display = '';
+                btnAdd.disabled = false;
+                list.innerHTML = '';
+                if (!data.subdirs || data.subdirs.length === 0) {
+                    const hint = document.createElement('div');
+                    hint.className = 'empty-hint';
+                    hint.textContent = data.images && data.images.length > 0
+                        ? `包含 ${data.images.length} 张图片`
+                        : '此文件夹为空';
+                    list.appendChild(hint);
+                }
+                if (data.subdirs) {
+                    data.subdirs.forEach(d => {
+                        const item = document.createElement('div');
+                        item.className = 'folder-browse-item';
+                        item.innerHTML = `<span class="folder-icon">📁</span> ${d.name}`;
+                        if (data.images && data.images.length > 0) {
+                            // Also show image count hint
+                        }
+                        item.addEventListener('click', () => browseTo(d.path));
+                        list.appendChild(item);
+                    });
+                }
+                if (data.images && data.images.length > 0 && data.subdirs && data.subdirs.length > 0) {
+                    const hint = document.createElement('div');
+                    hint.className = 'empty-hint';
+                    hint.style.paddingTop = '8px';
+                    hint.textContent = `+ ${data.images.length} 张图片`;
+                    list.appendChild(hint);
+                }
+            } catch (e) {
+                list.innerHTML = '<div class="empty-hint">无法访问此文件夹</div>';
+            }
+        }
+
+        // ============ Add Image to Canvas ============
+        let _imgCounter = 0;
+        function addImageToCanvas(url) {
+            fabric.Image.fromURL(url, (img) => {
+                const maxDim = Math.min(canvasW, canvasH) * 0.4;
+                const scale = Math.min(maxDim / img.width, maxDim / img.height, 1);
+                _imgCounter++;
+                img.set({
+                    left: canvasW / 2,
+                    top: canvasH / 2,
+                    originX: 'center',
+                    originY: 'center',
+                    scaleX: scale,
+                    scaleY: scale,
+
+                    _customName: '图片 ' + _imgCounter,
+                });
+                canvas.add(img);
+                canvas.setActiveObject(img);
+                canvas.renderAll();
+            }, { crossOrigin: 'anonymous' });
+        }
+
+        // ============ Add Text ============
+        let _textCounter = 0;
+        function addText() {
+            const fontSelect = document.getElementById('prop-fontfamily');
+            const defaultFont = fontSelect.value || 'Microsoft YaHei';
+            _textCounter++;
+            const text = new fabric.IText('文字', {
+                left: canvasW / 2,
+                top: canvasH / 2,
+                originX: 'center',
+                originY: 'center',
+                fontFamily: defaultFont,
+                fontSize: 72,
+                fontWeight: 'bold',
+                fill: '#ffffff',
+                stroke: '#000000',
+                strokeWidth: 2,
+                paintFirst: 'stroke',
+                strokeLineJoin: 'round',
+
+                shadow: new fabric.Shadow({
+                    color: 'rgba(0,0,0,0)',
+                    blur: 0,
+                    offsetX: 0,
+                    offsetY: 0,
+                }),
+                _customName: '文字 ' + _textCounter,
+            });
+            canvas.add(text);
+            canvas.setActiveObject(text);
+            canvas.renderAll();
+        }
+
+        document.getElementById('btn-add-text').addEventListener('click', addText);
+
+        // ============ Game Assets Panel (Flyout) ============
+        const _gameCharCache = {}; // { genshin_characters: [...], genshin_monsters: [...], ... }
+        let _currentGameSource = 'genshin_characters';
+        let _gameFlyoutOpen = false;
+
+        function closeGameFlyout() {
+            const existing = document.querySelector('.game-flyout-overlay');
+            if (existing) existing.remove();
+            _gameFlyoutOpen = false;
+        }
+
+        function openGameFlyout() {
+            if (_gameFlyoutOpen) { closeGameFlyout(); return; }
+
+            const overlay = document.createElement('div');
+            overlay.className = 'game-flyout-overlay';
+            overlay.innerHTML = `
+                <div class="game-flyout-panel">
+                    <div class="game-flyout-header">
+                        <h3>🎮 游戏素材</h3>
+                        <button class="btn-retry-all" id="btn-retry-all" title="重新下载所有失败图片">🔄 重新下载</button>
+                        <button class="game-flyout-close">✕</button>
+                    </div>
+                    <div class="game-flyout-tabs">
+                        <button class="game-tab active" data-source="genshin_characters">原神角色</button>
+                        <button class="game-tab" data-source="genshin_monsters">原神怪物</button>
+                        <button class="game-tab" data-source="starrail_characters">星穹铁道</button>
+                        <button class="game-tab" data-source="zzz_characters">绝区零</button>
+                    </div>
+                    <div class="game-flyout-search">
+                        <input type="text" placeholder="🔍 搜索…" id="game-char-filter">
+                    </div>
+                    <div class="game-flyout-grid" id="game-char-grid">
+                        <div class="game-loading">⏳ 加载中…首次可能较慢</div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            _gameFlyoutOpen = true;
+
+            // Close handlers
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) closeGameFlyout(); });
+            overlay.querySelector('.game-flyout-close').addEventListener('click', () => closeGameFlyout());
+            const escHandler = (e) => {
+                if (e.key === 'Escape') { closeGameFlyout(); document.removeEventListener('keydown', escHandler); }
+            };
+            document.addEventListener('keydown', escHandler);
+
+            // Flat tab clicks
+            overlay.querySelectorAll('.game-tab').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    overlay.querySelectorAll('.game-tab').forEach(t => t.classList.remove('active'));
+                    btn.classList.add('active');
+                    loadGameCharacters(btn.dataset.source, overlay);
+                });
+            });
+
+            // Search filter
+            overlay.querySelector('#game-char-filter').addEventListener('input', (e) => {
+                const q = e.target.value.trim().toLowerCase();
+                const chars = _gameCharCache[_currentGameSource] || [];
+                if (!q) {
+                    renderGameCharacters(chars, overlay);
+                } else {
+                    renderGameCharacters(chars.filter(c => c.name.toLowerCase().includes(q)), overlay);
+                }
+            });
+
+            // Retry all failed downloads: force refresh from backend
+            overlay.querySelector('#btn-retry-all').addEventListener('click', async () => {
+                const source = _currentGameSource;
+                delete _gameCharCache[source];
+                const grid = overlay.querySelector('#game-char-grid');
+                grid.innerHTML = '<div class="game-loading">🔄 重新下载中…</div>';
+                try {
+                    const res = await fetch(`/api/hoyo/refresh?source=${source}`);
+                    const data = await res.json();
+                    _gameCharCache[source] = data.items || [];
+                    renderGameCharacters(_gameCharCache[source], overlay);
+                } catch (err) {
+                    grid.innerHTML = '<div class="game-loading">❌ 刷新失败</div>';
+                }
+            });
+
+            // Load initial data
+            loadGameCharacters('genshin_characters', overlay);
+        }
+
+        async function loadGameCharacters(source, overlay) {
+            _currentGameSource = source;
+            const grid = overlay.querySelector('#game-char-grid');
+            const filterInput = overlay.querySelector('#game-char-filter');
+            if (filterInput) filterInput.value = '';
+
+            // Check cache first
+            if (_gameCharCache[source]) {
+                renderGameCharacters(_gameCharCache[source], overlay);
+                return;
+            }
+
+            grid.innerHTML = '<div class="game-loading">⏳ 加载中…首次可能较慢</div>';
+
+            try {
+                const res = await fetch(`/api/hoyo/resources?source=${source}`);
+                const data = await res.json();
+                _gameCharCache[source] = data.items || [];
+                renderGameCharacters(_gameCharCache[source], overlay);
+            } catch (err) {
+                grid.innerHTML = '<div class="game-loading">❌ 加载失败</div>';
+            }
+        }
+
+        function renderGameCharacters(chars, overlay) {
+            const grid = overlay.querySelector('#game-char-grid');
+            grid.innerHTML = '';
+            if (chars.length === 0) {
+                grid.innerHTML = '<div class="empty-hint">无匹配素材</div>';
+                return;
+            }
+            for (const ch of chars) {
+                const thumb = document.createElement('div');
+                thumb.className = 'game-char-thumb' + (ch.rarity >= 5 ? ' rarity-5' : '');
+                thumb.title = ch.name;
+                const img = document.createElement('img');
+                img.src = ch.url;
+                img.loading = 'lazy';
+                img.alt = ch.name;
+                img.addEventListener('error', () => {
+                    thumb.classList.add('img-failed');
+                    if (!thumb.querySelector('.retry-btn')) {
+                        const retryBtn = document.createElement('button');
+                        retryBtn.className = 'retry-btn';
+                        retryBtn.textContent = '🔄 重试';
+                        retryBtn.addEventListener('click', async (e) => {
+                            e.stopPropagation();
+                            retryBtn.textContent = '⏳';
+                            retryBtn.disabled = true;
+                            try {
+                                const res = await fetch(`/api/hoyo/retry_image?source=${encodeURIComponent(_currentGameSource)}&name=${encodeURIComponent(ch.name)}`);
+                                if (res.ok) {
+                                    const data = await res.json();
+                                    thumb.classList.remove('img-failed');
+                                    retryBtn.remove();
+                                    ch.url = data.url;
+                                    img.src = data.url;
+                                } else {
+                                    retryBtn.textContent = '❌ 失败';
+                                    setTimeout(() => { retryBtn.textContent = '🔄 重试'; retryBtn.disabled = false; }, 2000);
+                                }
+                            } catch {
+                                retryBtn.textContent = '❌ 失败';
+                                setTimeout(() => { retryBtn.textContent = '🔄 重试'; retryBtn.disabled = false; }, 2000);
+                            }
+                        });
+                        thumb.appendChild(retryBtn);
+                    }
+                });
+                img.addEventListener('load', () => {
+                    thumb.classList.remove('img-failed');
+                    const existingRetry = thumb.querySelector('.retry-btn');
+                    if (existingRetry) existingRetry.remove();
+                });
+                thumb.appendChild(img);
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'game-char-name';
+                nameDiv.textContent = ch.name;
+                thumb.appendChild(nameDiv);
+                thumb.addEventListener('click', () => addImageToCanvas(ch.url));
+                grid.appendChild(thumb);
+            }
+        }
+
+        // Wire up the "打开素材面板" button
+        document.getElementById('btn-open-game-panel').addEventListener('click', () => openGameFlyout());
+
+        // ============ Keyboard Shortcuts ============
+        document.addEventListener('keydown', (e) => {
+            const tag = e.target.tagName;
+            const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+            const active = canvas.getActiveObject();
+
+            // Ctrl+Z Undo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+                return;
+            }
+            // Ctrl+Y or Ctrl+Shift+Z Redo
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                redo();
+                return;
+            }
+            // Ctrl+C Copy
+            if ((e.ctrlKey || e.metaKey) && e.key === 'c' && !isInput) {
+                e.preventDefault();
+                copyObject();
+                return;
+            }
+            // Ctrl+V Paste — handled by 'paste' event below for clipboard image support
+            // Delete / Backspace
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (isInput) return;
+                if (active && !active.isEditing) {
+                    canvas.remove(active);
+                    canvas.discardActiveObject();
+                    canvas.renderAll();
+                    updatePropsPanel();
+                }
+            }
+        });
+
+        // ============ Ctrl+V: Clipboard Image Paste ============
+        document.addEventListener('paste', (e) => {
+            const tag = e.target.tagName;
+            const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+            if (isInput) return;
+
+            const items = e.clipboardData && e.clipboardData.items;
+            if (items) {
+                for (const item of items) {
+                    if (item.type.startsWith('image/')) {
+                        e.preventDefault();
+                        const blob = item.getAsFile();
+                        const reader = new FileReader();
+                        reader.onload = (evt) => {
+                            fabric.Image.fromURL(evt.target.result, (img) => {
+                                const maxDim = Math.min(canvasW, canvasH) * 0.6;
+                                const scale = Math.min(maxDim / img.width, maxDim / img.height, 1);
+                                _imgCounter++;
+                                img.set({
+                                    left: canvasW / 2,
+                                    top: canvasH / 2,
+                                    originX: 'center',
+                                    originY: 'center',
+                                    scaleX: scale,
+                                    scaleY: scale,
+                                    _customName: '粘贴图片 ' + _imgCounter,
+                                });
+                                canvas.add(img);
+                                canvas.setActiveObject(img);
+                                canvas.renderAll();
+                            });
+                        };
+                        reader.readAsDataURL(blob);
+                        return;
+                    }
+                }
+            }
+            // No clipboard image found — fall back to Fabric object paste
+            pasteObject();
+        });
+
+        // ============ Aspect Ratio ============
+        document.getElementById('aspect-ratio').addEventListener('change', (e) => {
+            if (e.target.value === 'custom') {
+                openCustomResolutionModal();
+                return;
+            }
+            const [w, h] = e.target.value.split('x').map(Number);
+            canvasW = w;
+            canvasH = h;
+            canvas.setWidth(w * DISPLAY_SCALE);
+            canvas.setHeight(h * DISPLAY_SCALE);
+            canvas.setZoom(DISPLAY_SCALE);
+            canvas.renderAll();
+            renderProjectTabs();
+        });
+
+        // ============ Background Color ============
+        const bgColorInput = document.getElementById('bg-color');
+        bgColorInput.addEventListener('input', (e) => {
+            canvas.setBackgroundColor(e.target.value, () => canvas.renderAll());
+        });
+        document.getElementById('btn-bg-transparent').addEventListener('click', () => {
+            canvas.setBackgroundColor('', () => canvas.renderAll());
+            bgColorInput.value = '#000000';
+        });
+
+        // ============ Export ============
+        document.getElementById('btn-export').addEventListener('click', () => {
+            canvas.discardActiveObject();
+            canvas.renderAll();
+            const dataURL = canvas.toDataURL({
+                format: 'png',
+                multiplier: 1 / DISPLAY_SCALE,
+            });
+            const link = document.createElement('a');
+            link.download = `封面_${canvasW}x${canvasH}_${Date.now()}.png`;
+            link.href = dataURL;
+            link.click();
+        });
+
+        // ============ Layer Panel ============
+        function getObjectName(obj) {
+            if (obj._customName) return obj._customName;
+            if (obj.type === 'i-text' || obj.type === 'text' || obj.type === 'textbox') {
+                return '𝐓 ' + (obj.text || '').substring(0, 10);
+            }
+            if (obj.type === 'image') return '🖼 图片';
+            return obj.type;
+        }
+
+        function updateLayerPanel() {
+            const list = document.getElementById('layer-list');
+            list.innerHTML = '';
+            const objects = canvas.getObjects();
+            const active = canvas.getActiveObject();
+
+            // Reverse order: top layer first
+            for (let i = objects.length - 1; i >= 0; i--) {
+                const obj = objects[i];
+                const item = document.createElement('div');
+                item.className = 'layer-item' + (obj === active ? ' active' : '');
+
+                const isVisible = obj.visible !== false;
+                const isLocked = obj.selectable === false;
+
+                item.innerHTML = `
+                    <span class="layer-preview">${obj.type === 'image' ? '🖼' : '𝐓'}</span>
+                    <span class="layer-name">${getObjectName(obj)}</span>
+                    <button class="layer-btn ${isVisible ? '' : 'off'}" data-action="visibility" title="显示/隐藏">${isVisible ? '👁' : '🚫'}</button>
+                    <button class="layer-btn ${isLocked ? 'off' : ''}" data-action="lock" title="锁定/解锁">${isLocked ? '🔒' : '🔓'}</button>
+                    <button class="layer-btn" data-action="up" title="上移">▲</button>
+                    <button class="layer-btn" data-action="down" title="下移">▼</button>
+                `;
+
+                // Click to select
+                item.addEventListener('click', (e) => {
+                    if (e.target.closest('.layer-btn')) return;
+                    if (obj.selectable !== false) {
+                        canvas.setActiveObject(obj);
+                        canvas.renderAll();
+                        updatePropsPanel();
+                        updateLayerPanel();
+                    }
+                });
+
+                // Button actions
+                item.querySelectorAll('.layer-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const action = btn.dataset.action;
+                        if (action === 'visibility') {
+                            obj.visible = !obj.visible;
+                        } else if (action === 'lock') {
+                            const lock = obj.selectable !== false;
+                            obj.selectable = !lock;
+                            obj.evented = !lock;
+                        } else if (action === 'up') {
+                            // Move up = increase index (swap with next in array)
+                            if (i < objects.length - 1) {
+                                canvas.moveTo(obj, i + 1);
+                            }
+                        } else if (action === 'down') {
+                            if (i > 0) {
+                                canvas.moveTo(obj, i - 1);
+                            }
+                        }
+                        canvas.renderAll();
+                        updateLayerPanel();
+                    });
+                });
+
+                list.appendChild(item);
+            }
+
+            if (objects.length === 0) {
+                list.innerHTML = '<div class="empty-hint">暂无图层</div>';
+            }
+        }
+
+        // ============ Properties Panel ============
+        function updatePropsPanel() {
+            const obj = canvas.getActiveObject();
+            const objProps = document.getElementById('obj-props');
+            const textProps = document.getElementById('text-props');
+            const hint = document.getElementById('no-selection-hint');
+
+            if (!obj) {
+                objProps.style.display = 'none';
+                textProps.style.display = 'none';
+                hint.style.display = '';
+                return;
+            }
+
+            hint.style.display = 'none';
+            objProps.style.display = '';
+
+            document.getElementById('prop-x').value = Math.round(obj.left);
+            document.getElementById('prop-y').value = Math.round(obj.top);
+            document.getElementById('prop-w').value = Math.round(obj.getScaledWidth());
+            document.getElementById('prop-h').value = Math.round(obj.getScaledHeight());
+            document.getElementById('prop-angle').value = Math.round(obj.angle || 0);
+            document.getElementById('prop-opacity').value = Math.round((obj.opacity ?? 1) * 100);
+            document.getElementById('prop-opacity-val').textContent = Math.round((obj.opacity ?? 1) * 100) + '%';
+
+            if (obj.type === 'i-text' || obj.type === 'text' || obj.type === 'textbox') {
+                textProps.style.display = '';
+                document.getElementById('prop-text').value = obj.text || '';
+                document.getElementById('prop-fontsize').value = obj.fontSize || 72;
+                document.getElementById('prop-fill').value = obj.fill || '#ffffff';
+                document.getElementById('prop-stroke').value = obj.stroke || '#000000';
+                document.getElementById('prop-strokewidth').value = obj.strokeWidth || 0;
+                document.getElementById('prop-fontfamily').value = obj.fontFamily || 'Microsoft YaHei';
+                document.getElementById('prop-fontweight').value = obj.fontWeight || 'bold';
+
+                const s = obj.shadow;
+                if (s) {
+                    document.getElementById('prop-shadow-color').value = rgbaToHex(s.color) || '#000000';
+                    document.getElementById('prop-shadow-x').value = s.offsetX || 0;
+                    document.getElementById('prop-shadow-y').value = s.offsetY || 0;
+                    document.getElementById('prop-shadow-blur').value = s.blur || 0;
+                    document.getElementById('prop-shadow-blur-val').textContent = s.blur || 0;
+                }
+            } else {
+                textProps.style.display = 'none';
+            }
+        }
+
+        function rgbaToHex(color) {
+            if (!color) return '#000000';
+            if (color.startsWith('#')) return color;
+            const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+            if (match) {
+                const r = parseInt(match[1]).toString(16).padStart(2, '0');
+                const g = parseInt(match[2]).toString(16).padStart(2, '0');
+                const b = parseInt(match[3]).toString(16).padStart(2, '0');
+                return `#${r}${g}${b}`;
+            }
+            return '#000000';
+        }
+
+        canvas.on('selection:created', () => { updatePropsPanel(); updateLayerPanel(); });
+        canvas.on('selection:updated', () => { updatePropsPanel(); updateLayerPanel(); });
+        canvas.on('selection:cleared', () => { updatePropsPanel(); updateLayerPanel(); });
+        canvas.on('object:modified', updatePropsPanel);
+        canvas.on('object:moving', updatePropsPanel);
+        canvas.on('object:scaling', updatePropsPanel);
+        canvas.on('object:rotating', updatePropsPanel);
+
+        // ============ Property Bindings ============
+        function bindProp(id, setter) {
+            document.getElementById(id).addEventListener('input', (e) => {
+                const obj = canvas.getActiveObject();
+                if (!obj) return;
+                setter(obj, e.target.value);
+                canvas.renderAll();
+            });
+            document.getElementById(id).addEventListener('change', (e) => {
+                const obj = canvas.getActiveObject();
+                if (!obj) return;
+                setter(obj, e.target.value);
+                canvas.renderAll();
+            });
+        }
+
+        bindProp('prop-x', (o, v) => o.set('left', Number(v)));
+        bindProp('prop-y', (o, v) => o.set('top', Number(v)));
+        bindProp('prop-angle', (o, v) => o.set('angle', Number(v)));
+        bindProp('prop-opacity', (o, v) => {
+            o.set('opacity', Number(v) / 100);
+            document.getElementById('prop-opacity-val').textContent = v + '%';
+        });
+
+        bindProp('prop-w', (o, v) => {
+            const newW = Number(v);
+            if (newW > 0) o.scaleToWidth(newW);
+        });
+        bindProp('prop-h', (o, v) => {
+            const newH = Number(v);
+            if (newH > 0) o.scaleToHeight(newH);
+        });
+
+        bindProp('prop-text', (o, v) => { if (o.set) o.set('text', v); });
+        bindProp('prop-fontsize', (o, v) => o.set('fontSize', Number(v)));
+        bindProp('prop-fill', (o, v) => o.set('fill', v));
+        bindProp('prop-stroke', (o, v) => o.set('stroke', v));
+        bindProp('prop-strokewidth', (o, v) => o.set('strokeWidth', Number(v)));
+        bindProp('prop-fontfamily', (o, v) => o.set('fontFamily', v));
+        bindProp('prop-fontweight', (o, v) => o.set('fontWeight', v));
+
+        // Shadow
+        function updateShadow() {
+            const obj = canvas.getActiveObject();
+            if (!obj) return;
+            const color = document.getElementById('prop-shadow-color').value;
+            const ox = Number(document.getElementById('prop-shadow-x').value) || 0;
+            const oy = Number(document.getElementById('prop-shadow-y').value) || 0;
+            const blur = Number(document.getElementById('prop-shadow-blur').value) || 0;
+            document.getElementById('prop-shadow-blur-val').textContent = blur;
+            obj.set('shadow', new fabric.Shadow({
+                color: color,
+                blur: blur,
+                offsetX: ox,
+                offsetY: oy,
+            }));
+            canvas.renderAll();
+        }
+
+        ['prop-shadow-color', 'prop-shadow-x', 'prop-shadow-y', 'prop-shadow-blur'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateShadow);
+            document.getElementById(id).addEventListener('change', updateShadow);
+        });
+
+        // Buttons
+        document.getElementById('btn-bring-front').addEventListener('click', () => {
+            const obj = canvas.getActiveObject();
+            if (obj) { canvas.bringToFront(obj); canvas.renderAll(); updateLayerPanel(); }
+        });
+        document.getElementById('btn-send-back').addEventListener('click', () => {
+            const obj = canvas.getActiveObject();
+            if (obj) { canvas.sendToBack(obj); canvas.renderAll(); updateLayerPanel(); }
+        });
+        document.getElementById('btn-delete').addEventListener('click', () => {
+            const obj = canvas.getActiveObject();
+            if (obj) {
+                canvas.remove(obj);
+                canvas.discardActiveObject();
+                canvas.renderAll();
+                updatePropsPanel();
+            }
+        });
+
+        // ============ Font Effect Favorites ============
+        const FAV_KEY = 'coverTool_fontFavorites';
+
+        function loadFavorites() {
+            try {
+                return JSON.parse(localStorage.getItem(FAV_KEY)) || [];
+            } catch { return []; }
+        }
+
+        function saveFavorites(favs) {
+            localStorage.setItem(FAV_KEY, JSON.stringify(favs));
+        }
+
+        function renderFavorites() {
+            const list = document.getElementById('fav-list');
+            const favs = loadFavorites();
+            list.innerHTML = '';
+            if (favs.length === 0) {
+                list.innerHTML = '<div class="empty-hint" style="padding:8px">暂无收藏</div>';
+                return;
+            }
+            favs.forEach((fav, idx) => {
+                const item = document.createElement('div');
+                item.className = 'fav-item';
+                item.innerHTML = `
+                    <span class="fav-preview" style="color:${fav.fill || '#fff'};
+                        ${fav.stroke ? '-webkit-text-stroke:1px ' + fav.stroke + ';' : ''}">A</span>
+                    <span class="fav-name">${fav.name}</span>
+                    <span style="font-size:10px;color:var(--text-dim)">${fav.fontFamily || ''}</span>
+                    <button class="fav-del" title="删除">✕</button>
+                `;
+
+                // Apply favorite
+                item.addEventListener('click', (e) => {
+                    if (e.target.closest('.fav-del')) return;
+                    const obj = canvas.getActiveObject();
+                    if (!obj || (obj.type !== 'i-text' && obj.type !== 'text' && obj.type !== 'textbox')) {
+                        return;
+                    }
+                    obj.set({
+                        fontFamily: fav.fontFamily,
+                        fontSize: fav.fontSize,
+                        fontWeight: fav.fontWeight,
+                        fill: fav.fill,
+                        stroke: fav.stroke,
+                        strokeWidth: fav.strokeWidth,
+                        paintFirst: 'stroke',
+                        strokeLineJoin: 'round',
+                    });
+                    if (fav.shadow) {
+                        obj.set('shadow', new fabric.Shadow(fav.shadow));
+                    }
+                    canvas.renderAll();
+                    updatePropsPanel();
+                });
+
+                // Delete favorite
+                item.querySelector('.fav-del').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const favs = loadFavorites();
+                    favs.splice(idx, 1);
+                    saveFavorites(favs);
+                    renderFavorites();
+                });
+
+                list.appendChild(item);
+            });
+        }
+
+        document.getElementById('btn-save-fav').addEventListener('click', () => {
+            const obj = canvas.getActiveObject();
+            if (!obj || (obj.type !== 'i-text' && obj.type !== 'text' && obj.type !== 'textbox')) {
+                return;
+            }
+            const nameInput = document.getElementById('fav-name-input');
+            const name = nameInput.value.trim() || `效果 ${loadFavorites().length + 1}`;
+
+            const fav = {
+                name: name,
+                fontFamily: obj.fontFamily,
+                fontSize: obj.fontSize,
+                fontWeight: obj.fontWeight,
+                fill: obj.fill,
+                stroke: obj.stroke,
+                strokeWidth: obj.strokeWidth,
+            };
+
+            if (obj.shadow) {
+                fav.shadow = {
+                    color: obj.shadow.color,
+                    blur: obj.shadow.blur,
+                    offsetX: obj.shadow.offsetX,
+                    offsetY: obj.shadow.offsetY,
+                };
+            }
+
+            const favs = loadFavorites();
+            favs.push(fav);
+            saveFavorites(favs);
+            nameInput.value = '';
+            renderFavorites();
+        });
+
+        renderFavorites();
+
+        // ============ Load Fonts ============
+        const SYSTEM_FONTS = ['Microsoft YaHei', 'SimHei', 'KaiTi', 'Arial', 'Impact'];
+
+        async function loadFonts() {
+            const select = document.getElementById('prop-fontfamily');
+            try {
+                const res = await fetch('/api/fonts');
+                const fonts = await res.json();
+
+                if (fonts.length > 0) {
+                    select.innerHTML = '';
+                    const loadPromises = fonts.map(async (f) => {
+                        const fontFace = new FontFace(f.name, `url(${f.url})`);
+                        try {
+                            const loaded = await fontFace.load();
+                            document.fonts.add(loaded);
+                            const opt = document.createElement('option');
+                            opt.value = f.name;
+                            opt.textContent = f.name;
+                            opt.style.fontFamily = f.name;
+                            select.appendChild(opt);
+                            console.log(`✓ 字体已加载: ${f.name}`);
+                        } catch (err) {
+                            console.warn(`✗ 字体加载失败: ${f.name}`, err);
+                        }
+                    });
+                    await Promise.all(loadPromises);
+
+                    const sep = document.createElement('option');
+                    sep.disabled = true;
+                    sep.textContent = '── 系统字体 ──';
+                    select.appendChild(sep);
+                }
+
+                SYSTEM_FONTS.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    select.appendChild(opt);
+                });
+            } catch (err) {
+                console.error('加载字体列表失败:', err);
+            }
+        }
+
+
+        // ============ Init ============
+        // Create default project
+        projects.push({
+            id: generateId(),
+            name: '工程 1',
+            width: 1920,
+            height: 1080,
+            bgColor: '#ffffff',
+            canvasJSON: null,
+            undoStack: [],
+            redoStack: [],
+        });
+        activeProjectId = projects[0].id;
+        renderProjectTabs();
+        loadFolderFavorites();
+        loadFonts();
+    </script>
+</body>
+
+</html>

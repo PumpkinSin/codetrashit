@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 320px;
+            font-family: -apple-system, "Microsoft YaHei", sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            padding: 16px;
+        }
+
+        h2 {
+            font-size: 15px;
+            font-weight: 600;
+            color: #00aeec;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        h2::before {
+            content: "⚙";
+            font-size: 16px;
+        }
+
+        .field {
+            margin-bottom: 12px;
+        }
+
+        .field label {
+            display: block;
+            font-size: 12px;
+            color: #9aa0a6;
+            margin-bottom: 4px;
+        }
+
+        .field input {
+            width: 100%;
+            padding: 7px 10px;
+            border: 1px solid #333;
+            border-radius: 6px;
+            background: #16213e;
+            color: #e0e0e0;
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .field input:focus {
+            border-color: #00aeec;
+        }
+
+        .field .hint {
+            font-size: 11px;
+            color: #666;
+            margin-top: 3px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        button {
+            flex: 1;
+            padding: 8px 0;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.85;
+        }
+
+        #btn-save {
+            background: #00aeec;
+            color: #fff;
+        }
+
+        #btn-run {
+            background: #2ecc71;
+            color: #fff;
+        }
+
+        .status {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #4caf50;
+            min-height: 16px;
+            text-align: center;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #2a2a3e;
+            margin: 14px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>抓取配置</h2>
+
+    <div class="field">
+        <label>中转服务端口</label>
+        <input type="number" id="port" min="1" max="65535" placeholder="8080">
+        <div class="hint">本地 Node.js 聚合服务的端口号</div>
+    </div>
+
+    <div class="field">
+        <label>最大翻页数</label>
+        <input type="number" id="maxPages" min="1" max="20" placeholder="5">
+        <div class="hint">每次抓取最多翻几页（每页约15条混合动态）</div>
+    </div>
+
+    <div class="field">
+        <label>抓取间隔（分钟）</label>
+        <input type="number" id="interval" min="5" max="1440" placeholder="30">
+        <div class="hint">两次抓取之间的间隔，建议 ≥ 20 分钟</div>
+    </div>
+
+    <div class="field">
+        <label>翻页最小延迟（秒）</label>
+        <input type="number" id="minDelay" min="3" max="60" placeholder="10">
+    </div>
+
+    <div class="field">
+        <label>翻页最大延迟（秒）</label>
+        <input type="number" id="maxDelay" min="5" max="120" placeholder="15">
+    </div>
+
+    <div class="actions">
+        <button id="btn-save">💾 保存配置</button>
+        <button id="btn-run">▶ 立刻抓取</button>
+    </div>
+
+    <div class="status" id="status"></div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>

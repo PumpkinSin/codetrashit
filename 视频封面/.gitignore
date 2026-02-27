@@ -1,0 +1,8 @@
+# 字体文件
+assets/fonts/
+
+# 缓存图片
+cache/
+
+# Python 缓存
+__pycache__/

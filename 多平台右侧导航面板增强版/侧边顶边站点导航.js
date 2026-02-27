@@ -8,7 +8,9 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_addStyle
+// @grant        GM_listValues
 // @grant        GM_registerMenuCommand
+// @noframes
 // @run-at       document-end
 // @downloadURL https://update.greasyfork.org/scripts/548905/%E5%AF%BC%E8%88%AA%E9%9D%A2%E6%9D%BF.user.js
 // @updateURL https://update.greasyfork.org/scripts/548905/%E5%AF%BC%E8%88%AA%E9%9D%A2%E6%9D%BF.meta.js
@@ -281,55 +283,65 @@
     */
 
     // 导出数据
+    let _exportBusy = false;
     function exportData() {
-        const data = {
-            version: '1.1',
-            timestamp: new Date().toISOString(),
-            globalEnableSettings: GM_getValue(GLOBAL_ENABLE_KEY, {}),
-            platforms: {}
-        };
-
-        // 收集所有平台数据 - 动态从存储中获取
-        const allKeys = GM_listValues();
-        const platformKeys = new Set();
-
-        // 找出所有平台的配置键
-        allKeys.forEach(key => {
-            if (key.endsWith('_config')) {
-                const platform = key.replace('_config', '');
-                platformKeys.add(platform);
-            }
-        });
-
-        // 为每个平台收集数据
-        platformKeys.forEach(platform => {
-            const pConfigKey = `${platform}_config`;
-            const config = GM_getValue(pConfigKey, {});
-
-            // 确定存储键
-            let pStorageKey;
-            if (config.sharedDomains && config.sharedDomains.length > 1) {
-                const sharedKey = [...config.sharedDomains].sort().join('_').replace(/\./g, '_');
-                pStorageKey = `shared_${sharedKey}_users`;
-            } else {
-                pStorageKey = `${platform}_users`;
-            }
-
-            data.platforms[platform] = {
-                users: GM_getValue(pStorageKey, []),
-                config: config
+        if (_exportBusy) return;
+        _exportBusy = true;
+        try {
+            const data = {
+                version: '1.1',
+                timestamp: new Date().toISOString(),
+                globalEnableSettings: GM_getValue(GLOBAL_ENABLE_KEY, {}),
+                platforms: {}
             };
-        });
 
-        // 创建下载
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `navigation-panel-data-${Date.now()}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        alert('数据导出成功！包含所有站点的配置和启用状态。');
+            // 收集所有平台数据 - 动态从存储中获取
+            const allKeys = GM_listValues();
+            const platformKeys = new Set();
+
+            // 找出所有平台的配置键
+            allKeys.forEach(key => {
+                if (key.endsWith('_config')) {
+                    const platform = key.replace('_config', '');
+                    platformKeys.add(platform);
+                }
+            });
+
+            // 为每个平台收集数据
+            platformKeys.forEach(platform => {
+                const pConfigKey = `${platform}_config`;
+                const config = GM_getValue(pConfigKey, {});
+
+                // 确定存储键
+                let pStorageKey;
+                if (config.sharedDomains && config.sharedDomains.length > 1) {
+                    const sharedKey = [...config.sharedDomains].sort().join('_').replace(/\./g, '_');
+                    pStorageKey = `shared_${sharedKey}_users`;
+                } else {
+                    pStorageKey = `${platform}_users`;
+                }
+
+                data.platforms[platform] = {
+                    users: GM_getValue(pStorageKey, []),
+                    config: config
+                };
+            });
+
+            // 创建下载
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `navigation-panel-data-${Date.now()}.json`;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            alert('数据导出成功！包含所有站点的配置和启用状态。');
+        } finally {
+            setTimeout(() => { _exportBusy = false; }, 1000);
+        }
     }
 
     // 导入数据
@@ -2089,6 +2101,26 @@
         }
 
 
+
+        // 导出数据按钮
+        const exportDataBtn = settingsPanel.querySelector('#export-data-btn');
+        if (exportDataBtn) {
+            exportDataBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                exportData();
+            });
+        }
+
+        // 导入数据按钮
+        const importDataBtn = settingsPanel.querySelector('#import-data-btn');
+        if (importDataBtn) {
+            importDataBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                importData();
+            });
+        }
 
         // 迁移镜像数据按钮
         const migrateMirrorDataBtn = settingsPanel.querySelector('#migrate-mirror-data-btn');
