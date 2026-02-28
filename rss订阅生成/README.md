@@ -41,22 +41,22 @@ node server.js         # 或双击 start.bat
 
 所有配置在 `.env` 文件中，参考 `.env.example`。
 
-### Cookie 获取
+### Cookie 获取 (推荐使用专属扩展)
 
-| 平台 | 需要的 Cookie | 获取方式 |
-|------|-------------|----------|
-| B站 | `SESSDATA` | F12 → 应用 → Cookie → `bilibili.com` |
-| 知乎 | `d_c0` | F12 → 应用 → Cookie → `zhihu.com` |
-| 豆瓣 | `dbcl2`, `ck` | F12 → Network → 找 `m.douban.com` 的请求 → 复制完整 Cookie |
+由于部分 Cookie 设置了 `HttpOnly` 且包含特殊字符，手动获取比较繁琐且容易出错。本项目自带了一个极简的浏览器扩展，可一键完美提取所需配置并自动复制为 `.env` 格式。
 
-```env
-BILIBILI_SESSDATA=你的SESSDATA值
-BILIBILI_ALT_SESSDATA=小号的SESSDATA值（可选）
-ZHIHU_COOKIE=d_c0=你的d_c0值
-DOUBAN_COOKIE=dbcl2="你的dbcl2值"; ck=你的ck值; 
-```
+**1. 安装扩展**
+- **Chrome/Edge 等**: 打开扩展管理(`chrome://extensions/`) → 开启开发者模式 → 加载已解压的扩展程序 → 选择本项目的 `tools/cookie-ext` 文件夹。
+- **Firefox**: 打开 `about:debugging#/runtime/this-firefox` → 临时载入附加组件 → 选择本项目的 `tools/cookie-ext-firefox/manifest.json` 文件。
 
-> ⚠️ Cookie 约 1 个月过期，届时需从浏览器重新复制并更新 `.env`，然后重启服务。
+**2. 一键提取**
+1. 确保你在浏览器中已登录 B站、知乎、豆瓣。
+2. 点击扩展栏刚安装的插件图标，点击 **“提取并复制到剪贴板”**。
+3. 打开你的 `.env` 文件，选中对应区域**直接粘贴**即可！
+
+*（如果你必须手动获取：B站需找 `SESSDATA`，知乎需全量 Cookie，豆瓣需含 `dbcl2` 和 `ck` 的全量 Cookie）*
+
+> ⚠️ Cookie 约 1 个月过期，届时抓取会报错，请用此扩展重新提取替换 `.env` 里的值，并重启服务。
 
 ### 内容过滤与特殊配置
 
