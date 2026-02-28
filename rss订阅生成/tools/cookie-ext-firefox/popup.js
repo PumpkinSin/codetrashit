@@ -1,29 +1,53 @@
 async function getCookiesString(domain) {
+    const domains = [domain, `.${domain}`];
+    const allCookies = [];
+
     if (typeof browser !== 'undefined') {
-        const cookies = await browser.cookies.getAll({ domain });
-        if (cookies.length === 0) return null;
-        return cookies.map(c => `${c.name}=${c.value}`).join('; ');
+        for (const d of domains) {
+            const cookies = await browser.cookies.getAll({ domain: d });
+            allCookies.push(...cookies);
+        }
     } else {
-        return new Promise((resolve) => {
-            chrome.cookies.getAll({ domain }, (cookies) => {
-                if (!cookies || cookies.length === 0) resolve(null);
-                else resolve(cookies.map(c => `${c.name}=${c.value}`).join('; '));
+        for (const d of domains) {
+            const cookies = await new Promise((resolve) => {
+                chrome.cookies.getAll({ domain: d }, resolve);
             });
-        });
+            if (cookies) allCookies.push(...cookies);
+        }
     }
+
+    if (allCookies.length === 0) return null;
+
+    const cookieMap = new Map();
+    for (const c of allCookies) {
+        if (!cookieMap.has(c.name) || c.value) {
+            cookieMap.set(c.name, c.value);
+        }
+    }
+
+    return Array.from(cookieMap.entries())
+        .map(([name, value]) => `${name}=${value}`)
+        .join('; ');
 }
 
 async function getBiliSessdata() {
-    if (typeof browser !== 'undefined') {
-        const cookies = await browser.cookies.getAll({ domain: 'bilibili.com' });
-        return cookies.find(c => c.name === 'SESSDATA');
-    } else {
-        return new Promise((resolve) => {
-            chrome.cookies.getAll({ domain: 'bilibili.com' }, (cookies) => {
-                resolve(cookies.find(c => c.name === 'SESSDATA'));
+    const domains = ['bilibili.com', '.bilibili.com'];
+    let sessdata = null;
+
+    for (const d of domains) {
+        if (typeof browser !== 'undefined') {
+            const cookies = await browser.cookies.getAll({ domain: d });
+            sessdata = cookies.find(c => c.name === 'SESSDATA');
+        } else {
+            sessdata = await new Promise((resolve) => {
+                chrome.cookies.getAll({ domain: d }, (cookies) => {
+                    resolve(cookies ? cookies.find(c => c.name === 'SESSDATA') : null);
+                });
             });
-        });
+        }
+        if (sessdata) break; // 找到就退出
     }
+    return sessdata;
 }
 
 document.getElementById('extractBtn').addEventListener('click', async () => {

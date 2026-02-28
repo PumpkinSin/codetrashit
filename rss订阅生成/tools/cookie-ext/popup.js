@@ -1,8 +1,28 @@
-// 提取特定域名的所有 Cookie，并拼装为 key=value; 字符串
 async function getCookiesString(domain) {
-    const cookies = await chrome.cookies.getAll({ domain });
-    if (cookies.length === 0) return null;
-    return cookies.map(c => `${c.name}=${c.value}`).join('; ');
+    // 豆瓣的部分关键 Cookie（如 dbcl2, ck）是绑定在 .douban.com 上的，
+    // 而 Firefox/Chrome 的精确 domain 查询可能漏掉带点的前缀域名，
+    // 所以我们需要同时查询 domain 和 .domain，然后去重合并。
+    const domains = [domain, `.${domain}`];
+    const allCookies = [];
+
+    for (const d of domains) {
+        const cookies = await chrome.cookies.getAll({ domain: d });
+        allCookies.push(...cookies);
+    }
+
+    if (allCookies.length === 0) return null;
+
+    // 根据 cookie 名字去重（优先保留有值的，或者直接后面覆盖前面）
+    const cookieMap = new Map();
+    for (const c of allCookies) {
+        if (!cookieMap.has(c.name) || c.value) {
+            cookieMap.set(c.name, c.value);
+        }
+    }
+
+    return Array.from(cookieMap.entries())
+        .map(([name, value]) => `${name}=${value}`)
+        .join('; ');
 }
 
 document.getElementById('extractBtn').addEventListener('click', async () => {
