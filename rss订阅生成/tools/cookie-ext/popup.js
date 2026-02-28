@@ -2,14 +2,10 @@
 async function getCookiesString(domain) {
     const cookies = await chrome.cookies.getAll({ domain });
     if (cookies.length === 0) return null;
-    // 过滤掉一些不相关的或者可能导致请求头过大的无用 Cookie
-    return cookies
-        .map(c => `${c.name}=${c.value}`)
-        .join('; ');
+    return cookies.map(c => `${c.name}=${c.value}`).join('; ');
 }
 
 document.getElementById('extractBtn').addEventListener('click', async () => {
-    let result = '';
     const btn = document.getElementById('extractBtn');
     btn.disabled = true;
     btn.innerText = '提取中...';
@@ -18,47 +14,17 @@ document.getElementById('extractBtn').addEventListener('click', async () => {
         // --- 1. Bilibili (只需要 SESSDATA) ---
         const biliCookies = await chrome.cookies.getAll({ domain: 'bilibili.com' });
         const sessdata = biliCookies.find(c => c.name === 'SESSDATA');
-        if (sessdata) {
-            result += `BILIBILI_SESSDATA=${sessdata.value}\n`;
-        } else {
-            result += `# ⚠️ 未登录 B站（未找到 SESSDATA）\nBILIBILI_SESSDATA=\n`;
-        }
+        updateField('Bili', sessdata ? sessdata.value : '未登录，未找到 SESSDATA');
 
-        result += '\n';
-
-        // --- 2. Zhihu (全量 Cookie，确保 d_c0 等都在) ---
+        // --- 2. Zhihu (全量 Cookie) ---
         const zhihuStr = await getCookiesString('zhihu.com');
-        if (zhihuStr) {
-            result += `ZHIHU_COOKIE=${zhihuStr}\n`;
-        } else {
-            result += `# ⚠️ 未登录 知乎\nZHIHU_COOKIE=\n`;
-        }
+        updateField('Zhihu', zhihuStr || '未登录，未找到 Cookie');
 
-        result += '\n';
-
-        // --- 3. Douban (全量 Cookie，确保 dbcl2, ck, bid 等都在) ---
+        // --- 3. Douban (全量 Cookie) ---
         const doubanStr = await getCookiesString('douban.com');
-        if (doubanStr) {
-            result += `DOUBAN_COOKIE=${doubanStr}\n`;
-        } else {
-            result += `# ⚠️ 未登录 豆瓣\nDOUBAN_COOKIE=\n`;
-        }
+        updateField('Douban', doubanStr || '未登录，未找到 Cookie');
 
-        // 显示到多行文本框
-        const ta = document.getElementById('result');
-        ta.value = result;
-
-        // 尝试复制到剪贴板
-        try {
-            await navigator.clipboard.writeText(result);
-            showStatus('✅ 提取成功！已自动复制到剪贴板。', '#28a745');
-        } catch (err) {
-            // 后备方案：选中并使用 execCommand
-            ta.select();
-            document.execCommand('copy');
-            showStatus('✅ 提取成功！已自动复制到剪贴板。', '#28a745');
-        }
-
+        showStatus('✅ 提取完成！请分别点击复制', '#28a745');
     } catch (error) {
         console.error(error);
         showStatus('❌ 提取失败: ' + error.message, '#dc3545');
@@ -67,6 +33,44 @@ document.getElementById('extractBtn').addEventListener('click', async () => {
         btn.innerText = '重新提取';
     }
 });
+
+function updateField(key, value) {
+    const ta = document.getElementById('val' + key);
+    const copyBtn = document.getElementById('copy' + key);
+    ta.value = value;
+    if (value && !value.startsWith('未登录')) {
+        copyBtn.disabled = false;
+        copyBtn.onclick = () => copyText(value, copyBtn);
+    } else {
+        copyBtn.disabled = true;
+    }
+}
+
+async function copyText(text, btnElement) {
+    try {
+        await navigator.clipboard.writeText(text);
+        flashButton(btnElement);
+    } catch (err) {
+        // 后备方案
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        flashButton(btnElement);
+    }
+}
+
+function flashButton(btnElement) {
+    const oldText = btnElement.innerText;
+    btnElement.innerText = '已复制!';
+    btnElement.style.backgroundColor = '#17a2b8';
+    setTimeout(() => {
+        btnElement.innerText = oldText;
+        btnElement.style.backgroundColor = '';
+    }, 1500);
+}
 
 function showStatus(text, color) {
     const statusObj = document.getElementById('status');

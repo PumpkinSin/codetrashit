@@ -26,7 +26,7 @@
             line-height: 1.4;
         }
 
-        button {
+        .primary-btn {
             width: 100%;
             padding: 10px;
             background-color: #007bff;
@@ -36,44 +36,109 @@
             font-size: 14px;
             cursor: pointer;
             font-weight: bold;
+            margin-bottom: 15px;
             transition: background-color 0.2s;
         }
 
-        button:hover {
+        .primary-btn:hover {
             background-color: #0056b3;
         }
 
-        #status {
-            margin-top: 10px;
-            font-size: 13px;
+        .item {
+            margin-bottom: 12px;
+            border: 1px solid #eee;
+            padding: 8px;
+            border-radius: 4px;
+            background: #fafafa;
+        }
+
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .item-title {
             font-weight: bold;
-            text-align: center;
-            display: none;
+            font-size: 13px;
+            color: #444;
+        }
+
+        .copy-btn {
+            padding: 4px 10px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: #218838;
+        }
+
+        .copy-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
         }
 
         textarea {
             width: 100%;
             box-sizing: border-box;
-            height: 150px;
-            margin-top: 10px;
-            padding: 8px;
+            height: 45px;
+            padding: 6px;
             font-family: Consolas, Monaco, monospace;
             font-size: 11px;
             border: 1px solid #ccc;
-            border-radius: 4px;
-            resize: vertical;
-            white-space: pre-wrap;
+            border-radius: 3px;
+            resize: none;
             word-break: break-all;
+            color: #555;
+        }
+
+        #status {
+            text-align: center;
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: none;
         }
     </style>
 </head>
 
 <body>
     <h3>RSS Cookie 提取器</h3>
-    <p>点击下方按钮，将自动从浏览器提取 B站、知乎、豆瓣 的登录信息，并格式化为 <b>.env</b> 格式，直接复制到剪贴板中。</p>
-    <button id="extractBtn">提取并复制到剪贴板</button>
+    <p>点击下方按钮提取 Cookie，再分别点击各项的“复制”按钮，粘贴到 .env 文件中对应的变量名后即可。</p>
+    <button id="extractBtn" class="primary-btn">一键提取 Cookie</button>
     <div id="status"></div>
-    <textarea id="result" readonly placeholder="提取结果将显示在这里...&#10;如果自动复制失败，你可以全选这里的内容手动复制。"></textarea>
+
+    <div class="item">
+        <div class="item-header">
+            <span class="item-title">B站 (BILIBILI_SESSDATA)</span>
+            <button class="copy-btn" id="copyBili" disabled>复制</button>
+        </div>
+        <textarea id="valBili" readonly placeholder="等待提取..."></textarea>
+    </div>
+
+    <div class="item">
+        <div class="item-header">
+            <span class="item-title">知乎 (ZHIHU_COOKIE)</span>
+            <button class="copy-btn" id="copyZhihu" disabled>复制</button>
+        </div>
+        <textarea id="valZhihu" readonly placeholder="等待提取..."></textarea>
+    </div>
+
+    <div class="item">
+        <div class="item-header">
+            <span class="item-title">豆瓣 (DOUBAN_COOKIE)</span>
+            <button class="copy-btn" id="copyDouban" disabled>复制</button>
+        </div>
+        <textarea id="valDouban" readonly placeholder="等待提取..."></textarea>
+    </div>
+
     <script src="popup.js"></script>
 </body>
 
