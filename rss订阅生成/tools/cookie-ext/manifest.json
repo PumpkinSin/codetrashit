@@ -1,0 +1,18 @@
+{
+    "manifest_version": 3,
+    "name": "RSS 订阅 Cookie 提取器",
+    "version": "1.0",
+    "description": "一键提取 B站、知乎、豆瓣的 Cookie 到剪贴板，用于 .env 配置",
+    "permissions": [
+        "cookies"
+    ],
+    "host_permissions": [
+        "*://*.bilibili.com/*",
+        "*://*.zhihu.com/*",
+        "*://*.douban.com/*"
+    ],
+    "action": {
+        "default_popup": "popup.html",
+        "default_title": "提取 Cookie"
+    }
+}
