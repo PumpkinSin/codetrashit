@@ -20,7 +20,7 @@
 | 🧹 HTML 清理 | 知乎、豆瓣内容自动 sanitize，保留格式标签，剔除无用属性 |
 | 🎯 小号 Tab | 油猴脚本在 Bilibili-Gate 中注入独立「小号」Tab，点击 UP 主名可跳转动态页 |
 
-> **鸣谢：** 豆瓣抓取逻辑深刻参考了 [RSSHub](https://github.com/DIYgod/RSSHub) 的实现思路，在此表示感谢。由于豆瓣对 `home_timeline` 的风控极其严格（第三方统一 403），本项目同样采用了“先获取关注列表，再逐一并发/串行获取各用户 `user_timeline`，最后合并去重排序”的安全策略。
+> **鸣谢：** B站、知乎、豆瓣等抓取逻辑均深刻参考了 [RSSHub](https://github.com/DIYgod/RSSHub) 的实现思路，在此表示感谢。由于豆瓣对 `home_timeline` 的风控极其严格（第三方统一 403），本项目同样采用了“先获取关注列表，再逐一并发/串行获取各用户 `user_timeline`，最后合并去重排序”的安全策略。另外还要特别感谢 [Bilibili-Gate](https://github.com/magicdawn/bilibili-gate)，本项目的小号 Tab 功能正是基于其实现的。
 
 ---
 

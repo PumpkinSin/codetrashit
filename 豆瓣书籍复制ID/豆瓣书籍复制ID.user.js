@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         豆瓣书籍复制ID
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  在豆瓣书籍搜索页面（专用/通用）和详情页面添加复制按钮，复制格式化的豆瓣ID（douban:XXXXXXX），配合https://github.com/PumpkinSin/codetrashit/tree/main/calibre-douban使用。
 // @author       ai
 // @match        https://search.douban.com/book/subject_search*
@@ -9,12 +9,53 @@
 // @match        https://book.douban.com/subject/*
 // @grant        GM_setClipboard
 // @grant        GM_notification
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_registerMenuCommand
 // @downloadURL https://update.greasyfork.org/scripts/564680/%E8%B1%86%E7%93%A3%E4%B9%A6%E7%B1%8D%E5%A4%8D%E5%88%B6ID.user.js
 // @updateURL https://update.greasyfork.org/scripts/564680/%E8%B1%86%E7%93%A3%E4%B9%A6%E7%B1%8D%E5%A4%8D%E5%88%B6ID.meta.js
 // ==/UserScript==
 
 (function () {
     'use strict';
+
+    // 默认的安娜书库域名
+    const DEFAULT_ANNA_DOMAIN = 'https://zh.annas-archive.li';
+
+    // 注册设置菜单
+    try {
+        GM_registerMenuCommand('设置安娜书库域名', () => {
+            const currentDomain = GM_getValue('anna_domain', DEFAULT_ANNA_DOMAIN);
+            const newDomain = prompt('请输入安娜书库域名（包含https://，不包含结尾的/）：', currentDomain);
+            if (newDomain !== null) {
+                let domain = newDomain.trim();
+                if (domain.endsWith('/')) {
+                    domain = domain.slice(0, -1);
+                }
+                if (domain && !domain.startsWith('http')) {
+                    domain = 'https://' + domain;
+                }
+                if (domain) {
+                    GM_setValue('anna_domain', domain);
+                    GM_notification({
+                        text: `安娜书库域名已保存为: ${domain}`,
+                        timeout: 2000
+                    });
+                }
+            }
+        });
+    } catch (e) {
+        console.warn('Tampermonkey API not available for menu command registration.', e);
+    }
+
+    // 获取当前的安娜书库域名
+    function getAnnaDomain() {
+        try {
+            return GM_getValue('anna_domain', DEFAULT_ANNA_DOMAIN);
+        } catch (e) {
+            return DEFAULT_ANNA_DOMAIN;
+        }
+    }
 
     // 通用的复制按钮样式
     const buttonStyle = `
@@ -260,6 +301,19 @@
             });
             biliButton.title = author ? `搜索: ${bookTitle} ${author}` : `搜索: ${bookTitle}`;
             buttonContainer.appendChild(biliButton);
+
+            // 安娜书库搜索按钮
+            if (isbn) {
+                // 使用类似橙色的背景色，与安娜书库风格搭配
+                const annaButton = createActionButton('安娜书库', '#E06D14', function (e) {
+                    e.preventDefault();
+                    const domain = getAnnaDomain();
+                    const annaUrl = `${domain}/search?q=${encodeURIComponent(isbn)}`;
+                    window.open(annaUrl, '_blank');
+                });
+                annaButton.title = `在安娜书库搜索ISBN: ${isbn}`;
+                buttonContainer.appendChild(annaButton);
+            }
 
             // 将按钮容器插入到书名上方
             const h1Element = titleElement.parentElement;

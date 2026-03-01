@@ -157,7 +157,7 @@
                             // 转换为卡片所需格式
                             const videos = json.data.map(item => ({
                                 bvid: item.id || '',
-                                title: item.content || item.title || '',
+                                title: item.rawTitle || item.title || item.content || '',
                                 cover: item.videoCover || '',
                                 author: item.author || '',
                                 authorFace: item.authorFace || '',

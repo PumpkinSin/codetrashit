@@ -70,6 +70,8 @@ module.exports = {
         //         说, 转发, 推荐, 关注, 加入, 赞, 等
         skipActivities: parseList(process.env.DOUBAN_SKIP_ACTIVITIES),
         extraPages: parseInt(process.env.DOUBAN_EXTRA_PAGES, 10) || 0,
+        // 是否每次都重新拉取关注列表（默认 false，使用本地缓存）
+        refreshFollowing: process.env.DOUBAN_REFRESH_FOLLOWING === 'true',
     },
 
     // 通用抓取设置

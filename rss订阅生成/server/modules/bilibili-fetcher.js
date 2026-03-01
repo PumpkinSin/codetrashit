@@ -162,6 +162,9 @@ function normalizeDynamic(item, platform) {
         const extracted = extractContent(item, dynamicType, dynamicModule);
         const title = buildTitle(author, dynamicType, extracted.title);
 
+        // 提取表情数据（用于 RSS 渲染）
+        const emojis = extractEmojis(dynamicModule);
+
         return {
             id: dynamicId,
             platform,
@@ -170,11 +173,15 @@ function normalizeDynamic(item, platform) {
             authorFace,
             authorMid,
             title,
+            rawTitle: extracted.title || '',
             content: extracted.content || '',
             link: extracted.link || `https://www.bilibili.com/opus/${dynamicId}`,
             images: extracted.images || [],
             videoCover: extracted.videoCover || '',
             videoDuration: extracted.videoDuration || '',
+            videoBvid: extracted.videoBvid || '',
+            emojis: emojis,
+            origDynamic: extracted.origDynamic || null,
             publishTime: pubTs * 1000,
             stats: {
                 like: statModule.like?.count || 0,
@@ -218,7 +225,8 @@ function extractContent(item, type, dynamicModule) {
     const desc = dynamicModule?.desc || {};
 
     let title = '', content = desc?.text || '', link = '';
-    let images = [], videoCover = '', videoDuration = '';
+    let images = [], videoCover = '', videoDuration = '', videoBvid = '';
+    let origDynamic = null;
 
     switch (type) {
         case 'DYNAMIC_TYPE_AV': {
@@ -228,6 +236,12 @@ function extractContent(item, type, dynamicModule) {
             link = archive.jump_url ? `https:${archive.jump_url}` : '';
             videoCover = archive.cover || '';
             videoDuration = archive.duration_text || '';
+            // 提取 bvid 用于嵌入播放器
+            videoBvid = archive.bvid || '';
+            if (!videoBvid && archive.jump_url) {
+                const bvidMatch = archive.jump_url.match(/\/(BV[a-zA-Z0-9]+)/);
+                if (bvidMatch) videoBvid = bvidMatch[1];
+            }
             break;
         }
         case 'DYNAMIC_TYPE_DRAW': {
@@ -250,15 +264,29 @@ function extractContent(item, type, dynamicModule) {
             if (orig) {
                 const origModules = orig.modules || {};
                 const origAuthor = origModules.module_author?.name || '未知';
-                const origDynamic = origModules.module_dynamic || {};
+                const origFace = origModules.module_author?.face || '';
+                const origDynamic_ = origModules.module_dynamic || {};
                 const origType = orig.type || '';
-                const origContent = extractContent(orig, origType, origDynamic);
-                content += `\n\n【转发自 @${origAuthor}】`;
-                if (origContent.title) content += `\n${origContent.title}`;
-                if (origContent.content) content += `\n${origContent.content}`;
-                if (origContent.images.length > 0) images = origContent.images;
-                if (origContent.videoCover) videoCover = origContent.videoCover;
-                if (origContent.link) link = origContent.link;
+                const origExtracted = extractContent(orig, origType, origDynamic_);
+                const origEmojis = extractEmojis(origDynamic_);
+
+                // 结构化保存原始动态，用于 RSS 渲染
+                origDynamic = {
+                    type: origType,
+                    author: origAuthor,
+                    authorFace: origFace,
+                    title: origExtracted.title || '',
+                    content: origExtracted.content || '',
+                    link: origExtracted.link || '',
+                    images: origExtracted.images || [],
+                    videoCover: origExtracted.videoCover || '',
+                    videoDuration: origExtracted.videoDuration || '',
+                    videoBvid: origExtracted.videoBvid || '',
+                    emojis: origEmojis,
+                };
+
+                // link 优先使用原始动态的链接
+                if (origExtracted.link) link = origExtracted.link;
             }
             break;
         }
@@ -292,7 +320,24 @@ function extractContent(item, type, dynamicModule) {
         default: break;
     }
 
-    return { title, content, link, images, videoCover, videoDuration };
+    return { title, content, link, images, videoCover, videoDuration, videoBvid, origDynamic };
+}
+
+/**
+ * 提取表情数据
+ * V2 API 的表情在 desc.rich_text_nodes 中
+ */
+function extractEmojis(dynamicModule) {
+    const nodes = dynamicModule?.desc?.rich_text_nodes;
+    if (!Array.isArray(nodes)) return {};
+
+    const emojis = {};
+    for (const node of nodes) {
+        if (node.type === 'RICH_TEXT_NODE_TYPE_EMOJI' && node.text && node.emoji?.icon_url) {
+            emojis[node.text] = node.emoji.icon_url;
+        }
+    }
+    return emojis;
 }
 
 function sleep(ms) {

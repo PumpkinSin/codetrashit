@@ -170,24 +170,188 @@ function generate(platform, items) {
  * 所有图片都通过 wsrv.nl 代理
  */
 function buildContentHtml(item) {
+    if (item.platform === 'bilibili' || item.platform === 'bilibili-alt') {
+        return buildBilibiliHtml(item);
+    }
+    if (item.platform === 'douban') {
+        return buildDoubanHtml(item);
+    }
+    return buildGenericHtml(item);
+}
+
+/**
+ * B 站专用 HTML 渲染（参考 RSSHub）
+ * - 嵌入式视频播放器
+ * - 表情图片渲染
+ * - 转发动态 blockquote
+ */
+function buildBilibiliHtml(item) {
     const parts = [];
 
-    // 作者名（不在正文中显示头像，头像仅作为列表预览缩略图）
+    // 正文（含表情渲染）
+    if (item.content) {
+        let text = escapeHtml(item.content).replace(/\n/g, '<br>');
+        text = renderEmojis(text, item.emojis);
+        parts.push(`<p>${text}</p>`);
+    }
+
+    // 图片
+    if (item.images && item.images.length > 0) {
+        for (const img of item.images) {
+            const src = proxyImage(img);
+            parts.push(`<p><img src="${src}" style="max-width:100%" referrerpolicy="no-referrer" /></p>`);
+        }
+    }
+
+    // 视频封面 + 时长 + 嵌入式播放器
+    if (item.videoCover) {
+        const coverSrc = proxyImage(item.videoCover);
+        let coverHtml = `<img src="${coverSrc}" style="max-width:100%" referrerpolicy="no-referrer" />`;
+        if (item.videoDuration) {
+            coverHtml = `<div style="position:relative;display:inline-block">${coverHtml}` +
+                `<span style="position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,.7);color:#fff;` +
+                `padding:1px 4px;border-radius:2px;font-size:12px">${item.videoDuration}</span></div>`;
+        }
+        parts.push(`<p>${coverHtml}</p>`);
+    }
+
+    // 嵌入式播放器（仅视频类型）
+    if (item.videoBvid) {
+        parts.push(buildBilibiliIframe(item.videoBvid));
+    }
+
+    // 转发动态 — 用 blockquote 展示原始内容
+    if (item.origDynamic) {
+        parts.push(buildOrigDynamicHtml(item.origDynamic));
+    }
+
+    // 统计信息
+    parts.push(buildStatsHtml(item.stats));
+
+    return parts.filter(Boolean).join('\n') || '<p>（无内容）</p>';
+}
+
+/**
+ * 渲染转发动态的原始内容
+ */
+function buildOrigDynamicHtml(orig) {
+    const inner = [];
+
+    // 原作者
+    if (orig.author) {
+        inner.push(`<strong>@${escapeHtml(orig.author)}</strong>`);
+    }
+
+    // 原标题
+    if (orig.title) {
+        inner.push(`<p>${escapeHtml(orig.title)}</p>`);
+    }
+
+    // 原正文（含表情）
+    if (orig.content) {
+        let text = escapeHtml(orig.content).replace(/\n/g, '<br>');
+        text = renderEmojis(text, orig.emojis);
+        inner.push(`<p>${text}</p>`);
+    }
+
+    // 原图片
+    if (orig.images && orig.images.length > 0) {
+        for (const img of orig.images) {
+            const src = proxyImage(img);
+            inner.push(`<p><img src="${src}" style="max-width:100%" referrerpolicy="no-referrer" /></p>`);
+        }
+    }
+
+    // 原视频封面
+    if (orig.videoCover) {
+        const coverSrc = proxyImage(orig.videoCover);
+        let coverHtml = `<img src="${coverSrc}" style="max-width:100%" referrerpolicy="no-referrer" />`;
+        if (orig.videoDuration) {
+            coverHtml = `<div style="position:relative;display:inline-block">${coverHtml}` +
+                `<span style="position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,.7);color:#fff;` +
+                `padding:1px 4px;border-radius:2px;font-size:12px">${orig.videoDuration}</span></div>`;
+        }
+        inner.push(`<p>${coverHtml}</p>`);
+    }
+
+    // 原视频嵌入
+    if (orig.videoBvid) {
+        inner.push(buildBilibiliIframe(orig.videoBvid));
+    }
+
+    // 原链接
+    if (orig.link) {
+        inner.push(`<p><a href="${orig.link}" target="_blank">查看原动态</a></p>`);
+    }
+
+    return `<blockquote style="border-left:3px solid #00a1d6;padding:8px 12px;margin:8px 0;background:#f4f5f7">${inner.join('\n')}</blockquote>`;
+}
+
+/**
+ * 生成 B 站嵌入式播放器 iframe
+ * 参考 RSSHub utils.iframe()
+ */
+function buildBilibiliIframe(bvid) {
+    if (!bvid) return '';
+    return `<p><iframe src="https://www.bilibili.com/blackboard/html5mobileplayer.html?bvid=${bvid}&high_quality=1&autoplay=0" ` +
+        `width="650" height="477" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe></p>`;
+}
+
+/**
+ * 替换 B 站表情文本为内联图片
+ * 例如 [doge] → <img alt="[doge]" src="..." />
+ */
+function renderEmojis(text, emojis) {
+    if (!emojis || typeof emojis !== 'object') return text;
+    for (const [emojiText, emojiUrl] of Object.entries(emojis)) {
+        if (!emojiText || !emojiUrl) continue;
+        const escaped = escapeHtml(emojiText).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const imgTag = `<img alt="${escapeHtml(emojiText)}" src="${emojiUrl}" ` +
+            `style="margin:-1px 1px 0;display:inline-block;width:20px;height:20px;vertical-align:text-bottom" referrerpolicy="no-referrer">`;
+        text = text.replace(new RegExp(escaped, 'g'), imgTag);
+    }
+    return text;
+}
+
+/**
+ * 豆瓣专用 HTML 渲染
+ * 新版 douban-fetcher 已在 item.content 中生成完整 HTML（含图片、卡片、统计）
+ * 这里只做 sanitize + 图片代理，不再额外追加重复的 images/stats
+ */
+function buildDoubanHtml(item) {
+    if (!item.content) return '<p>（无内容）</p>';
+    const hasHtml = /<[a-zA-Z][^>]*>/.test(item.content);
+    if (hasHtml) {
+        return proxyImagesInHtml(sanitizeHtml(item.content));
+    }
+    // 纯文本回退（旧数据）
+    return buildGenericHtml(item);
+}
+
+/**
+ * 通用 HTML 渲染（知乎等）
+ */
+function buildGenericHtml(item) {
+    const parts = [];
+
+    // 作者名
     if (item.author) {
         parts.push(`<p><strong>${escapeHtml(item.author)}</strong></p>`);
     }
 
     // 正文
     if (item.content) {
-        // 判断内容是否包含 HTML 标签（知乎回答/文章等自带 HTML）
         const hasHtml = /<[a-zA-Z][^>]*>/.test(item.content);
-        const htmlContent = hasHtml
-            ? sanitizeHtml(item.content)
-            : escapeHtml(item.content).replace(/\n/g, '<br>');
-        parts.push(`<p>${htmlContent}</p>`);
+        if (hasHtml) {
+            let htmlContent = sanitizeHtml(item.content);
+            htmlContent = proxyImagesInHtml(htmlContent);
+            parts.push(htmlContent);
+        } else {
+            parts.push(`<p>${escapeHtml(item.content).replace(/\n/g, '<br>')}</p>`);
+        }
     }
 
-    // 图片（全部代理）
+    // 图片
     if (item.images && item.images.length > 0) {
         for (const img of item.images) {
             const src = proxyImage(img);
@@ -208,46 +372,102 @@ function buildContentHtml(item) {
     }
 
     // 统计信息
-    if (item.stats) {
-        const statParts = [];
-        if (item.stats.like) statParts.push(`👍 ${item.stats.like}`);
-        if (item.stats.view) statParts.push(`👀 ${item.stats.view}`);
-        if (item.stats.comment) statParts.push(`💬 ${item.stats.comment}`);
-        if (item.stats.forward) statParts.push(`🔄 ${item.stats.forward}`);
-        if (item.stats.danmaku) statParts.push(`💭 ${item.stats.danmaku}`);
-        if (statParts.length > 0) {
-            parts.push(`<p style="color:#888;font-size:12px">${statParts.join(' · ')}</p>`);
-        }
-    }
+    parts.push(buildStatsHtml(item.stats));
 
-    return parts.join('\n') || '<p>（无内容）</p>';
+    return parts.filter(Boolean).join('\n') || '<p>（无内容）</p>';
+}
+
+/**
+ * 构建统计信息 HTML
+ */
+function buildStatsHtml(stats) {
+    if (!stats) return '';
+    const statParts = [];
+    if (stats.like) statParts.push(`👍 ${stats.like}`);
+    if (stats.view) statParts.push(`👀 ${stats.view}`);
+    if (stats.comment) statParts.push(`💬 ${stats.comment}`);
+    if (stats.forward) statParts.push(`🔄 ${stats.forward}`);
+    if (stats.danmaku) statParts.push(`💭 ${stats.danmaku}`);
+    if (statParts.length > 0) {
+        return `<p style="color:#888;font-size:12px">${statParts.join(' · ')}</p>`;
+    }
+    return '';
 }
 
 // ========== 工具函数 ==========
 
 /**
  * 清理 HTML，保留安全的格式标签，去掉危险标签和多余属性
- * 保留: b, i, strong, em, a(href), br, p, blockquote
+ * 保留: b, i, strong, em, a(href), br, p, blockquote, img, figure, video 等
  * 去掉: script, style, iframe, data-* 属性等
  */
 function sanitizeHtml(html) {
     if (!html) return '';
     // 允许的标签白名单
-    const allowedTags = new Set(['b', 'i', 'strong', 'em', 'a', 'br', 'p', 'blockquote', 'ul', 'ol', 'li']);
-    // a 标签只保留 href 属性
+    const allowedTags = new Set([
+        'b', 'i', 'strong', 'em', 'a', 'br', 'p', 'blockquote',
+        'ul', 'ol', 'li', 'h2', 'h3', 'h4',
+        'img', 'figure', 'figcaption', 'video',
+        'div', 'span', 'pre', 'code',
+        'sup', 'sub', 'hr',
+        'table', 'thead', 'tbody', 'tr', 'td', 'th',
+    ]);
+
     return html.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*\/?>|<\/([a-zA-Z][a-zA-Z0-9]*)>/g, (match, openTag, closeTag) => {
         const tag = (openTag || closeTag || '').toLowerCase();
         if (!allowedTags.has(tag)) return ''; // 不在白名单中，直接去掉
-        if (closeTag) return `</${tag}>`; // 关闭标签，直接保留
-        // 开启标签：只保留 href（仅 a 标签）
+        if (closeTag) return `</${tag}>`; // 关闭标签
+
+        // a 标签：保留 href 和 target
         if (tag === 'a') {
             const hrefMatch = match.match(/href=["']([^"']*)["']/i);
-            if (hrefMatch) return `<a href="${hrefMatch[1]}">`;
-            return '<a>'; // 无 href 的 a 标签
+            const targetMatch = match.match(/target=["']([^"']*)["']/i);
+            const attrs = [];
+            if (hrefMatch) attrs.push(`href="${hrefMatch[1]}"`);
+            if (targetMatch) attrs.push(`target="${targetMatch[1]}"`);
+            return attrs.length > 0 ? `<a ${attrs.join(' ')}>` : '<a>';
         }
+
+        // img 标签：保留 src, style, referrerpolicy
+        if (tag === 'img') {
+            const srcMatch = match.match(/src=["']([^"']*)["']/i);
+            const styleMatch = match.match(/style=["']([^"']*)["']/i);
+            const attrs = [];
+            if (srcMatch) attrs.push(`src="${srcMatch[1]}"`);
+            attrs.push('style="' + (styleMatch ? styleMatch[1] : 'max-width:100%') + '"');
+            attrs.push('referrerpolicy="no-referrer"');
+            return `<img ${attrs.join(' ')} />`;
+        }
+
+        // video 标签：保留 src, controls, width, height, poster
+        if (tag === 'video') {
+            const srcMatch = match.match(/src=["']([^"']*)["']/i);
+            const widthMatch = match.match(/width=["']([^"']*)["']/i);
+            const heightMatch = match.match(/height=["']([^"']*)["']/i);
+            const posterMatch = match.match(/poster=["']([^"']*)["']/i);
+            const attrs = ['controls'];
+            if (srcMatch) attrs.push(`src="${srcMatch[1]}"`);
+            if (widthMatch) attrs.push(`width="${widthMatch[1]}"`);
+            if (heightMatch) attrs.push(`height="${heightMatch[1]}"`);
+            if (posterMatch) attrs.push(`poster="${posterMatch[1]}"`);
+            return `<video ${attrs.join(' ')}>`;
+        }
+
         // 自闭合标签
-        if (tag === 'br') return '<br>';
+        if (tag === 'br' || tag === 'hr') return `<${tag}>`;
         return `<${tag}>`;
+    });
+}
+
+/**
+ * 代理 HTML 内容中的所有图片 URL
+ * 扫描 <img src="..."> 标签，将需要代理的 URL 替换为 wsrv.nl 代理 URL
+ */
+function proxyImagesInHtml(html) {
+    if (!html) return '';
+    return html.replace(/<img\b([^>]*?)src=["']([^"']+)["']([^>]*?)\/?>/gi, (match, before, src, after) => {
+        const proxiedSrc = proxyImage(src);
+        return `<img${before}src="${proxiedSrc}"${after}/>`;
     });
 }
 

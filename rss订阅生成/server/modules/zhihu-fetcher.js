@@ -2,10 +2,12 @@
  * zhihu-fetcher.js — 知乎动态抓取模块（Node 端）
  *
  * 使用 z_c0 Cookie 调用知乎 API 获取关注动态
+ * 参考 RSSHub 的知乎实现，抓取完整 HTML 内容
  */
 
 const config = require('../config');
 const dataStore = require('./data-store');
+const zhihuUtils = require('./zhihu-utils');
 
 const API_BASE = 'https://www.zhihu.com/api/v3/moments';
 
@@ -110,42 +112,42 @@ async function fetchAndStore(opts) {
     return result;
 }
 
+/**
+ * 标准化一条知乎动态
+ * 参考 RSSHub activities.js 的处理逻辑
+ */
 function normalizeMoment(moment) {
     try {
         const target = moment.target || {};
         const actor = moment.actors?.[0] || {};
         const momentType = target.type || moment.type || '';
 
-        // 过滤广告/推广：多重检查（zhihu_AD_、zhihu_13_、zhihu_16_ 等内部链接）
+        // 过滤广告/推广
         const isPromo = (url) => url && /zhihu\.com\/zhihu_/.test(url);
         if (isPromo(target.url)) return null;
         if (isPromo(target.source_url)) return null;
 
-        // 过滤内部类型 ID（如 16_xxx、13_xxx 等不可访问的条目）
+        // 过滤内部类型 ID
         const targetId = String(target.id || '');
         if (/^\d+_\d+_/.test(targetId)) return null;
 
         const author = actor.name || target.author?.name || '';
         const authorAvatar = actor.avatar_url || target.author?.avatar_url || '';
+
+        // 提取完整内容（使用 RSSHub 风格）
         const extracted = extractContent(target, momentType);
 
-        // 过滤广告：生成的链接包含 zhihu_ 内部路径
+        // 过滤广告
         if (extracted.link && /zhihu\.com\/zhihu_/.test(extracted.link)) return null;
-
-        // 过滤没有有效链接的条目（通常是广告或不可访问的内容）
         if (!extracted.link) return null;
-
-        // 过滤无作者条目（通常是广告）
         if (!author) return null;
 
-        // 使用 action_text_tpl 生成描述性标题
-        const actors = (moment.actors || []).map(a => a.name).join(', ');
-        const actionText = moment.action_text_tpl
-            ? moment.action_text_tpl.replace('{}', actors) : '';
+        // 构建标题：RSSHub 风格 — "作者名 动作: 标题"
+        const actionText = moment.action_text || '';
         const targetTitle = extracted.title
             || (target.question ? target.question.title : '') || '';
         const title = actionText
-            ? (targetTitle ? `${actionText}：${targetTitle}` : actionText)
+            ? (targetTitle ? `${author}${actionText}: ${targetTitle}` : `${author}${actionText}`)
             : (extracted.title || `${author} 的动态`);
 
         const id = `zhihu_${target.id || moment.id || Date.now()}`;
@@ -174,6 +176,10 @@ function normalizeMoment(moment) {
     }
 }
 
+/**
+ * 提取内容 — 参考 RSSHub 的 activities.js
+ * 关键改进：answer/article 使用 target.content（完整 HTML）而非 excerpt
+ */
 function extractContent(target, type) {
     let title = '', content = '', link = '';
     let images = [], videoCover = '';
@@ -182,38 +188,44 @@ function extractContent(target, type) {
         case 'answer': {
             const q = target.question || {};
             title = q.title || '';
-            content = target.excerpt || target.content || '';
+            // 使用完整 HTML 内容，通过 zhihu-utils 处理图片和链接
+            const rawHtml = target.content || target.excerpt || '';
+            content = zhihuUtils.processContent(rawHtml);
             link = `https://www.zhihu.com/question/${q.id}/answer/${target.id}`;
-            if (target.thumbnail) images.push(target.thumbnail);
             break;
         }
         case 'article': {
             title = target.title || '';
-            content = target.excerpt || target.content || '';
+            // 使用完整 HTML 内容
+            const rawHtml = target.content || target.excerpt || '';
+            content = zhihuUtils.processContent(rawHtml);
             link = `https://zhuanlan.zhihu.com/p/${target.id}`;
-            if (target.image_url) images.push(target.image_url);
-            if (target.title_image && target.title_image !== target.image_url)
-                images.push(target.title_image);
             break;
         }
         case 'pin': {
-            const pinResult = extractPinContent(target);
-            content = pinResult.text;
-            images = pinResult.images;
+            title = target.excerpt_title || '';
+            // Pin 内容使用专门的 HTML 构建函数
+            content = zhihuUtils.buildPinHtml(target.content, target.excerpt_title);
             link = `https://www.zhihu.com/pin/${target.id}`;
             break;
         }
         case 'question': {
             title = target.title || '';
-            content = target.excerpt || '';
+            // question 的 detail 字段可能含 HTML
+            const rawHtml = target.detail || target.excerpt || '';
+            content = rawHtml ? zhihuUtils.processContent(rawHtml) : '';
             link = `https://www.zhihu.com/question/${target.id}`;
             break;
         }
         case 'column': {
             title = target.title || '';
-            content = target.description || target.intro || '';
+            // 专栏：描述 + 封面图
+            const intro = target.intro || target.description || '';
+            const imgHtml = target.image_url
+                ? `<p><img src="${target.image_url}" style="max-width:100%" referrerpolicy="no-referrer" /></p>`
+                : '';
+            content = `<p>${intro}</p>${imgHtml}`;
             link = `https://zhuanlan.zhihu.com/${target.id}`;
-            if (target.image_url) images.push(target.image_url);
             break;
         }
         case 'zvideo': {
@@ -225,42 +237,42 @@ function extractContent(target, type) {
             else if (target.image_url) videoCover = target.image_url;
             break;
         }
+        case 'collection': {
+            title = target.title || '';
+            content = target.description || '';
+            link = `https://www.zhihu.com/collection/${target.id}`;
+            break;
+        }
+        case 'topic': {
+            title = target.name || '';
+            const intro = target.introduction || '';
+            const followers = target.followers_count || 0;
+            content = `<p>${intro}</p><p>话题关注者人数：${followers}</p>`;
+            link = `https://www.zhihu.com/topic/${target.id}`;
+            break;
+        }
+        case 'live': {
+            title = target.subject || '';
+            const desc = (target.description || '').replace(/\n|\r/g, '<br>');
+            content = desc;
+            link = `https://www.zhihu.com/lives/${target.id}`;
+            break;
+        }
+        case 'roundtable': {
+            title = target.name || '';
+            content = target.description || '';
+            link = `https://www.zhihu.com/roundtable/${target.id}`;
+            break;
+        }
         default: {
             title = target.title || '';
-            content = target.excerpt || target.content || target.description || '';
+            const rawHtml = target.content || target.excerpt || target.description || '';
+            content = rawHtml ? zhihuUtils.processContent(rawHtml) : '';
             if (target.url) link = target.url;
-            if (target.image_url) images.push(target.image_url);
             break;
         }
     }
     return { title, content, link, images, videoCover };
-}
-
-function extractPinContent(pin) {
-    const contentArr = pin.content || [];
-    const images = [];
-    if (typeof contentArr === 'string') return { text: contentArr, images };
-    if (!Array.isArray(contentArr)) return { text: pin.excerpt_title || '', images };
-
-    const textParts = [];
-    for (const block of contentArr) {
-        switch (block.type) {
-            case 'text': textParts.push(block.content || ''); break;
-            case 'link': textParts.push(`[${block.title || block.url}](${block.url})`); break;
-            case 'image':
-                if (block.url) images.push(block.url);
-                else if (block.original_url) images.push(block.original_url);
-                break;
-            case 'video':
-                textParts.push('[视频]');
-                if (block.cover_url) images.push(block.cover_url);
-                break;
-            default:
-                if (block.content) textParts.push(block.content);
-                break;
-        }
-    }
-    return { text: textParts.join('').trim(), images };
 }
 
 function sleep(ms) {
