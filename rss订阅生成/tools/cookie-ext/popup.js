@@ -31,10 +31,9 @@ document.getElementById('extractBtn').addEventListener('click', async () => {
     btn.innerText = '提取中...';
 
     try {
-        // --- 1. Bilibili (只需要 SESSDATA) ---
-        const biliCookies = await chrome.cookies.getAll({ domain: 'bilibili.com' });
-        const sessdata = biliCookies.find(c => c.name === 'SESSDATA');
-        updateField('Bili', sessdata ? sessdata.value : '未登录，未找到 SESSDATA');
+        // --- 1. Bilibili (完整 Cookie，包含 buvid3 等设备指纹) ---
+        const biliStr = await getCookiesString('bilibili.com');
+        updateField('Bili', biliStr || '未登录，未找到 Cookie');
 
         // --- 2. Zhihu (全量 Cookie) ---
         const zhihuStr = await getCookiesString('zhihu.com');

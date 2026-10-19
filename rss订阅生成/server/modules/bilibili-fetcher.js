@@ -1,7 +1,7 @@
 /**
  * bilibili-fetcher.js — B站动态抓取模块（Node 端）
  *
- * 使用 SESSDATA Cookie 调用 B站 API 获取关注动态
+ * 使用完整 Cookie 调用 B站 API 获取关注动态（B站现已要求 buvid3 等设备指纹 Cookie）
  * 可复用于主号和小号（传入不同 Cookie 即可）
  */
 
@@ -13,16 +13,20 @@ const API_BASE = 'https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all';
 /**
  * 抓取 B 站关注动态
  * @param {object} opts
- * @param {string} opts.sessdata  - SESSDATA Cookie
+ * @param {string} opts.cookie   - 完整 Cookie 字符串（推荐）
+ * @param {string} opts.sessdata - 仅 SESSDATA（向后兼容，推荐改用 cookie）
  * @param {string} opts.platform  - 'bilibili' | 'bilibili-alt'
  * @param {number} opts.maxPages  - 最大页数
  * @param {boolean} opts.videoOnly - 是否只保留视频（DYNAMIC_TYPE_AV）
  */
 async function fetchAndStore(opts) {
-    const { sessdata, platform, maxPages = 5, videoOnly = false } = opts;
+    const { cookie, sessdata, platform, maxPages = 5, videoOnly = false } = opts;
 
-    if (!sessdata) {
-        console.log(`[BilibiliFetcher] ${platform}: 未配置 SESSDATA，跳过`);
+    // 优先用完整 Cookie，向后兼容仅 SESSDATA 的旧配置
+    const cookieHeader = cookie || (sessdata ? `SESSDATA=${sessdata}` : '');
+
+    if (!cookieHeader) {
+        console.log(`[BilibiliFetcher] ${platform}: 未配置 Cookie，跳过`);
         return { newCount: 0, totalCount: 0 };
     }
 
@@ -50,7 +54,7 @@ async function fetchAndStore(opts) {
                     'Accept': 'application/json',
                     'Referer': 'https://www.bilibili.com/',
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0',
-                    'Cookie': `SESSDATA=${sessdata}`,
+                    'Cookie': cookieHeader,
                 },
             });
 
@@ -130,8 +134,8 @@ async function fetchAndStore(opts) {
     const result = dataStore.merge(platform, items);
     console.log(`[BilibiliFetcher] ${label}: 抓取 ${items.length} 条，新增 ${result.newCount} 条`);
 
-    // 主号抓取时，自动提取视频给 bilibili-alt（如果没有独立的小号 SESSDATA）
-    if (platform === 'bilibili' && !config.bilibiliAlt.sessdata) {
+    // 主号抓取时，自动提取视频给 bilibili-alt（如果没有独立的小号 Cookie）
+    if (platform === 'bilibili' && !config.bilibiliAlt.cookie && !config.bilibiliAlt.sessdata) {
         const videoItems = items.filter(i => i.type === 'DYNAMIC_TYPE_AV');
         if (videoItems.length > 0) {
             const altResult = dataStore.merge('bilibili-alt', videoItems);

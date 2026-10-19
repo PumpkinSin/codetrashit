@@ -51,24 +51,6 @@
       position: relative;
     }
 
-    /* ---- 小号 badge ---- */
-    .alt-badge {
-      position: absolute;
-      top: 6px;
-      left: 6px;
-      background: linear-gradient(135deg, #ff6699, #ff3366);
-      color: #fff;
-      font-size: 11px;
-      font-weight: 700;
-      padding: 2px 6px;
-      border-radius: 4px;
-      z-index: 10;
-      pointer-events: none;
-      line-height: 1.3;
-      letter-spacing: 0.5px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-    }
-
     /* ---- 小号面板 ---- */
     .alt-feed-panel {
       display: none;
@@ -174,9 +156,10 @@
                                 const m = link.match(/\/video\/(BV[a-zA-Z0-9]+)/);
                                 if (m) videos[i].bvid = m[1];
                             }
-                            saveCache(videos);
-                            lastFetchedVideos = videos;
-                            resolve(videos);
+                            const limited = videos.slice(0, 100);
+                            saveCache(limited);
+                            lastFetchedVideos = limited;
+                            resolve(limited);
                         } else {
                             resolve([]);
                         }
@@ -252,7 +235,6 @@
         card.innerHTML = `
             <div class="bili-video-card__wrap">
                 <a href="${videoUrl}" target="_blank" class="bilibili-gate-video-card-cover relative block overflow-hidden" style="border-radius: var(--bilibili-gate--video-card--border-radius, 15px);">
-                    <div class="alt-badge">小号</div>
                     <div class="bili-video-card__image" style="aspect-ratio: 16 / 9;">
                         <div class="bili-video-card__image--wrap">
                             <picture class="h-full w-full object-cover bili-video-card__cover v-img" style="border-radius: 0px;">

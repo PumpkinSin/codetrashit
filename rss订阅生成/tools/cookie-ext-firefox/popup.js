@@ -30,34 +30,14 @@ async function getCookiesString(domain) {
         .join('; ');
 }
 
-async function getBiliSessdata() {
-    const domains = ['bilibili.com', '.bilibili.com'];
-    let sessdata = null;
-
-    for (const d of domains) {
-        if (typeof browser !== 'undefined') {
-            const cookies = await browser.cookies.getAll({ domain: d });
-            sessdata = cookies.find(c => c.name === 'SESSDATA');
-        } else {
-            sessdata = await new Promise((resolve) => {
-                chrome.cookies.getAll({ domain: d }, (cookies) => {
-                    resolve(cookies ? cookies.find(c => c.name === 'SESSDATA') : null);
-                });
-            });
-        }
-        if (sessdata) break; // 找到就退出
-    }
-    return sessdata;
-}
-
 document.getElementById('extractBtn').addEventListener('click', async () => {
     const btn = document.getElementById('extractBtn');
     btn.disabled = true;
     btn.innerText = '提取中...';
 
     try {
-        const sessdata = await getBiliSessdata();
-        updateField('Bili', sessdata ? sessdata.value : '未登录，未找到 SESSDATA');
+        const biliStr = await getCookiesString('bilibili.com');
+        updateField('Bili', biliStr || '未登录，未找到 Cookie');
 
         const zhihuStr = await getCookiesString('zhihu.com');
         updateField('Zhihu', zhihuStr || '未登录，未找到 Cookie');

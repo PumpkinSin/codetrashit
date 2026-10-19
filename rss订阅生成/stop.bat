@@ -1,18 +1,24 @@
 @echo off
 chcp 65001 >nul
+setlocal enabledelayedexpansion
 echo ========================================
 echo   RSS 动态服务 - 停止中...
 echo ========================================
 echo.
 
-:: 查找占用端口 3457 的进程并终止
+:: 查找占用端口 3457 的进程并终止（去重，避免 IPv4/IPv6 双条目重复处理）
+set "KILLED_PIDS= "
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3457" ^| findstr "LISTENING"') do (
-    echo 找到进程 PID: %%a
-    taskkill /F /PID %%a >nul 2>&1
-    if not errorlevel 1 (
-        echo 已停止进程 %%a
-    ) else (
-        echo 停止进程 %%a 失败，可能需要管理员权限
+    echo !KILLED_PIDS! | findstr " %%a " >nul 2>&1
+    if errorlevel 1 (
+        echo 找到进程 PID: %%a
+        taskkill /F /PID %%a >nul 2>&1
+        if not errorlevel 1 (
+            echo 已停止进程 %%a
+            set "KILLED_PIDS=!KILLED_PIDS!%%a "
+        ) else (
+            echo 停止进程 %%a 失败，可能需要管理员权限
+        )
     )
 )
 

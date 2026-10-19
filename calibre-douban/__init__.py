@@ -161,6 +161,15 @@ class DoubanBookHtmlParser:
             return None
         title_element = html.select("span[property='v:itemreviewed']")
         book['title'] = self.get_text(title_element)
+        # 优先从专属副标题标签抓取副标题，用中文破折号拼接
+        subtitle_element = html.select("span[property='v:subtitle']")
+        if subtitle_element:
+            subtitle_text = self.get_text(subtitle_element)
+            if subtitle_text:
+                book['title'] = book['title'] + '——' + subtitle_text
+                book['_subtitle_done'] = True  # 标记已处理，避免 span.pl 重复拼接
+        else:
+            book['_subtitle_done'] = False
         share_element = html.select("a[data-url]")
         if len(share_element):
             url = share_element[0].get('data-url')
@@ -193,7 +202,12 @@ class DoubanBookHtmlParser:
             elif text.startswith("出版社"):
                 book['publisher'] = self.get_tail(element)
             elif text.startswith("副标题"):
-                book['title'] = book['title'] + ':' + self.get_tail(element)
+                # 若 v:subtitle 已处理则跳过，否则用 '——' 拼接
+                if not book.get('_subtitle_done', False):
+                    subtitle_tail = self.get_tail(element)
+                    if subtitle_tail:
+                        book['title'] = book['title'] + '——' + subtitle_tail
+                        book['_subtitle_done'] = True
             elif text.startswith("出版年"):
                 book['publishedDate'] = self.get_tail(element)
             elif text.startswith("ISBN"):
@@ -264,7 +278,8 @@ class NewDoubanBooks(Source):
     capabilities = frozenset(['identify', 'cover'])
     touched_fields = frozenset([
         'title', 'authors', 'tags', 'pubdate', 'comments', 'publisher',
-        'identifier:isbn', 'rating', 'identifier:' + PROVIDER_ID
+        'identifier:isbn', 'rating', 'identifier:' + PROVIDER_ID,
+        'identifier:douban'  # 兼容旧版插件使用的 douban 标识符
     ])  # language currently disabled
     book_searcher = None
     options = (
@@ -306,9 +321,13 @@ class NewDoubanBooks(Source):
         self.book_searcher = DoubanBookSearcher(concurrency_size, douban_delay_enable, douban_login_cookie)
 
     def get_book_url(self, identifiers):  # {{{
+        # 优先使用新版 doubanbook 标识符，兼容旧版 douban 标识符
         douban_id = identifiers.get(PROVIDER_ID, None)
         if douban_id is not None:
             return PROVIDER_ID, douban_id, DOUBAN_BOOK_URL % douban_id
+        douban_id_legacy = identifiers.get('douban', None)
+        if douban_id_legacy is not None:
+            return 'douban', douban_id_legacy, DOUBAN_BOOK_URL % douban_id_legacy
 
     def download_cover(
             self,
@@ -367,7 +386,8 @@ class NewDoubanBooks(Source):
 
     def get_cached_cover_url(self, identifiers):  # {{{
         url = None
-        db = identifiers.get(PROVIDER_ID, None)
+        # 兼容新版 doubanbook 和旧版 douban 标识符
+        db = identifiers.get(PROVIDER_ID, None) or identifiers.get('douban', None)
         if db is None:
             isbn = identifiers.get('isbn', None)
             if isbn is not None:
@@ -392,10 +412,11 @@ class NewDoubanBooks(Source):
         log.info(f'Starting identify with identifiers: {identifiers}, title: {title}, authors: {authors}')
         
         isbn = check_isbn(identifiers.get('isbn', None))
+        # 兼容新版 doubanbook 和旧版 douban 标识符
         new_douban = self.get_book_url(identifiers)
         if new_douban:
-            # 如果有new_douban的id，直接精确获取数据
-            log.info(f'Found {PROVIDER_ID} identifier: {new_douban[1]}, URL: {new_douban[2]}')
+            # 如果有douban相关的id，直接精确获取数据
+            log.info(f'Found identifier ({new_douban[0]}): {new_douban[1]}, URL: {new_douban[2]}')
             log.info(f'Attempting to load book directly from: {new_douban[2]}')
             book = self.book_searcher.load_book(new_douban[2], log)
             books = []

@@ -204,12 +204,6 @@ HOYO_SOURCES = {
         "cache_json": "genshin_characters.json",
         "cache_subdir": "genshin_char",
     },
-    "genshin_monsters": {
-        "game": "genshin", "category": "怪物",
-        "url": "https://wiki.biligame.com/ys/%E5%B9%BD%E5%A2%83%E5%8D%B1%E6%88%98",
-        "cache_json": "genshin_monsters.json",
-        "cache_subdir": "genshin_mon",
-    },
     "starrail_characters": {
         "game": "starrail", "category": "角色",
         "url": "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_new/cn/characters.json",
@@ -248,50 +242,6 @@ def _parse_genshin_chars(data: dict) -> list[dict]:
     result.sort(key=lambda x: (-x["rarity"], x["name"]))
     return result
 
-
-def _parse_genshin_monsters_wiki(html_text: str) -> list[dict]:
-    """从B站wiki幽境危战页面HTML中提取BOSS名称和图标。"""
-    import re
-    result = []
-    seen = set()
-    
-    # The HTML structure is:
-    # <a href="/ys/..." title="怪物名"><img src="https://patchwiki.biligame.com/images/ys/thumb/..." /></a>
-    # We search for all <a> tags with patchwiki images in the BOSS sections
-    
-    # Find the BOSS section (it starts with <h2>...<span id="BOSS介绍">...)
-    # Use the actual heading, not the TOC reference
-    boss_start = html_text.find('id="BOSS')
-    if boss_start == -1:
-        boss_start = 0
-    boss_section = html_text[boss_start:]
-    
-    # Pattern: <a href="/ys/..." title="NAME"><img ... src="https://patchwiki..." ...>
-    pattern = r'<a[^>]*href="/ys/[^"]*"[^>]*title="([^"]+)"[^>]*>\s*<img[^>]*src="(https://patchwiki\.biligame\.com/images/[^"]+)"'
-    
-    skip_names = {'元素反应', '分类', '感电', '绽放', '需要帮助', '特殊:页面分类'}
-    
-    for m in re.finditer(pattern, boss_section):
-        name = m.group(1)
-        img_url = m.group(2)
-        
-        if name in seen or not img_url:
-            continue
-        if any(skip in name for skip in skip_names):
-            continue
-        
-        seen.add(name)
-        safe_name = re.sub(r'[^\w\u4e00-\u9fff]', '_', name)
-        # Upgrade thumbnail from 80px to 180px
-        img_url = re.sub(r'/\d+px-', '/180px-', img_url)
-        result.append({
-            "id": safe_name, "name": name,
-            "rarity": 5, "element": "",
-            "icon_url": img_url,
-            "filename": f"mon_{safe_name}.png",
-        })
-    
-    return result
 
 
 def _parse_starrail_chars(data: dict) -> list[dict]:
@@ -392,17 +342,6 @@ async def hoyo_resources(source: str = Query(..., description="e.g. genshin_char
     if items is None:
         if source == "zzz_characters":
             items = _get_zzz_characters()
-        elif source == "genshin_monsters":
-            try:
-                async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-                    resp = await client.get(cfg["url"])
-                    resp.raise_for_status()
-                    items = _parse_genshin_monsters_wiki(resp.text)
-            except Exception as e:
-                if cache_json.exists():
-                    items = json.loads(cache_json.read_text(encoding="utf-8"))
-                else:
-                    raise HTTPException(502, f"无法获取资源: {e}")
         else:
             try:
                 async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:

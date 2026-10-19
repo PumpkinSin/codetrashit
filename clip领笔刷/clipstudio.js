@@ -1,15 +1,19 @@
 // ==UserScript==
 // @name         CLIP STUDIO笔刷入库
 // @namespace    http://tampermonkey.net/
-// @version      4.7
-// @description  自动点击收藏和下载按钮，可选阻止弹窗和下载后自动关闭，支持自动跳转繁中，并在排行榜/搜索页面手动触发打开未入库素材
+// @version      6.0
+// @description  自动点击收藏和下载按钮，可选阻止弹窗和下载后自动关闭，支持自动跳转繁中；排行榜/搜索页面可静默批量收藏并入库（无需打开新标签页）
 // @author       ai
 // @match        https://assets.clip-studio.com/*
 // @grant        GM_openInTab
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
+// @grant        GM_xmlhttpRequest
+// @connect      assets.clip-studio.com
 // @run-at       document-end
+// @downloadURL https://update.greasyfork.org/scripts/562667/CLIP%20STUDIO%E7%AC%94%E5%88%B7%E5%85%A5%E5%BA%93.user.js
+// @updateURL https://update.greasyfork.org/scripts/562667/CLIP%20STUDIO%E7%AC%94%E5%88%B7%E5%85%A5%E5%BA%93.meta.js
 // ==/UserScript==
 
 (function () {
@@ -24,70 +28,134 @@
     const AUTO_CLOSE_KEY = 'autoClose';
     const SKIP_PAID_KEY = 'skipPaidMaterials';
     const AUTO_REDIRECT_ZHTW_KEY = 'autoRedirectZhTw';
+    const CLAIM_DELAY_KEY = 'claimDelayMs'; // 批量静默领取每条素材之间的间隔（毫秒）
     let blockPopupEnabled = GM_getValue(CONFIG_KEY, true); // 默认启用阻止弹窗
     let autoCloseEnabled = GM_getValue(AUTO_CLOSE_KEY, false); // 默认不启用自动关闭
     let skipPaidMaterials = GM_getValue(SKIP_PAID_KEY, false); // 默认不跳过付费素材
     let autoRedirectZhTw = GM_getValue(AUTO_REDIRECT_ZHTW_KEY, false); // 默认不启用自动跳转繁中
+    let claimDelayMs = GM_getValue(CLAIM_DELAY_KEY, 3000); // 默认 3 秒延迟
 
-    // 注册菜单命令
-    const updateMenuCommand = () => {
-        const statusText = blockPopupEnabled ? '✓ 已启用' : '✗ 已禁用';
-        GM_registerMenuCommand(`${statusText} 阻止下载弹窗`, () => {
-            blockPopupEnabled = !blockPopupEnabled;
-            GM_setValue(CONFIG_KEY, blockPopupEnabled);
-            const newStatus = blockPopupEnabled ? '已启用' : '已禁用';
-            alert(`阻止下载弹窗功能${newStatus}\n\n${blockPopupEnabled ? '✓ 下载时不会弹出"要打开 CLIP STUDIO 吗？"提示框' : '✗ 下载时会弹出提示框，可以下载到本地'}\n\n刷新页面后生效`);
-            console.log(`阻止弹窗功能已${newStatus}:`, blockPopupEnabled);
+    // ========================================
+    // 设置面板 UI
+    // ========================================
+    const openSettingsPanel = () => {
+        // 避免重复创建
+        if (document.getElementById('csa-settings-panel')) {
+            document.getElementById('csa-settings-panel').remove();
+            return;
+        }
+
+        const panel = document.createElement('div');
+        panel.id = 'csa-settings-panel';
+        panel.style.cssText = `
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 2147483647; width: 340px;
+            background: #1e1e2e; border: 1px solid #44475a;
+            border-radius: 12px; padding: 20px 24px 16px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #cdd6f4; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+        `;
+
+        const settings = [
+            { key: CONFIG_KEY, label: '阻止下载弹窗', desc: '屏蔽「要打开 CLIP STUDIO 吗？」弹窗', get: () => blockPopupEnabled, set: v => { blockPopupEnabled = v; } },
+            { key: AUTO_CLOSE_KEY, label: '下载后自动关闭', desc: '入库完成后自动关闭该标签页', get: () => autoCloseEnabled, set: v => { autoCloseEnabled = v; } },
+            { key: SKIP_PAID_KEY, label: '跳过付费素材', desc: '批量领取时跳过需要 G/CP 的素材', get: () => skipPaidMaterials, set: v => { skipPaidMaterials = v; } },
+            { key: AUTO_REDIRECT_ZHTW_KEY, label: '自动跳转繁中', desc: '打开页面时自动跳转到繁体中文版本', get: () => autoRedirectZhTw, set: v => { autoRedirectZhTw = v; } },
+        ];
+
+        const rows = settings.map(s => {
+            const id = `csa-toggle-${s.key}`;
+            return `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #313244;">
+                <div>
+                    <div style="font-size:13px;font-weight:500;">${s.label}</div>
+                    <div style="font-size:11px;color:#6c7086;margin-top:2px;">${s.desc}</div>
+                </div>
+                <label style="position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0;margin-left:12px;">
+                    <input type="checkbox" id="${id}" ${s.get() ? 'checked' : ''} style="opacity:0;width:0;height:0;">
+                    <span style="position:absolute;cursor:pointer;inset:0;background:${s.get() ? '#89b4fa' : '#45475a'};border-radius:22px;transition:.2s;">
+                        <span style="position:absolute;content:'';height:16px;width:16px;left:${s.get() ? '21px' : '3px'};bottom:3px;background:#fff;border-radius:50%;transition:.2s;"></span>
+                    </span>
+                </label>
+            </div>`;
+        }).join('');
+
+        panel.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+                <div style="font-size:15px;font-weight:600;color:#cba6f7;">⚙️ CLIP STUDIO 笔刷入库 · 设置</div>
+                <button id="csa-close-btn" style="background:none;border:none;color:#6c7086;font-size:18px;cursor:pointer;padding:0 2px;line-height:1;">✕</button>
+            </div>
+            ${rows}
+            <div style="padding:10px 0;border-bottom:1px solid #313244;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                    <div>
+                        <div style="font-size:13px;font-weight:500;">批量领取间隔</div>
+                        <div style="font-size:11px;color:#6c7086;margin-top:2px;">每个素材之间的等待时间（防风控）</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:12px;">
+                        <input id="csa-delay-input" type="number" min="1" max="60" step="0.5"
+                            value="${claimDelayMs / 1000}"
+                            style="width:54px;padding:4px 6px;background:#313244;border:1px solid #45475a;border-radius:6px;color:#cdd6f4;font-size:13px;text-align:center;">
+                        <span style="font-size:12px;color:#6c7086;">秒</span>
+                    </div>
+                </div>
+            </div>
+            <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:8px;">
+                <button id="csa-save-btn" style="padding:7px 20px;background:linear-gradient(135deg,#89b4fa,#cba6f7);border:none;border-radius:7px;color:#1e1e2e;font-size:13px;font-weight:600;cursor:pointer;">保存</button>
+            </div>
+            <div id="csa-saved-msg" style="display:none;text-align:center;color:#a6e3a1;font-size:12px;margin-top:8px;">✓ 已保存，立即生效</div>
+        `;
+
+        document.body.appendChild(panel);
+
+        // 关闭按钮
+        document.getElementById('csa-close-btn').onclick = () => panel.remove();
+
+        // 点击面板外关闭
+        const outsideClick = (e) => { if (!panel.contains(e.target)) { panel.remove(); document.removeEventListener('click', outsideClick); } };
+        setTimeout(() => document.addEventListener('click', outsideClick), 100);
+
+        // 实时更新 toggle 样式
+        settings.forEach(s => {
+            const id = `csa-toggle-${s.key}`;
+            const checkbox = document.getElementById(id);
+            const knob = checkbox.nextElementSibling;
+            const dot = knob.querySelector('span');
+            checkbox.addEventListener('change', () => {
+                const on = checkbox.checked;
+                knob.style.background = on ? '#89b4fa' : '#45475a';
+                dot.style.left = on ? '21px' : '3px';
+            });
         });
+
+        // 保存按钮
+        document.getElementById('csa-save-btn').onclick = () => {
+            settings.forEach(s => {
+                const on = document.getElementById(`csa-toggle-${s.key}`).checked;
+                s.set(on);
+                GM_setValue(s.key, on);
+            });
+            const delayInput = parseFloat(document.getElementById('csa-delay-input').value);
+            if (!isNaN(delayInput) && delayInput >= 1) {
+                claimDelayMs = Math.round(delayInput * 1000);
+                GM_setValue(CLAIM_DELAY_KEY, claimDelayMs);
+            }
+            console.log('✓ 设置已保存');
+            document.getElementById('csa-saved-msg').style.display = 'block';
+            setTimeout(() => panel.remove(), 1200);
+        };
     };
 
-    updateMenuCommand();
-    console.log('当前阻止弹窗状态:', blockPopupEnabled ? '启用' : '禁用');
+    // 注册单一菜单命令
+    GM_registerMenuCommand('⚙️ 打开设置', openSettingsPanel);
+    console.log('当前设置 →',
+        '阻止弹窗:', blockPopupEnabled,
+        '| 自动关闭:', autoCloseEnabled,
+        '| 跳过付费:', skipPaidMaterials,
+        '| 跳转繁中:', autoRedirectZhTw,
+        '| 批量间隔:', claimDelayMs + 'ms'
+    );
 
-    // 注册自动关闭菜单命令
-    const updateAutoCloseCommand = () => {
-        const statusText = autoCloseEnabled ? '✓ 已启用' : '✗ 已禁用';
-        GM_registerMenuCommand(`${statusText} 下载后自动关闭`, () => {
-            autoCloseEnabled = !autoCloseEnabled;
-            GM_setValue(AUTO_CLOSE_KEY, autoCloseEnabled);
-            const newStatus = autoCloseEnabled ? '已启用' : '已禁用';
-            alert(`下载后自动关闭功能${newStatus}\n\n${autoCloseEnabled ? '✓ 笔刷下载完成后会自动关闭标签页（仅适用于脚本打开的页面）' : '✗ 笔刷下载后不会自动关闭标签页'}\n\n刷新页面后生效`);
-            console.log(`自动关闭功能已${newStatus}:`, autoCloseEnabled);
-        });
-    };
-
-    updateAutoCloseCommand();
-    console.log('当前自动关闭状态:', autoCloseEnabled ? '启用' : '禁用');
-
-    // 注册跳过付费素材菜单命令
-    const updateSkipPaidCommand = () => {
-        const statusText = skipPaidMaterials ? '✓ 已启用' : '✗ 已禁用';
-        GM_registerMenuCommand(`${statusText} 跳过付费素材`, () => {
-            skipPaidMaterials = !skipPaidMaterials;
-            GM_setValue(SKIP_PAID_KEY, skipPaidMaterials);
-            const newStatus = skipPaidMaterials ? '已启用' : '已禁用';
-            alert(`跳过付费素材功能${newStatus}\n\n${skipPaidMaterials ? '✓ 批量打开时将跳过需要金币(G)或点数(CP)购买的素材' : '✗ 批量打开时包含所有付费素材'}\n\n刷新页面后生效`);
-            console.log(`跳过付费素材功能已${newStatus}:`, skipPaidMaterials);
-        });
-    };
-
-    updateSkipPaidCommand();
-    console.log('当前跳过付费素材状态:', skipPaidMaterials ? '启用' : '禁用');
-
-    // 注册自动跳转繁中菜单命令
-    const updateAutoRedirectCommand = () => {
-        const statusText = autoRedirectZhTw ? '✓ 已启用' : '✗ 已禁用';
-        GM_registerMenuCommand(`${statusText} 自动跳转繁中`, () => {
-            autoRedirectZhTw = !autoRedirectZhTw;
-            GM_setValue(AUTO_REDIRECT_ZHTW_KEY, autoRedirectZhTw);
-            const newStatus = autoRedirectZhTw ? '已启用' : '已禁用';
-            alert(`自动跳转繁中功能${newStatus}\n\n${autoRedirectZhTw ? '✓ 所有语种页面将自动跳转到繁体中文 (zh-tw) 版本' : '✗ 保持原语种页面不跳转'}\n\n刷新页面后生效`);
-            console.log(`自动跳转繁中功能已${newStatus}:`, autoRedirectZhTw);
-        });
-    };
-
-    updateAutoRedirectCommand();
-    console.log('当前自动跳转繁中状态:', autoRedirectZhTw ? '启用' : '禁用');
 
     // ========================================
     // 功能 1: 自动跳转繁中（可选）
@@ -455,13 +523,106 @@
         scrollAndCheck();
     };
 
-    // 扫描并打开未入库素材的函数
+    // ========================================
+    // 工具函数：从页面获取 CSRF Token
+    // 优先读 meta 标签（详情页），fallback 读 XSRF-TOKEN cookie（搜索/排行榜页）
+    // ========================================
+    const getCsrfToken = () => {
+        // 1. 尝试从 meta 标签读取（详情页有）
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        if (meta) return meta.getAttribute('content');
+
+        // 2. fallback：从 XSRF-TOKEN cookie 读取（搜索/排行榜页面登录后有）
+        const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+        if (match) {
+            try { return decodeURIComponent(match[1]); } catch (e) { return match[1]; }
+        }
+
+        return null;
+    };
+
+    // ========================================
+    // 工具函数：从当前 URL 提取语言前缀（如 zh-tw）
+    // ========================================
+    const getLangPrefix = () => {
+        const match = window.location.pathname.match(/^\/([a-z]{2}-[a-z]{2})\//i);
+        return match ? match[1] : 'zh-tw'; // 默认繁中
+    };
+
+    // ========================================
+    // 工具函数：延迟 Promise
+    // ========================================
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // ========================================
+    // 核心功能：静默收藏并入库单个素材
+    // 返回 Promise<{ starred: boolean, claimed: boolean, error: string|null }>
+    // ========================================
+    const claimMaterialSilently = (materialId, csrfToken, langPrefix) => {
+        const baseUrl = `https://assets.clip-studio.com/${langPrefix}/detail/ajax`;
+        const headers = {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'X-CSRF-Token': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Referer': `https://assets.clip-studio.com/${langPrefix}/detail?id=${materialId}`,
+        };
+
+        const postRequest = (url, body) => new Promise((resolve) => {
+            GM_xmlhttpRequest({
+                method: 'POST',
+                url: url,
+                headers: headers,
+                data: body,
+                onload: (resp) => {
+                    resolve({ ok: resp.status >= 200 && resp.status < 300, status: resp.status, text: resp.responseText });
+                },
+                onerror: (err) => {
+                    resolve({ ok: false, status: 0, text: String(err) });
+                },
+            });
+        });
+
+        return (async () => {
+            const result = { starred: false, claimed: false, error: null };
+
+            // Step 1: 收藏（register-star）
+            try {
+                const starResp = await postRequest(`${baseUrl}/register-star`, `id=${materialId}`);
+                if (starResp.ok) {
+                    result.starred = true;
+                    console.log(`[${materialId}] ⭐ 收藏成功`);
+                } else {
+                    console.warn(`[${materialId}] ⭐ 收藏失败 HTTP ${starResp.status}:`, starResp.text.substring(0, 200));
+                }
+            } catch (e) {
+                console.error(`[${materialId}] ⭐ 收藏异常:`, e);
+            }
+
+            // Step 2: 入库（purchase-material-free）
+            try {
+                const claimResp = await postRequest(`${baseUrl}/purchase-material-free`, `material_id=${materialId}`);
+                if (claimResp.ok) {
+                    result.claimed = true;
+                    console.log(`[${materialId}] 📥 入库成功`);
+                } else {
+                    console.warn(`[${materialId}] 📥 入库失败 HTTP ${claimResp.status}:`, claimResp.text.substring(0, 200));
+                }
+            } catch (e) {
+                console.error(`[${materialId}] 📥 入库异常:`, e);
+            }
+
+            return result;
+        })();
+    };
+
+    // ========================================
+    // 扫描并静默领取未入库素材
+    // ========================================
     const scanAndOpenUnownedMaterials = (button) => {
         console.log('========================================');
-        console.log('🔍 开始扫描未入库素材...');
+        console.log('🔍 开始扫描未入库素材（静默模式）...');
         console.log('========================================');
 
-        // 等待页面加载完成
         const waitForMaterials = () => {
             const allCards = document.querySelectorAll('.materialCard');
 
@@ -487,28 +648,15 @@
             if (skipPaidMaterials) {
                 filteredCards = unownedCards.filter(card => {
                     const priceElement = card.querySelector('.materialCard__price');
-                    if (!priceElement) {
-                        // 没有价格标签，认为是免费素材
-                        return true;
-                    }
-
+                    if (!priceElement) return true;
                     const priceText = priceElement.textContent.trim();
-
-                    // 检查是否包含 G 币或 CP
                     const hasPaidPrice = /\d+\s*(G|CP)/i.test(priceText);
-
-                    // 如果是付费素材，则过滤掉
-                    if (hasPaidPrice) {
-                        skippedPaidCount++;
-                        return false;
-                    }
-
+                    if (hasPaidPrice) { skippedPaidCount++; return false; }
                     return true;
                 });
-
                 if (skippedPaidCount > 0) {
                     console.log(`🚫 已过滤付费素材: ${skippedPaidCount} 个`);
-                    console.log(`✅ 剩余待打开素材: ${filteredCards.length} 个`);
+                    console.log(`✅ 剩余待领取素材: ${filteredCards.length} 个`);
                 }
             }
 
@@ -538,30 +686,51 @@
                 return;
             }
 
-            // 提取未入库素材的链接
-            const unownedLinks = filteredCards.map(card => {
+            // 提取素材 ID 列表
+            const materialIds = filteredCards.map(card => {
                 const link = card.querySelector('a.materialCard__cardContentBlock');
-                return link ? link.href : null;
-            }).filter(href => href !== null);
+                if (!link) return null;
+                const match = link.href.match(/[?&]id=(\d+)/);
+                return match ? match[1] : null;
+            }).filter(id => id !== null);
 
-            console.log(`🔗 准备打开 ${unownedLinks.length} 个未入库素材...`);
-            console.log('⏱️  每隔 2 秒打开一个新标签页');
+            console.log(`� 准备静默领取 ${materialIds.length} 个素材，间隔 ${claimDelayMs / 1000}s...`);
 
-            // 更新按钮显示进度
-            let index = 0;
-            const openNext = () => {
-                if (index >= unownedLinks.length) {
+            // 获取 CSRF Token 和语言前缀
+            const csrfToken = getCsrfToken();
+            const langPrefix = getLangPrefix();
+
+            if (!csrfToken) {
+                console.error('✗ 无法获取 CSRF Token，请确认已登录');
+                alert('无法获取 CSRF Token，请确认已登录账号后刷新页面重试');
+                button.disabled = false;
+                button.style.opacity = '1';
+                button.style.cursor = 'pointer';
+                return;
+            }
+
+            console.log(`✓ CSRF Token 已获取，语言前缀: ${langPrefix}`);
+
+            // 统计结果
+            let successCount = 0;
+            let failCount = 0;
+
+            // 逐个处理
+            const processNext = async (index) => {
+                if (index >= materialIds.length) {
                     console.log('========================================');
-                    console.log('✓ 所有未入库素材已打开完毕！');
+                    console.log(`✓ 批量领取完成！成功: ${successCount}, 失败: ${failCount}`);
                     console.log('========================================');
 
                     button.innerHTML = `
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 6px; vertical-align: middle;">
                             <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
                         </svg>
-                        <span>完成 (${unownedLinks.length}个)</span>
+                        <span>完成 ✓${successCount} ✗${failCount}</span>
                     `;
-                    button.style.background = 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)';
+                    button.style.background = failCount > 0
+                        ? 'linear-gradient(135deg, #f7971e 0%, #ffd200 100%)'
+                        : 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)';
 
                     setTimeout(() => {
                         button.disabled = false;
@@ -575,29 +744,34 @@
                             <span>识别未入库素材</span>
                         `;
                         button.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-                    }, 3000);
+                    }, 4000);
                     return;
                 }
 
-                const url = unownedLinks[index];
-                console.log(`[${index + 1}/${unownedLinks.length}] 后台打开: ${url}`);
+                const id = materialIds[index];
 
                 // 更新按钮进度
                 button.innerHTML = `
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 6px; vertical-align: middle; animation: spin 1s linear infinite;">
                         <path d="M8 0a8 8 0 0 0-8 8h2a6 6 0 1 1 6 6v2a8 8 0 0 0 0-16z"/>
                     </svg>
-                    <span>打开中 ${index + 1}/${unownedLinks.length}</span>
+                    <span>领取中 ${index + 1}/${materialIds.length}</span>
                 `;
 
-                // 使用 GM_openInTab 绕过弹窗拦截器，在后台打开标签页
-                GM_openInTab(url, { active: false });
-                index++;
+                const result = await claimMaterialSilently(id, csrfToken, langPrefix);
+                if (result.claimed) {
+                    successCount++;
+                } else {
+                    failCount++;
+                    console.warn(`[${id}] 领取失败（收藏: ${result.starred}）`);
+                }
 
-                setTimeout(openNext, 2000); // 2秒后打开下一个
+                // 延迟后处理下一个
+                await delay(claimDelayMs);
+                processNext(index + 1);
             };
 
-            openNext();
+            processNext(0);
         };
 
         waitForMaterials();

@@ -215,8 +215,8 @@ function buildBilibiliHtml(item) {
         parts.push(`<p>${coverHtml}</p>`);
     }
 
-    // 嵌入式播放器（仅视频类型）
-    if (item.videoBvid) {
+    // 嵌入式播放器（仅视频类型，受配置开关控制）
+    if (item.videoBvid && config.render.bilibiliEmbedPlayer) {
         parts.push(buildBilibiliIframe(item.videoBvid));
     }
 
@@ -275,7 +275,7 @@ function buildOrigDynamicHtml(orig) {
     }
 
     // 原视频嵌入
-    if (orig.videoBvid) {
+    if (orig.videoBvid && config.render.bilibiliEmbedPlayer) {
         inner.push(buildBilibiliIframe(orig.videoBvid));
     }
 

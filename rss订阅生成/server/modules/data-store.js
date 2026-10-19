@@ -75,9 +75,12 @@ function merge(platform, newItems) {
     // 按发布时间倒序
     merged.sort((a, b) => (b.publishTime || 0) - (a.publishTime || 0));
 
-    // 截断到最大条目数
-    if (merged.length > config.rss.maxItems) {
-        merged = merged.slice(0, config.rss.maxItems);
+    // 截断到最大条目数（bilibili-alt 使用独立限制）
+    const maxItems = platform === 'bilibili-alt'
+        ? (config.bilibiliAlt.maxItems || 100)
+        : config.rss.maxItems;
+    if (merged.length > maxItems) {
+        merged = merged.slice(0, maxItems);
     }
 
     // 写入文件

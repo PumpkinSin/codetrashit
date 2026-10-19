@@ -81,14 +81,14 @@ async function fetchAndStore(opts) {
             items.push(normalized);
         }
 
-        // 检测重叠
-        if (overlapPagesLeft < 0 && pageTotalCount > 0 && pageNewCount < pageTotalCount / 2) {
+        // 检测重叠：该页全部都是旧条目时才触发
+        if (overlapPagesLeft < 0 && pageTotalCount > 0 && pageNewCount === 0) {
             overlapPagesLeft = extraPages;
-            console.log(`[ZhihuFetcher] 第 ${page + 1} 页检测到重叠（${pageNewCount}/${pageTotalCount} 新），再爬 ${extraPages} 页`);
+            console.log(`[ZhihuFetcher] 第 ${page + 1} 页检测到重叠（全部 ${pageTotalCount} 条均已存在），再爬 ${extraPages} 页`);
         }
 
         if (overlapPagesLeft >= 0) {
-            if (overlapPagesLeft <= 0) {
+            if (overlapPagesLeft === 0) {
                 console.log(`[ZhihuFetcher] 额外页数已用完，停止`);
                 break;
             }

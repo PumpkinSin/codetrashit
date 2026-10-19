@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         导航面板
 // @namespace    http://tampermonkey.net/
-// @version      7.5
+// @version      7.6
 // @description  多功能导航面板，支持侧边栏/顶栏/底栏显示，可自定义位置、颜色、搜索引擎。支持收藏管理、镜像站点数据共享、拖拽排序等功能。默认关闭，可在油猴菜单中为任意网站启用。
 // @author       ai
 // @match        *://*/*
@@ -1034,7 +1034,7 @@
         .settings-content::-webkit-scrollbar-thumb { background: #d0d0d0; border-radius: 4px; }
         .settings-content::-webkit-scrollbar-thumb:hover { background: #b0b0b0; }
         .setting-section { margin-bottom: 25px; }
-        .setting-section h3 { margin: 0 0 15px 0; font-size: 16px; color: ${primaryColor}; font-weight: 600; border-bottom: 2px solid ${lightenColor(primaryColor, 30)}; padding-bottom: 8px; text-align: left; }
+        .setting-section h3 { margin: 0 0 15px 0; font-size: 16px; color: #333; font-weight: 600; border-bottom: 2px solid ${primaryColor}; padding-bottom: 8px; text-align: left; }
         .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee; }
         .setting-item:last-child { border-bottom: none; }
         .setting-label { font-size: 14px; color: #000; font-weight: 500; }

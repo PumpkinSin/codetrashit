@@ -22,14 +22,14 @@ function init() {
     const { intervalMinutes } = config.fetch;
 
     // 检查是否有任何抓取配置
-    const hasBilibili = !!config.bilibili.sessdata;
-    const hasBilibiliAlt = !!config.bilibiliAlt.sessdata;
+    const hasBilibili = !!(config.bilibili.cookie || config.bilibili.sessdata);
+    const hasBilibiliAlt = !!(config.bilibiliAlt.cookie || config.bilibiliAlt.sessdata);
     const hasZhihu = !!config.zhihu.cookie;
     const hasDouban = !!config.douban.cookie;
 
     if (!hasBilibili && !hasBilibiliAlt && !hasZhihu && !hasDouban) {
         console.log('[Scheduler] ⚠️  未配置任何 Cookie，定时抓取未启动');
-        console.log('[Scheduler]    请在 .env 中配置 BILIBILI_SESSDATA / ZHIHU_COOKIE');
+        console.log('[Scheduler]    请在 .env 中配置 BILIBILI_COOKIE / BILIBILI_SESSDATA / ZHIHU_COOKIE');
         return;
     }
 
@@ -60,9 +60,10 @@ async function runAll() {
     const startTime = Date.now();
 
     // B 站主号
-    if (config.bilibili.sessdata) {
+    if (config.bilibili.cookie || config.bilibili.sessdata) {
         try {
             const result = await bilibiliFetcher.fetchAndStore({
+                cookie: config.bilibili.cookie,
                 sessdata: config.bilibili.sessdata,
                 platform: 'bilibili',
                 maxPages: config.bilibili.maxPages,
@@ -73,10 +74,11 @@ async function runAll() {
         }
     }
 
-    // B 站小号（独立 SESSDATA）
-    if (config.bilibiliAlt.sessdata) {
+    // B 站小号（独立 Cookie）
+    if (config.bilibiliAlt.cookie || config.bilibiliAlt.sessdata) {
         try {
             const result = await bilibiliFetcher.fetchAndStore({
+                cookie: config.bilibiliAlt.cookie,
                 sessdata: config.bilibiliAlt.sessdata,
                 platform: 'bilibili-alt',
                 maxPages: config.bilibiliAlt.maxPages,
