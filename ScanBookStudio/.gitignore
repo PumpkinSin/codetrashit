@@ -1,0 +1,37 @@
+# Personal data, API keys, caches, and user books/outputs
+data/*
+!data/app_settings.example.json
+work/
+output/
+
+# AI models & third-party binaries (too large for git; place in models/ or configure in Settings)
+models/
+tools/llamacpp/
+tools/pandoc/
+*.onnx
+*.gguf
+*.bin
+*.pdf
+*.epub
+
+# Python virtual environments & caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Flutter / Dart build artifacts
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+windows/flutter/ephemeral/
+
+# Rust build artifacts & compiled DLLs
+rust_core/target/
+*.dll
+*.exe
+*.pdb
+*.lib
+*.exp

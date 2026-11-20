@@ -1,0 +1,41 @@
+# ==========================================
+# 软件构筑与发布输出目录 (聚合运行文件夹)
+# ==========================================
+/dist/
+/RSSManager_Desktop/
+*.exe
+
+# ==========================================
+# 敏感隐私配置与动态生成的数据
+# ==========================================
+.env
+gui_config.json
+/data/
+
+# ==========================================
+# 编译器中间构建缓存 (Rust & Flutter)
+# ==========================================
+/rust_engine/target/
+/flutter_ui/build/
+/flutter_ui/.dart_tool/
+/flutter_ui/.flutter-plugins
+/flutter_ui/.flutter-plugins-dependencies
+/flutter_ui/windows/flutter/ephemeral/
+/flutter_ui/windows/flutter/generated_plugin_registrant.cc
+/flutter_ui/windows/flutter/generated_plugin_registrant.h
+/flutter_ui/windows/flutter/generated_plugins.cmake
+
+# ==========================================
+# 旧版归档中的临时依赖与缓存
+# ==========================================
+**/node_modules/
+**/__pycache__/
+old/server/.env
+old/server/data/
+old/legacy_original_backup/
+
+# ==========================================
+# 日志与临时调试文件
+# ==========================================
+*.log
+*.tmp

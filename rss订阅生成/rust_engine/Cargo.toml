@@ -1,0 +1,36 @@
+[package]
+name = "rss_engine"
+version = "1.0.0"
+edition = "2021"
+description = "High-performance standalone RSS Engine in Rust"
+
+[dependencies]
+tokio = { version = "1.38", features = ["full"] }
+axum = { version = "0.7", features = ["json"] }
+tower = { version = "0.4", features = ["util"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip", "brotli"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+regex = "1.10"
+rusqlite = { version = "0.31", features = ["bundled"] }
+aes-gcm = "0.10"
+base64 = "0.22"
+sha2 = "0.10"
+hmac = "0.12"
+hex = "0.4"
+url = "2.5"
+urlencoding = "2.1"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+rand = "0.8"
+tempfile = "3.10"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.52", features = [
+    "Win32_Security_Cryptography",
+    "Win32_System_Memory",
+    "Win32_Foundation"
+] }

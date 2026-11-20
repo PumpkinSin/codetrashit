@@ -1,0 +1,9 @@
+numpy>=1.26.0
+pillow>=10.0.0
+onnxruntime-directml>=1.18.0
+pymupdf>=1.24.0
+pymupdf4llm>=0.0.17
+ebooklib>=0.18
+beautifulsoup4>=4.12.0
+pyyaml>=6.0.0
+requests>=2.31.0

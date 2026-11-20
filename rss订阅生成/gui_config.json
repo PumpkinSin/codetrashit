@@ -1,11 +1,1 @@
-{
-  "auto_start": true,
-  "keep_server": false,
-  "no_tray": false,
-  "start_minimized": true,
-  "platform_enabled": {
-    "bilibili.com": true,
-    "zhihu.com": true,
-    "douban.com": false
-  }
-}
+{"auto_start":true,"keep_server":false,"no_tray":false,"start_minimized":true,"selected_browser":"Zen","selected_profile":"C:\\Users\\herey\\AppData\\Roaming\\zen\\Profiles\\aqbbnqfd.Default (release)","platform_enabled":{"bilibili.com":true,"zhihu.com":true,"douban.com":false}}

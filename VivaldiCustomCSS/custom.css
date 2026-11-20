@@ -1,0 +1,235 @@
+/* ==========================================================================
+   Vivaldi 自定义样式
+   1. F11 全屏时，右侧标签栏鼠标靠右自动展开、移开收起（地址栏保持隐藏）
+   2. 地址栏输入框右侧仅保留书签按钮，隐藏翻译/安装网页应用等其他按钮
+   3. 扩展图标显示更紧凑
+   ========================================================================== */
+
+:root {
+  /* 全屏右侧标签栏未展开时，留在屏幕最右缘的触发热区宽度 */
+  --fullscreen-tabbar-peek: 6px;
+  /* 右侧标签栏最小宽度（原默认 159px，设为 220px 约 1.4 倍，仍可继续拖宽） */
+  --right-tabbar-min-width: 220px;
+  /* 扩展图标按钮宽度（越小越紧凑，建议 20px ~ 26px） */
+  --compact-ext-width: 22px;
+}
+
+/* --------------------------------------------------------------------------
+   1. 自动隐藏右侧标签栏与面板：完全贴合屏幕右边缘，只有向左移开才收起
+   -------------------------------------------------------------------------- */
+#browser.auto-hide .auto-hide-wrapper.right,
+#browser.auto-hide .auto-hide-wrapper.right.show {
+  right: 0 !important;
+  app-region: no-drag !important;
+  transition-duration: 0.08s !important;
+}
+
+/* 防止面板开关栏上下空白处的 app-region: drag 吞掉 :hover */
+#browser.auto-hide .auto-hide-wrapper.right * {
+  app-region: no-drag !important;
+}
+
+/* 非全屏时往下避开 23px 顶栏 */
+#browser.auto-hide:not(.fullscreen) .auto-hide-wrapper.right,
+#browser.auto-hide:not(.fullscreen) .auto-hide-wrapper.right.show {
+  top: 23px !important;
+  height: calc(100% - 23px) !important;
+}
+
+/* F11 全屏时无顶栏，铺满右侧 */
+#browser.auto-hide.fullscreen .auto-hide-wrapper.right,
+#browser.auto-hide.fullscreen .auto-hide-wrapper.right.show {
+  top: 0 !important;
+  height: 100% !important;
+}
+
+#browser.auto-hide .auto-hide-wrapper.right:not(.show):not(:hover):not(:active):not(:has(.resizing)):not(:has(input:focus, textarea:focus)) {
+  transform: translateX(calc(100% - 8px)) !important;
+  opacity: 0.01 !important;
+  pointer-events: auto !important;
+  transition-delay: 0s !important;
+}
+
+#browser.auto-hide .auto-hide-wrapper.right:is(.show, :hover, :active, :has(.resizing), :has(input:focus, textarea:focus)) {
+  transform: translateX(0) !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transition-delay: 0s !important;
+}
+
+/* 展开后在左侧保留 10px 缓冲区，调整面板左边宽度时轻微偏出不会立刻消失 */
+#browser.auto-hide .auto-hide-wrapper.right:is(.show, :hover, :active, :has(.resizing), :has(input:focus, textarea:focus))::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 0 -10px;
+  pointer-events: auto;
+  z-index: -1;
+}
+
+/* 面板与标签栏同时在右侧自动隐藏时：面板放在标签栏左边，内容向左展开 */
+#browser.auto-hide .auto-hide-wrapper.right #panels-container {
+  order: 1 !important;
+}
+#browser.auto-hide .auto-hide-wrapper.right .tabbar-wrapper {
+  order: 2 !important;
+}
+
+/* 防止网页加载重排期间标签行闪烁隐藏 */
+#tabs-container.right .tab-position {
+  opacity: 1 !important;
+}
+#browser.auto-hide .auto-hide-wrapper.right #panels-container #panels {
+  flex-direction: row-reverse !important;
+}
+
+/* --------------------------------------------------------------------------
+   1.5 顶栏：常驻且全宽统一 23px（原高度 2/3），颜色与默认外框一致，菜单与标题居中
+   -------------------------------------------------------------------------- */
+#browser.auto-hide:not(.fullscreen) {
+  padding-top: 23px !important;
+}
+
+/* 消除 Vivaldi 原生网页区角落的圆弧阴影重叠 bug（不改外框背景色） */
+#browser.auto-hide:not(.fullscreen) #webpage-stack,
+#browser.auto-hide:not(.fullscreen) #webpage-stack .mosaic-tile,
+#browser.auto-hide:not(.fullscreen) #webpage-stack .webpageview,
+#browser.auto-hide:not(.fullscreen) #main > .inner {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+#browser.auto-hide:not(.fullscreen) #webpage-stack::before,
+#browser.auto-hide:not(.fullscreen) #webpage-stack::after {
+  display: none !important;
+}
+
+#browser.auto-hide:not(.fullscreen) .auto-hide-wrapper.top,
+#browser.auto-hide:not(.fullscreen) .auto-hide-wrapper.top.show {
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 23px !important;
+  z-index: 20 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  transform: translateY(0) !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* F11 全屏时隐藏常驻顶栏 */
+#browser.auto-hide.fullscreen .auto-hide-wrapper.top {
+  display: none !important;
+}
+
+#browser:not(.tabs-top, .fullscreen) #titlebar {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  height: 23px !important;
+  min-height: 23px !important;
+  background: transparent !important;
+  app-region: drag !important;
+}
+
+#browser:not(.tabs-top) #titlebar .vivaldi,
+#browser:not(.tabs-top) #titlebar .window-buttongroup {
+  app-region: no-drag !important;
+}
+
+#browser:not(.tabs-top) #titlebar .vivaldi {
+  position: static !important;
+  flex: 0 0 auto !important;
+  height: 23px !important;
+  margin: 0 4px 0 0 !important;
+  scale: 0.7 !important;
+  transform-origin: center !important;
+}
+
+#browser:not(.tabs-top) #titlebar #pagetitle {
+  position: static !important;
+  width: auto !important;
+  max-width: 60vw !important;
+  flex: 0 1 auto !important;
+  height: 23px !important;
+  font-size: 12px !important;
+  line-height: 23px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transform-origin: center !important;
+}
+
+#browser:not(.tabs-top, .fullscreen) #titlebar .window-buttongroup {
+  height: 23px !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+#browser:not(.tabs-top, .fullscreen) #titlebar .window-buttongroup button {
+  height: 23px !important;
+}
+
+/* --------------------------------------------------------------------------
+   1.6 标签页仅保留「激活」与「后台」两种固定颜色，不随网页图标改色
+   -------------------------------------------------------------------------- */
+#tabs-container .tab:not(.active) {
+  background-color: transparent !important;
+  color: var(--colorFg) !important;
+}
+
+#tabs-container .tab.active {
+  background-color: var(--colorBgLighter, var(--colorBgIntense)) !important;
+  color: var(--colorFg) !important;
+}
+
+/* --------------------------------------------------------------------------
+   2. 地址栏内只保留书签按钮，隐藏翻译、安装网页应用等其他按钮
+   -------------------------------------------------------------------------- */
+/* 先隐藏地址栏输入框右侧内部的所有操作按钮 */
+.UrlBar-AddressField .toolbar-insideinput .button-toolbar {
+  display: none !important;
+}
+
+/* 仅放行书签按钮（同时兼容中/英文界面与不同版本类名） */
+.UrlBar-AddressField .toolbar-insideinput .button-toolbar:has(button[title*="书签"]),
+.UrlBar-AddressField .toolbar-insideinput .button-toolbar:has(button[title*="Bookmark"]),
+.UrlBar-AddressField .toolbar-insideinput .button-toolbar.BookmarkButton,
+.UrlBar-AddressField .toolbar-insideinput .button-toolbar.create-bookmark {
+  display: flex !important;
+}
+
+/* 兜底：防止部分版本的翻译/安装按钮不在 .toolbar-insideinput 内 */
+.UrlBar-AddressField .button-toolbar:has(button[title*="翻译"]),
+.UrlBar-AddressField .button-toolbar:has(button[title*="Translate"]),
+.UrlBar-AddressField .button-toolbar:has(button[title*="安装"]),
+.UrlBar-AddressField .button-toolbar:has(button[title*="Install"]) {
+  display: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   3. 扩展图标显示更紧凑
+   -------------------------------------------------------------------------- */
+.toolbar .ExtensionIcon,
+.toolbar-extensions .button-toolbar {
+  min-width: var(--compact-ext-width) !important;
+  width: var(--compact-ext-width) !important;
+  padding: 0 !important;
+  margin: 0 2.5px !important;
+}
+
+.toolbar .ExtensionIcon > button,
+.toolbar-extensions .button-toolbar > button {
+  min-width: var(--compact-ext-width) !important;
+  width: var(--compact-ext-width) !important;
+  padding: 0 2px !important;
+  margin: 0 !important;
+}
+
+/* 保持扩展小图标尺寸清晰，不裁切角标 */
+.toolbar .ExtensionIcon img,
+.toolbar .ExtensionIcon svg {
+  width: 16px !important;
+  height: 16px !important;
+}

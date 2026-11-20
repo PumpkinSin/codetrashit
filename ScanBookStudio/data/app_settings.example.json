@@ -1,0 +1,12 @@
+{
+  "default_remove_margin_fingers": true,
+  "default_remove_edge_black": true,
+  "custom_model_dir": "",
+  "ai_assist_crop": true,
+  "ai_assist_split": true,
+  "ai_assist_illustrations": true,
+  "translation_api_url": "https://api.openai.com/v1",
+  "translation_api_key": "",
+  "translation_model": "gpt-4o-mini",
+  "translation_concurrency": 4
+}

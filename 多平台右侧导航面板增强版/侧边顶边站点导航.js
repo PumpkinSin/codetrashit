@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         导航面板
 // @namespace    http://tampermonkey.net/
-// @version      7.6
+// @version      8.2
 // @description  多功能导航面板，支持侧边栏/顶栏/底栏显示，可自定义位置、颜色、搜索引擎。支持收藏管理、镜像站点数据共享、拖拽排序等功能。默认关闭，可在油猴菜单中为任意网站启用。
 // @author       ai
 // @match        *://*/*
@@ -21,7 +21,41 @@
 
     // 全局启用/禁用设置
     const GLOBAL_ENABLE_KEY = 'navigation_panel_global_enable';
+    // 展开/收起快捷键的全局存储键（跨站点共用一份）
+    const GLOBAL_SHORTCUT_KEY = 'navigation_panel_global_shortcut';
     const currentDomain = window.location.hostname;
+
+    // 常见二级后缀清单：这些后缀下主域名需取三段（如 people.com.cn 的主域名是 people.com.cn 而非 com.cn）
+    // 纯正则无法从结构上区分 co.uk 与 bilibili.com，必须内置后缀清单判断
+    const SECOND_LEVEL_SUFFIXES = new Set([
+        // 中国大陆及港澳台
+        'com.cn', 'net.cn', 'org.cn', 'gov.cn', 'edu.cn', 'ac.cn', 'mil.cn',
+        'com.hk', 'net.hk', 'org.hk', 'edu.hk', 'gov.hk', 'idv.hk',
+        'com.tw', 'net.tw', 'org.tw', 'edu.tw', 'gov.tw', 'idv.tw',
+        'com.mo', 'edu.mo', 'gov.mo',
+        // 其他常见二级后缀
+        'co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'net.uk', 'me.uk', 'ltd.uk', 'plc.uk', 'sch.uk',
+        'co.jp', 'ne.jp', 'or.jp', 'ac.jp', 'go.jp',
+        'co.kr', 'or.kr', 'ne.kr', 're.kr', 'go.kr',
+        'com.au', 'net.au', 'org.au', 'edu.au', 'gov.au', 'id.au',
+        'co.nz', 'co.za', 'co.in', 'com.sg', 'com.my', 'com.br', 'com.mx', 'com.ru', 'com.tr', 'com.ar'
+    ]);
+
+    // 提取主域名(去除子域名,保留核心域名)
+    // 例如: www.zhihu.com -> zhihu.com, zhuanlan.zhihu.com -> zhihu.com, www.people.com.cn -> people.com.cn
+    function getMainDomain(hostname) {
+        // IP 地址直接返回
+        if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return hostname;
+        const parts = hostname.split('.');
+        if (parts.length <= 2) {
+            return hostname;
+        }
+        // 后两段是二级后缀（如 people.com.cn 的 com.cn）时，主域名取三段
+        if (SECOND_LEVEL_SUFFIXES.has(parts.slice(-2).join('.'))) {
+            return parts.slice(-3).join('.');
+        }
+        return parts.slice(-2).join('.');
+    }
 
     // 获取当前域名的启用状态(默认关闭)
     function isEnabledForCurrentSite() {
@@ -66,8 +100,8 @@
 
         // 如果当前网站已启用,检查是否有共享域名,添加镜像站切换菜单
         if (isEnabledForCurrentSite()) {
-            // 获取当前平台的配置
-            const currentPlatformKey = currentDomain.replace(/\./g, '_');
+            // 获取当前平台的配置（须用主域名拼键，与数据存储的键一致；此前用完整主机名导致带 www 的站点永远读不到配置）
+            const currentPlatformKey = getMainDomain(currentDomain).replace(/\./g, '_');
             const platformConfig = GM_getValue(`${currentPlatformKey}_config`, {});
 
             // 如果配置了共享域名且有多个域名
@@ -95,17 +129,6 @@
 
     // 获取当前平台 - 所有网站一视同仁
     const currentHost = window.location.hostname;
-
-    // 提取主域名(去除子域名,保留核心域名)
-    // 例如: www.zhihu.com -> zhihu.com, zhuanlan.zhihu.com -> zhihu.com
-    function getMainDomain(hostname) {
-        const parts = hostname.split('.');
-        if (parts.length <= 2) {
-            return hostname;
-        }
-        return parts.slice(-2).join('.');
-    }
-
     const mainDomain = getMainDomain(currentHost);
     const currentPlatform = mainDomain.replace(/\./g, '_'); // 使用主域名作为平台标识
 
@@ -138,6 +161,9 @@
         sideBarOffset: 0, // 侧边栏垂直偏移量（%）：-80到80，负数上移，正数下移
         openInCurrentTab: false, // 左键当前页打开，中键新页打开
         autoExpandContent: false, // 收藏内容默认展开
+        panelTheme: 'default', // 配色模式：'default' 跟随主题色（现状）| 'light' 浅色抗干扰 | 'dark' 深色抗干扰
+        searchBoxWidth: 500, // search-top 模式搜索框宽度（px）
+        searchBoxHeight: 44, // search-top 模式搜索框高度（px）
         topBarModulesOrder: [
             { id: 'search', order: 0, visible: true },
             { id: 'favorites', order: 1, visible: true },
@@ -161,6 +187,9 @@
     if (siteConfig.sideBarOffset === undefined) siteConfig.sideBarOffset = 0;
     if (siteConfig.openInCurrentTab === undefined) siteConfig.openInCurrentTab = false;
     if (siteConfig.autoExpandContent === undefined) siteConfig.autoExpandContent = false;
+    if (!siteConfig.panelTheme) siteConfig.panelTheme = 'default';
+    if (!siteConfig.searchBoxWidth) siteConfig.searchBoxWidth = 500;
+    if (!siteConfig.searchBoxHeight) siteConfig.searchBoxHeight = 44;
     if (!siteConfig.topBarModulesOrder || !Array.isArray(siteConfig.topBarModulesOrder) || siteConfig.topBarModulesOrder.length === 0) {
         siteConfig.topBarModulesOrder = [
             { id: 'search', order: 0, visible: true },
@@ -239,51 +268,38 @@
 
     function saveSiteConfig() { GM_setValue(configKey, siteConfig); }
 
+    // 展开/收起快捷键（全局，所有网站共用一份）
+    // 读取：全局键优先，回退到旧版按站点存储的值（兼容迁移）；写入：只写全局键，
+    // 并清除各站点配置中残留的旧版快捷键，避免清空全局后旧值经回退逻辑复活
+    function getPanelShortcut() {
+        return GM_getValue(GLOBAL_SHORTCUT_KEY, '') || siteConfig.panelShortcut || '';
+    }
+
+    function setPanelShortcut(shortcut) {
+        GM_setValue(GLOBAL_SHORTCUT_KEY, shortcut);
+        GM_listValues().forEach(key => {
+            if (key.endsWith('_config')) {
+                const cfg = GM_getValue(key, null);
+                if (cfg && cfg.panelShortcut) {
+                    cfg.panelShortcut = '';
+                    GM_setValue(key, cfg);
+                }
+            }
+        });
+    }
+
     // 安全保存用户数据 - 直接保存，保持顺序
     function saveUsers() {
         // 直接保存platformUsers数组，保持用户排序的顺序
         GM_setValue(storageKey, platformUsers);
     }
 
-    // 监听存储变化，实现跨标签页同步
-    // 注意：由于频繁的自动同步可能导致面板消失，暂时禁用自动同步
-    // 用户可以通过刷新页面来获取其他标签页的更新
-    /*
-    window.addEventListener('storage', (e) => {
-        // GM_setValue 不会触发 storage 事件，所以我们需要定期检查
-        // 这里我们使用一个更好的方法：监听 focus 事件
-    });
-
-    // 当标签页获得焦点时，重新加载数据
-    let lastCheckTime = Date.now();
-    window.addEventListener('focus', () => {
-        // 避免频繁检查，至少间隔2秒
-        const now = Date.now();
-        if (now - lastCheckTime < 2000) return;
-        lastCheckTime = now;
-
-        const latestUsers = GM_getValue(storageKey, []);
-        const latestConfig = GM_getValue(configKey, defaultConfig);
-
-        // 检查是否有实质性变化（数量或内容）
-        const usersChanged = latestUsers.length !== platformUsers.length ||
-            JSON.stringify(latestUsers.map(u => u.url).sort()) !== JSON.stringify(platformUsers.map(u => u.url).sort());
-        const configChanged = JSON.stringify(latestConfig.position) !== JSON.stringify(siteConfig.position) ||
-            JSON.stringify(latestConfig.searchEngines) !== JSON.stringify(siteConfig.searchEngines);
-
-        if (usersChanged || configChanged) {
-
-            // 更新本地数据而不是刷新页面
-            platformUsers.length = 0;
-            platformUsers.push(...latestUsers);
-            Object.assign(siteConfig, latestConfig);
-            renderPanel();
-        }
-    });
-    */
+    // 跨标签页自动同步已禁用（频繁自动同步会导致面板闪烁/消失），刷新页面可获取其他标签页的更新
 
     // 导出数据
     let _exportBusy = false;
+    let _closeDropdownsHandler = null; // 设置面板的"点击空白关闭下拉菜单"监听器，防止重复打开设置时累积
+    let _recordingShortcut = false; // 是否正在录制快捷键（此时全局快捷键监听暂停响应）
     function exportData() {
         if (_exportBusy) return;
         _exportBusy = true;
@@ -292,6 +308,7 @@
                 version: '1.1',
                 timestamp: new Date().toISOString(),
                 globalEnableSettings: GM_getValue(GLOBAL_ENABLE_KEY, {}),
+                globalShortcut: GM_getValue(GLOBAL_SHORTCUT_KEY, ''),
                 platforms: {}
             };
 
@@ -299,31 +316,20 @@
             const allKeys = GM_listValues();
             const platformKeys = new Set();
 
-            // 找出所有平台的配置键
+            // 找出所有平台的配置键和收藏键
             allKeys.forEach(key => {
                 if (key.endsWith('_config')) {
-                    const platform = key.replace('_config', '');
-                    platformKeys.add(platform);
+                    platformKeys.add(key.slice(0, -'_config'.length));
+                } else if (key.endsWith('_users')) {
+                    platformKeys.add(key.slice(0, -'_users'.length));
                 }
             });
 
-            // 为每个平台收集数据
+            // 为每个平台收集数据（各平台独立存储：`${platform}_users` / `${platform}_config`）
             platformKeys.forEach(platform => {
-                const pConfigKey = `${platform}_config`;
-                const config = GM_getValue(pConfigKey, {});
-
-                // 确定存储键
-                let pStorageKey;
-                if (config.sharedDomains && config.sharedDomains.length > 1) {
-                    const sharedKey = [...config.sharedDomains].sort().join('_').replace(/\./g, '_');
-                    pStorageKey = `shared_${sharedKey}_users`;
-                } else {
-                    pStorageKey = `${platform}_users`;
-                }
-
                 data.platforms[platform] = {
-                    users: GM_getValue(pStorageKey, []),
-                    config: config
+                    users: GM_getValue(`${platform}_users`, []),
+                    config: GM_getValue(`${platform}_config`, {})
                 };
             });
 
@@ -332,13 +338,18 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `navigation-panel-data-${Date.now()}.json`;
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            a.download = `navigation-panel-backup-${dateStr}.json`;
             a.style.display = 'none';
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            alert('数据导出成功！包含所有站点的配置和启用状态。');
+            const platformCount = Object.keys(data.platforms).length;
+            alert(`数据导出成功！共包含 ${platformCount} 个站点的收藏与配置，以及所有站点的启用状态。`);
+        } catch (e) {
+            alert('导出失败：' + e.message);
         } finally {
             setTimeout(() => { _exportBusy = false; }, 1000);
         }
@@ -359,16 +370,16 @@
                     const data = JSON.parse(event.target.result);
 
                     // 验证数据格式
-                    if (!data.platforms) {
-                        alert('无效的数据格式');
+                    if (!data.platforms || typeof data.platforms !== 'object') {
+                        alert('无效的数据格式：缺少 platforms 字段');
                         return;
                     }
 
                     // 询问是否覆盖
-                    const overwrite = confirm('是否覆盖现有数据？\n确定=覆盖，取消=合并');
+                    const overwrite = confirm('是否覆盖现有数据？\n确定=覆盖（导入的数据替换现有数据）\n取消=合并（保留现有数据，追加新数据）');
 
                     // 导入全局启用设置
-                    if (data.globalEnableSettings) {
+                    if (data.globalEnableSettings && typeof data.globalEnableSettings === 'object') {
                         if (overwrite) {
                             GM_setValue(GLOBAL_ENABLE_KEY, data.globalEnableSettings);
                         } else {
@@ -378,29 +389,40 @@
                         }
                     }
 
-                    // 导入平台数据
-                    Object.keys(data.platforms).forEach(platform => {
-                        if (!platformData[platform]) return;
+                    // 导入全局快捷键
+                    if (typeof data.globalShortcut === 'string') {
+                        GM_setValue(GLOBAL_SHORTCUT_KEY, data.globalShortcut);
+                    }
 
-                        const pStorageKey = platformData[platform].storageKey || `${platform}_users`;
+                    // 导入平台数据（存储键为 `${platform}_users` / `${platform}_config`）
+                    let importedPlatforms = 0;
+                    Object.keys(data.platforms).forEach(platform => {
+                        // 平台键由域名转换而来（点替换为下划线），校验防止写入异常键
+                        if (!/^[a-z0-9_-]+$/i.test(platform)) return;
+
+                        const pStorageKey = `${platform}_users`;
                         const pConfigKey = `${platform}_config`;
+                        const newUsers = Array.isArray(data.platforms[platform].users) ? data.platforms[platform].users : [];
+                        const newConfig = data.platforms[platform].config && typeof data.platforms[platform].config === 'object'
+                            ? data.platforms[platform].config : {};
 
                         if (overwrite) {
-                            GM_setValue(pStorageKey, data.platforms[platform].users || []);
-                            GM_setValue(pConfigKey, data.platforms[platform].config || {});
+                            GM_setValue(pStorageKey, newUsers);
+                            GM_setValue(pConfigKey, newConfig);
                         } else {
-                            // 合并数据
+                            // 合并数据：收藏按 url 去重，本地已有优先；配置保留本地已有项
                             const existingUsers = GM_getValue(pStorageKey, []);
-                            const newUsers = data.platforms[platform].users || [];
-                            GM_setValue(pStorageKey, [...existingUsers, ...newUsers]);
+                            const urlSet = new Set(existingUsers.map(u => u.url));
+                            const usersToAdd = newUsers.filter(u => !urlSet.has(u.url));
+                            GM_setValue(pStorageKey, [...existingUsers, ...usersToAdd]);
 
                             const existingConfig = GM_getValue(pConfigKey, {});
-                            const newConfig = data.platforms[platform].config || {};
-                            GM_setValue(pConfigKey, { ...existingConfig, ...newConfig });
+                            GM_setValue(pConfigKey, { ...newConfig, ...existingConfig });
                         }
+                        importedPlatforms++;
                     });
 
-                    alert('导入成功！已恢复所有站点的配置和启用状态。页面将刷新。');
+                    alert(`导入成功！已${overwrite ? '恢复' : '合并'} ${importedPlatforms} 个站点的收藏与配置。页面将刷新。`);
                     location.reload();
                 } catch (error) {
                     alert('导入失败：' + error.message);
@@ -411,17 +433,16 @@
         input.click();
     }
 
-    function convertUrlForCurrentSite(url) {
-        const currentPlatformData = platformData[currentPlatform];
-        if (!currentPlatformData.mirrorSite) return url;
-        try {
-            const urlObj = new URL(url);
-            if (urlObj.hostname === currentPlatformData.mirrorSite) {
-                urlObj.hostname = window.location.hostname;
-                return urlObj.href;
-            }
-            return url;
-        } catch (e) { return url; }
+    // 转义 HTML 特殊字符，防止收藏名称/搜索引擎名等含引号或尖括号时破坏面板结构
+    function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
+    }
+
+    // 将 'ctrl+alt+n' 格式的快捷键格式化为 'Ctrl+Alt+N' 用于显示
+    function formatShortcut(shortcut) {
+        return shortcut.split('+').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('+');
     }
 
     function darkenColor(color, percent) {
@@ -438,16 +459,89 @@
         return '#' + (0x1000000 + (R > 255 ? 255 : R) * 0x10000 + (G > 255 ? 255 : G) * 0x100 + (B > 255 ? 255 : B)).toString(16).slice(1);
     }
 
-    function generateColorPalette(baseColor) {
-        return [baseColor, lightenColor(baseColor, 20), darkenColor(baseColor, 20), '#4a90e2', '#e74c3c'];
-    }
-
     const primaryColor = siteConfig.primaryColor;
     const headerColor = lightenColor(primaryColor, 5);
     const buttonColor = darkenColor(primaryColor, 5);
     const actionButtonColor = lightenColor(primaryColor, 5);
 
-    let draggedIndex = null;
+    // 抗干扰配色模式（panelTheme: 'light' | 'dark'）：
+    // 把面板全部颜色声明加 !important，利用"样式表 !important > 行内样式 > 网站普通样式"的
+    // 优先级规则隔离网站对颜色/背景的污染；主题色仍作为点缀色（深色模式下自动调亮保证可见）
+    function getThemePalette(theme) {
+        if (theme === 'dark') {
+            return {
+                panelBg: '#252526', itemBg: '#2d2d2d', itemHover: '#3a3a3a',
+                text: '#e0e0e0', muted: '#a0a0a0', border: '#3c3c3c',
+                inputBg: '#333333', inputText: '#ffffff', inputBorder: '#555555',
+                toggleOff: '#555555', accent: lightenColor(primaryColor, 20)
+            };
+        }
+        // light：强制浅色
+        return {
+            panelBg: '#ffffff', itemBg: '#f8f8f8', itemHover: '#f0f0f0',
+            text: '#333333', muted: '#666666', border: '#e5e5e5',
+            inputBg: '#ffffff', inputText: '#000000', inputBorder: '#cccccc',
+            toggleOff: '#cccccc', accent: primaryColor
+        };
+    }
+
+    function buildThemeCss(t) {
+        return `
+            /* ===== 抗干扰配色模式：全部颜色声明带 !important，优先级高于网站样式与行内样式 ===== */
+            /* --- 主面板 --- */
+            #panel-container, .favorites-buttons-container, .search-container, #search-top-container {
+                background-color: ${t.panelBg} !important;
+                color: ${t.text} !important;
+                border-bottom-color: ${t.border} !important;
+            }
+            #expand-button { background-color: ${t.accent} !important; color: #fff !important; }
+            #expand-button:hover { background-color: ${darkenColor(t.accent, 10)} !important; }
+            .panel-header { background-color: ${t.accent} !important; }
+            .panel-header, .panel-header * { color: #fff !important; }
+            .user-button { background-color: ${t.accent} !important; color: #fff !important; }
+            .user-button:hover { background-color: ${darkenColor(t.accent, 10)} !important; }
+            .action-button { background-color: ${t.accent} !important; color: #fff !important; }
+            .action-button:hover { background-color: ${darkenColor(t.accent, 10)} !important; }
+            .search-engine-item { background-color: ${t.itemBg} !important; }
+            #multi-platform-panel .search-engine-item input { background-color: ${t.inputBg} !important; color: ${t.inputText} !important; }
+            .search-engine-item button { background-color: ${t.accent} !important; color: #fff !important; }
+            #multi-platform-panel .search-input, .search-input { background-color: ${t.inputBg} !important; color: ${t.inputText} !important; border-color: ${t.inputBorder} !important; }
+            .search-button { background-color: ${t.accent} !important; color: #fff !important; }
+            .search-button:hover { background-color: ${darkenColor(t.accent, 10)} !important; }
+            .close-button-top { background-color: ${t.accent} !important; color: #fff !important; }
+
+            /* --- 设置面板 --- */
+            #settings-panel { background-color: ${t.panelBg} !important; color: ${t.text} !important; }
+            #settings-panel .settings-header { background-color: ${t.accent} !important; }
+            #settings-panel .settings-header, #settings-panel .settings-header * { color: #fff !important; }
+            #settings-panel .setting-section h3 { color: ${t.text} !important; border-bottom-color: ${t.accent} !important; }
+            #settings-panel .setting-item { border-bottom-color: ${t.border} !important; }
+            #settings-panel .setting-label, #settings-panel .style-item-name { color: ${t.text} !important; }
+            #settings-panel .setting-description { color: ${t.muted} !important; }
+            #settings-panel .toggle-switch { background-color: ${t.toggleOff} !important; }
+            #settings-panel .toggle-switch.active { background-color: ${t.accent} !important; }
+            #settings-panel .toggle-switch::after { background-color: #fff !important; }
+            #settings-panel .radio-option { color: ${t.text} !important; border-color: ${t.accent} !important; background-color: transparent !important; }
+            #settings-panel .radio-option.active { background-color: ${t.accent} !important; color: #fff !important; }
+            #settings-panel .style-item, #settings-panel .module-config-item { background-color: ${t.itemBg} !important; }
+            #settings-panel .style-item:hover, #settings-panel .module-config-item:hover { background-color: ${t.itemHover} !important; }
+            #settings-panel .drag-handle, #settings-panel .module-drag-handle, #settings-panel .module-width-value, #settings-panel .search-engine-url { color: ${t.muted} !important; }
+            #settings-panel .search-engine-item { background-color: ${t.itemBg} !important; }
+            #settings-panel .search-engine-name { color: ${t.accent} !important; }
+            #settings-panel input[type="text"] { color: ${t.inputText} !important; background-color: ${t.inputBg} !important; border-color: ${t.inputBorder} !important; }
+            #settings-panel .size-preview { background-color: ${t.inputBg} !important; color: ${t.inputText} !important; border-color: ${t.inputBorder} !important; }
+            #settings-panel .color-dropdown, #settings-panel .size-dropdown { background-color: ${t.panelBg} !important; }
+            #settings-panel .size-option { background-color: ${t.panelBg} !important; color: ${t.text} !important; }
+            #settings-panel .size-option:hover { background-color: ${t.itemHover} !important; }
+            #settings-panel .size-option.active { background-color: ${t.accent} !important; color: #fff !important; }
+            #settings-panel .rename-btn-mini { background-color: ${t.accent} !important; color: #fff !important; }
+            #settings-panel .add-search-btn { background-color: ${t.accent} !important; color: #fff !important; }
+            #settings-panel .delete-btn-mini, #settings-panel .remove-search-btn { background-color: #e74c3c !important; color: #fff !important; }
+            #settings-panel .settings-content { scrollbar-color: ${t.muted} ${t.itemBg} !important; }
+            #settings-panel .settings-content::-webkit-scrollbar-track { background: ${t.itemBg} !important; }
+            #settings-panel .settings-content::-webkit-scrollbar-thumb { background: ${t.muted} !important; }
+        `;
+    }
 
     const container = document.createElement('div');
     container.id = 'multi-platform-panel';
@@ -1038,6 +1132,8 @@
         .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee; }
         .setting-item:last-child { border-bottom: none; }
         .setting-label { font-size: 14px; color: #000; font-weight: 500; }
+        .setting-description { color: #666; }
+        #panel-shortcut-display { color: #000; }
         .setting-control { display: flex; gap: 10px; align-items: center; }
         .toggle-switch { position: relative; width: 50px; height: 24px; background-color: #ccc; border-radius: 12px; cursor: pointer; transition: background-color 0.3s; }
         .toggle-switch.active { background-color: ${primaryColor}; }
@@ -1082,7 +1178,7 @@
         .search-engine-list { margin-top: 10px; }
         .search-engine-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; background-color: #f5f5f5; border-radius: 5px; margin-bottom: 5px; }
         .search-engine-info { flex: 1; font-size: 13px; }
-        .search-engine-name { font-weight: bold; color: #000; }
+        .search-engine-name { font-weight: bold; color: ${primaryColor}; }
         .search-engine-url { font-size: 11px; color: #666; margin-top: 2px; }
         .remove-search-btn { padding: 3px 8px; background-color: #e74c3c; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; }
         .add-search-btn { padding: 8px 15px; background-color: ${actionButtonColor}; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; margin-top: 10px; transition: all 0.3s; }
@@ -1106,7 +1202,18 @@
         .module-width-value { flex: 0 0 50px; font-size: 13px; color: #666; text-align: right; }
         .shared-domains-list { width: 100%; margin-bottom: 10px; }
         .shared-domains-list .style-item { margin-bottom: 5px; }
+        /* 防止宿主网站的全局样式覆盖面板文字颜色：
+           部分网站（尤其深色主题站点）会对 h1~h6 等标签设置全局浅色文字，
+           甚至带 !important 或在页面加载后动态注入样式，压过本脚本中不带 !important 的规则，
+           导致设置面板的分组标题在白底上几乎不可见 */
+        #settings-panel { color: #333 !important; }
+        #settings-panel .setting-section h3 { color: #333 !important; }
     `);
+
+    // 抗干扰配色模式：主题样式追加在基础样式之后，同权重时后者胜出
+    if (siteConfig.panelTheme === 'light' || siteConfig.panelTheme === 'dark') {
+        GM_addStyle(buildThemeCss(getThemePalette(siteConfig.panelTheme)));
+    }
 
     const overlay = document.createElement('div');
     overlay.className = 'overlay';
@@ -1132,7 +1239,7 @@
                     <div class="setting-item">
                         <span class="setting-label">面板名称</span>
                         <div class="setting-control">
-                            <input type="text" id="custom-panel-name" value="${siteConfig.customPanelName || ''}" placeholder="${platformData[currentPlatform].name}导航" style="width: 200px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background-color: transparent; color: #000;">
+                            <input type="text" id="custom-panel-name" value="${escapeHtml(siteConfig.customPanelName || '')}" placeholder="${platformData[currentPlatform].name}导航" style="width: 200px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background-color: transparent; color: #000;">
                         </div>
                     </div>
                     <div class="setting-item">
@@ -1159,10 +1266,31 @@
                         </div>
                     </div>
                     <div class="setting-item">
+                        <span class="setting-label">展开/收起快捷键</span>
+                        <div class="setting-control" style="gap: 8px;">
+                            <span id="panel-shortcut-display" style="font-size: 13px; min-width: 70px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 3px 10px;">${getPanelShortcut() ? formatShortcut(getPanelShortcut()) : '未设置'}</span>
+                            <button class="rename-btn-mini" id="panel-shortcut-record-btn">${getPanelShortcut() ? '修改' : '设置'}</button>
+                            <button class="rename-btn-mini" id="panel-shortcut-clear-btn">清除</button>
+                        </div>
+                    </div>
+                    <div class="setting-description" style="font-size: 12px; margin-top: 4px;">
+                        全局设置：所有启用面板的网站共用同一个快捷键，修改后立即在各网站生效。
+                    </div>
+                    <div class="setting-item">
                         <span class="setting-label">主题色</span>
                         <div class="setting-control">
                             <input type="color" id="primary-color-picker" value="${siteConfig.primaryColor}" style="width: 60px; height: 30px; border: none; outline: none; border-radius: 4px; cursor: pointer; padding: 0;">
                             <button class="rename-btn-mini" id="reset-color-btn" style="margin-left: 8px;">恢复默认</button>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <span class="setting-label">配色模式</span>
+                        <div class="setting-control">
+                            <div class="radio-group">
+                                <div class="radio-option ${siteConfig.panelTheme !== 'light' && siteConfig.panelTheme !== 'dark' ? 'active' : ''}" data-theme="default">默认</div>
+                                <div class="radio-option ${siteConfig.panelTheme === 'light' ? 'active' : ''}" data-theme="light">浅色·抗干扰</div>
+                                <div class="radio-option ${siteConfig.panelTheme === 'dark' ? 'active' : ''}" data-theme="dark">深色·抗干扰</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1246,12 +1374,15 @@
                             <button class="rename-btn-mini" id="import-data-btn">导入数据</button>
                         </div>
                     </div>
+                    <div class="setting-description" style="font-size: 12px; margin-top: 8px;">
+                        导出会生成包含所有站点的收藏、配置和启用状态的 JSON 备份文件；导入时可选"覆盖"（用备份替换现有数据）或"合并"（保留现有数据，仅追加备份中新增的收藏）。
+                    </div>
                 </div>
                 <div class="setting-section">
                     <h3>共享网址管理</h3>
                     <div class="setting-item" style="flex-direction: column; align-items: flex-start;">
                         <span class="setting-label" style="margin-bottom: 8px;">共享数据的域名列表</span>
-                        <div class="setting-description" style="font-size: 12px; color: #000; margin-bottom: 10px;">
+                        <div class="setting-description" style="font-size: 12px; margin-bottom: 10px;">
                             用于镜像网站数据共享。添加镜像域名后,收藏数据将在这些域名间共享,但点击链接时会自动跳转到当前域名对应的页面。
                         </div>
                         <div class="shared-domains-list" id="shared-domains-list"></div>
@@ -1365,10 +1496,6 @@
             };
         }
 
-        // 导入导出按钮
-        settingsPanel.querySelector('#export-data-btn').onclick = exportData;
-        settingsPanel.querySelector('#import-data-btn').onclick = importData;
-
         // 辅助函数：只更新模块排序列表，避免刷新整个设置面板
         function updateModulesOrderList(panel, sortedModules) {
             const modulesListContainer = panel.querySelector('#topbar-modules-list');
@@ -1469,17 +1596,16 @@
             updateModulesOrderList(settingsPanel, siteConfig.topBarModulesOrder);
         }
 
-        // Toggle开关事件处理
+        // Toggle开关事件处理（跳过无 data-setting 的开关——顶栏模块可见性开关有各自专属的处理逻辑，
+        // 不能被这里的通用逻辑覆盖，否则会写出 siteConfig["undefined"] 且模块开关失效）
         settingsPanel.querySelectorAll('.toggle-switch').forEach(toggle => {
+            if (!toggle.dataset.setting) return;
             toggle.onclick = () => {
                 const setting = toggle.dataset.setting;
-                if (setting) {
-                    toggle.classList.toggle('active');
-                    siteConfig[setting] = toggle.classList.contains('active');
-                    saveSiteConfig();
-                    alert(`设置已更新！页面将刷新以应用更改。`);
-                    location.reload();
-                }
+                siteConfig[setting] = !siteConfig[setting];
+                toggle.classList.toggle('active');
+                saveSiteConfig();
+                alert('设置已保存，刷新页面后生效');
             };
         });
 
@@ -1497,7 +1623,7 @@
 
             item.innerHTML = `
                 <span class="drag-handle">☰</span>
-                <span class="style-item-name" title="${user.name}">${user.name}</span>
+                <span class="style-item-name" title="${escapeHtml(user.name)}">${escapeHtml(user.name)}</span>
             `;
 
             const controls = document.createElement('div');
@@ -1510,7 +1636,7 @@
             colorInput.style.cssText = 'width: 24px; height: 24px; border: none; border-radius: 3px; cursor: pointer;';
             colorInput.title = '选择颜色';
             colorInput.oninput = () => {
-                platformUsers[index].color = colorInput.value;
+                user.color = colorInput.value;
                 saveUsers();
                 renderPanel();
             };
@@ -1531,7 +1657,7 @@
                 option.className = 'size-option' + (s === size ? ' active' : '');
                 option.textContent = s;
                 option.onclick = () => {
-                    platformUsers[index].size = s;
+                    user.size = s;
                     saveUsers();
                     sizePreview.textContent = s;
                     sizeDropdown.classList.remove('show');
@@ -1557,14 +1683,14 @@
             hideBtn.title = user.hidden ? '显示' : '隐藏';
             hideBtn.style.opacity = user.hidden ? '0.5' : '1';
             hideBtn.onclick = () => {
-                platformUsers[index].hidden = !platformUsers[index].hidden;
+                user.hidden = !user.hidden;
                 saveUsers();
                 renderPanel();
                 // 更新按钮状态
-                hideBtn.textContent = platformUsers[index].hidden ? '👁' : '👁‍🗨';
-                hideBtn.title = platformUsers[index].hidden ? '显示' : '隐藏';
-                hideBtn.style.opacity = platformUsers[index].hidden ? '0.5' : '1';
-                item.style.opacity = platformUsers[index].hidden ? '0.6' : '1';
+                hideBtn.textContent = user.hidden ? '👁' : '👁‍🗨';
+                hideBtn.title = user.hidden ? '显示' : '隐藏';
+                hideBtn.style.opacity = user.hidden ? '0.5' : '1';
+                item.style.opacity = user.hidden ? '0.6' : '1';
             };
             controls.appendChild(hideBtn);
 
@@ -1580,7 +1706,7 @@
             renameBtn.onclick = () => {
                 const newName = prompt(`请输入新名称：`, user.name);
                 if (newName && newName.trim() && newName !== user.name) {
-                    platformUsers[index].name = newName.trim();
+                    user.name = newName.trim();
                     saveUsers();
                     renderPanel();
                     // 更新当前项的显示
@@ -1599,15 +1725,13 @@
             deleteBtn.textContent = '删除';
             deleteBtn.onclick = () => {
                 if (confirm(`确定要删除 "${user.name}" 吗？`)) {
-                    platformUsers.splice(index, 1);
+                    // 用对象引用定位，避免删除某项后其余项的闭包索引失效
+                    const idx = platformUsers.indexOf(user);
+                    if (idx > -1) platformUsers.splice(idx, 1);
                     saveUsers();
                     renderPanel();
                     // 移除当前项
                     item.remove();
-                    // 重新索引其他项
-                    styleList.querySelectorAll('.style-item').forEach((styleItem, idx) => {
-                        styleItem.dataset.userIndex = idx;
-                    });
                 }
             };
             controls.appendChild(deleteBtn);
@@ -1694,8 +1818,8 @@
             const infoDiv = document.createElement('div');
             infoDiv.style.cssText = 'flex: 1; min-width: 0;';
             infoDiv.innerHTML = `
-                <div class="search-engine-name" style="font-weight: bold; color: ${primaryColor};">${engine.name}</div>
-                <div class="search-engine-url" style="font-size: 11px; color: #666; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${engine.urlTemplate}</div>
+                <div class="search-engine-name">${escapeHtml(engine.name)}</div>
+                <div class="search-engine-url" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(engine.urlTemplate)}</div>
             `;
             item.appendChild(infoDiv);
 
@@ -1706,14 +1830,14 @@
             hideBtn.title = engine.hidden ? '显示' : '隐藏';
             hideBtn.style.opacity = engine.hidden ? '0.5' : '1';
             hideBtn.onclick = () => {
-                siteConfig.searchEngines[index].hidden = !siteConfig.searchEngines[index].hidden;
+                engine.hidden = !engine.hidden;
                 saveSiteConfig();
                 renderPanel();
                 // 更新按钮状态
-                hideBtn.textContent = siteConfig.searchEngines[index].hidden ? '👁' : '👁‍🗨';
-                hideBtn.title = siteConfig.searchEngines[index].hidden ? '显示' : '隐藏';
-                hideBtn.style.opacity = siteConfig.searchEngines[index].hidden ? '0.5' : '1';
-                item.style.opacity = siteConfig.searchEngines[index].hidden ? '0.6' : '1';
+                hideBtn.textContent = engine.hidden ? '👁' : '👁‍🗨';
+                hideBtn.title = engine.hidden ? '显示' : '隐藏';
+                hideBtn.style.opacity = engine.hidden ? '0.5' : '1';
+                item.style.opacity = engine.hidden ? '0.6' : '1';
             };
             item.appendChild(hideBtn);
 
@@ -1728,15 +1852,13 @@
             deleteBtn.textContent = '删除';
             deleteBtn.onclick = () => {
                 if (confirm(`确定要删除搜索引擎 "${engine.name}" 吗？`)) {
-                    siteConfig.searchEngines.splice(index, 1);
+                    // 用对象引用定位，避免删除某项后其余项的闭包索引失效
+                    const idx = siteConfig.searchEngines.indexOf(engine);
+                    if (idx > -1) siteConfig.searchEngines.splice(idx, 1);
                     saveSiteConfig();
                     renderPanel();
                     // 移除当前项
                     item.remove();
-                    // 重新索引其他项
-                    searchList.querySelectorAll('.style-item').forEach((searchItem, idx) => {
-                        searchItem.dataset.searchIndex = idx;
-                    });
                 }
             };
             item.appendChild(deleteBtn);
@@ -1810,7 +1932,7 @@
             item.className = 'style-item';
 
             const domainText = document.createElement('div');
-            domainText.style.cssText = 'flex: 1; font-size: 13px; padding: 8px 0; color: #000;';
+            domainText.style.cssText = 'flex: 1; font-size: 13px; padding: 8px 0;';
             domainText.textContent = domain;
             if (domain === currentHost) {
                 domainText.innerHTML += ' <span style="color: #999; font-size: 11px;">(当前域名)</span>';
@@ -1857,87 +1979,16 @@
             overlay.classList.remove('show');
         };
 
-        settingsPanel.querySelectorAll('.toggle-switch').forEach(toggle => {
-            toggle.onclick = () => {
-                const setting = toggle.dataset.setting;
-                siteConfig[setting] = !siteConfig[setting];
-                toggle.classList.toggle('active');
-                saveSiteConfig();
-                alert('设置已保存，刷新页面后生效');
-            };
-        });
-
         settingsPanel.querySelectorAll('.radio-option[data-position]').forEach(option => {
             option.onclick = () => {
                 siteConfig.position = option.dataset.position;
                 saveSiteConfig();
-                settingsPanel.querySelectorAll('.radio-option[data-position]').forEach(o => o.classList.remove('active'));
-                option.classList.add('active');
-
-                // 显示/隐藏搜索框尺寸滑块
-                const searchTopOnlyItems = settingsPanel.querySelectorAll('.search-top-only');
-                searchTopOnlyItems.forEach(item => {
-                    item.style.display = siteConfig.position === 'search-top' ? 'flex' : 'none';
-                });
-
-                // 显示/隐藏顶栏/底栏选项
-                const topOnlyItems = settingsPanel.querySelectorAll('.top-only');
-                topOnlyItems.forEach(item => {
-                    item.style.display = (siteConfig.position === 'top' || siteConfig.position === 'bottom') ? 'flex' : 'none';
-                });
-
-                alert('位置设置已保存，刷新页面后生效');
-            };
-        });
-
-        // 面板位置切换
-        const positionOptions = settingsPanel.querySelectorAll('[data-position]');
-        positionOptions.forEach(option => {
-            option.onclick = () => {
-                const position = option.dataset.position;
-                siteConfig.position = position;
-                saveSiteConfig();
 
                 // 更新active状态
-                positionOptions.forEach(opt => opt.classList.remove('active'));
+                option.parentElement.querySelectorAll('.radio-option').forEach(o => o.classList.remove('active'));
                 option.classList.add('active');
-
-                // 显示/隐藏顶栏相关选项
-                const topBarOptions = settingsPanel.querySelectorAll('.top-bar-only');
-                const sideOptions = settingsPanel.querySelectorAll('.side-only');
-
-                if (position === 'top' || position === 'bottom') {
-                    topBarOptions.forEach(el => el.style.display = 'flex');
-                    sideOptions.forEach(el => el.style.display = 'none');
-                } else {
-                    topBarOptions.forEach(el => el.style.display = 'none');
-                    sideOptions.forEach(el => el.style.display = 'flex');
-                }
 
                 alert('面板位置已更改！页面将刷新。');
-                location.reload();
-            };
-        });
-
-        // 顶栏样式切换
-        settingsPanel.querySelectorAll('.radio-option[data-topbar-style]').forEach(option => {
-            option.onclick = () => {
-                siteConfig.topBarStyle = option.dataset.topbarStyle;
-                saveSiteConfig();
-                settingsPanel.querySelectorAll('.radio-option[data-topbar-style]').forEach(o => o.classList.remove('active'));
-                option.classList.add('active');
-                alert('顶栏样式已保存，刷新页面后生效');
-            };
-        });
-
-        // 顶栏宽度切换
-        settingsPanel.querySelectorAll('.radio-option[data-topbar-width]').forEach(option => {
-            option.onclick = () => {
-                siteConfig.topBarWidth = parseInt(option.dataset.topbarWidth);
-                saveSiteConfig();
-                settingsPanel.querySelectorAll('.radio-option[data-topbar-width]').forEach(o => o.classList.remove('active'));
-                option.classList.add('active');
-                alert('顶栏宽度已保存，刷新页面后生效');
                 location.reload();
             };
         });
@@ -1949,6 +2000,18 @@
                 settingsPanel.querySelectorAll('.radio-option[data-columns]').forEach(o => o.classList.remove('active'));
                 option.classList.add('active');
                 alert('列数设置已保存，刷新页面后生效');
+            };
+        });
+
+        // 配色模式切换（浅色/深色为全 !important 抗干扰主题，切换后刷新生效）
+        settingsPanel.querySelectorAll('.radio-option[data-theme]').forEach(option => {
+            option.onclick = () => {
+                siteConfig.panelTheme = option.dataset.theme;
+                saveSiteConfig();
+                settingsPanel.querySelectorAll('.radio-option[data-theme]').forEach(o => o.classList.remove('active'));
+                option.classList.add('active');
+                alert('配色模式已更改！页面将刷新。');
+                location.reload();
             };
         });
 
@@ -2001,69 +2064,16 @@
             location.reload();
         };
 
-        // 顶栏/底栏模块排序
-        const modulesOrderList = settingsPanel.querySelector('#topbar-modules-order-list');
-        if (modulesOrderList && (siteConfig.position === 'top' || siteConfig.position === 'bottom')) {
-            const moduleNames = {
-                'search': '搜索框',
-                'favorites': '收藏内容',
-                'buttons': '操作按钮'
-            };
-
-            let draggedModuleIndex = null;
-
-            siteConfig.topBarModulesOrder.forEach((moduleId, index) => {
-                const item = document.createElement('div');
-                item.className = 'style-item';
-                item.draggable = true;
-
-                const dragHandle = document.createElement('span');
-                dragHandle.className = 'drag-handle';
-                dragHandle.textContent = '☰';
-                item.appendChild(dragHandle);
-
-                const nameSpan = document.createElement('span');
-                nameSpan.style.cssText = 'flex: 1; font-weight: bold; color: ' + primaryColor + ';';
-                nameSpan.textContent = moduleNames[moduleId] || moduleId;
-                item.appendChild(nameSpan);
-
-                modulesOrderList.appendChild(item);
-
-                // 拖拽排序
-                item.ondragstart = () => {
-                    draggedModuleIndex = index;
-                    item.classList.add('dragging');
-                };
-                item.ondragend = () => {
-                    item.classList.remove('dragging');
-                    draggedModuleIndex = null;
-                };
-                item.ondragover = (e) => {
-                    e.preventDefault();
-                    item.classList.add('drag-over');
-                };
-                item.ondragleave = () => item.classList.remove('drag-over');
-                item.ondrop = (e) => {
-                    e.preventDefault();
-                    item.classList.remove('drag-over');
-                    if (draggedModuleIndex !== null && draggedModuleIndex !== index) {
-                        const temp = siteConfig.topBarModulesOrder[draggedModuleIndex];
-                        siteConfig.topBarModulesOrder.splice(draggedModuleIndex, 1);
-                        const newIndex = draggedModuleIndex < index ? index - 1 : index;
-                        siteConfig.topBarModulesOrder.splice(newIndex, 0, temp);
-                        saveSiteConfig();
-                        renderPanel();
-                        settingsPanel.remove();
-                        openSettings();
-                    }
-                };
-            });
+        // 点击空白处关闭颜色/尺寸下拉菜单
+        // 先移除旧面板绑定的监听器，避免每次打开设置都向 document 累积监听器
+        if (_closeDropdownsHandler) {
+            document.removeEventListener('click', _closeDropdownsHandler);
         }
-
-        document.addEventListener('click', () => {
+        _closeDropdownsHandler = () => {
             settingsPanel.querySelectorAll('.color-dropdown').forEach(d => d.classList.remove('show'));
             settingsPanel.querySelectorAll('.size-dropdown').forEach(d => d.classList.remove('show'));
-        });
+        };
+        document.addEventListener('click', _closeDropdownsHandler);
 
         // 自定义面板名称
         const customNameInput = settingsPanel.querySelector('#custom-panel-name');
@@ -2078,6 +2088,54 @@
                     customNameInput.blur();
                 }
             });
+        }
+
+        // 面板展开/收起快捷键
+        const shortcutDisplay = settingsPanel.querySelector('#panel-shortcut-display');
+        const shortcutRecordBtn = settingsPanel.querySelector('#panel-shortcut-record-btn');
+        const shortcutClearBtn = settingsPanel.querySelector('#panel-shortcut-clear-btn');
+        if (shortcutRecordBtn && shortcutDisplay) {
+            shortcutRecordBtn.onclick = () => {
+                shortcutDisplay.textContent = '请按键（Esc 取消）';
+                shortcutRecordBtn.textContent = '录制中';
+                _recordingShortcut = true;
+                const finishRecording = () => {
+                    _recordingShortcut = false;
+                    document.removeEventListener('keydown', recordHandler, true);
+                    shortcutRecordBtn.textContent = getPanelShortcut() ? '修改' : '设置';
+                    shortcutDisplay.textContent = getPanelShortcut() ? formatShortcut(getPanelShortcut()) : '未设置';
+                };
+                const recordHandler = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const keyName = e.key.toLowerCase();
+                    if (keyName === 'escape') { finishRecording(); return; }
+                    // 只按了修饰键时继续等待
+                    if (['control', 'alt', 'shift', 'meta'].includes(keyName)) return;
+                    const parts = [];
+                    if (e.ctrlKey) parts.push('ctrl');
+                    if (e.altKey) parts.push('alt');
+                    if (e.shiftKey) parts.push('shift');
+                    if (e.metaKey) parts.push('meta');
+                    parts.push(e.key === ' ' ? 'space' : keyName);
+                    // 无修饰键的单字符键（字母/数字）极易与页面输入冲突，要求配合修饰键
+                    if (parts.length === 1 && keyName.length === 1) {
+                        alert('为避免误触，字母/数字键需配合 Ctrl / Alt / Shift 使用');
+                        return;
+                    }
+                    setPanelShortcut(parts.join('+'));
+                    finishRecording();
+                    alert(`快捷键已全局设置：${formatShortcut(getPanelShortcut())}，所有启用面板的网站立即生效`);
+                };
+                document.addEventListener('keydown', recordHandler, true);
+            };
+        }
+        if (shortcutClearBtn && shortcutDisplay) {
+            shortcutClearBtn.onclick = () => {
+                setPanelShortcut('');
+                shortcutDisplay.textContent = '未设置';
+                if (shortcutRecordBtn) shortcutRecordBtn.textContent = '设置';
+            };
         }
 
         // 主题色选择器
@@ -2294,7 +2352,7 @@
             // 按钮网格
             const buttonsGrid = document.createElement('div');
             buttonsGrid.id = 'buttons-grid';
-            platformUsers.forEach((user) => {
+            displayUsers.forEach((user) => {
                 // 跳过被隐藏的项目
                 if (user.hidden) return;
 
@@ -2303,10 +2361,21 @@
                 wrapper.dataset.size = user.size || '1x';
                 const button = document.createElement('a');
                 button.className = 'user-button';
-                button.href = convertUrlForCurrentSite(user.url);
-                button.target = '_blank';
+                button.href = user.url;
+                // 根据设置控制点击行为：左键当前页打开，中键新页打开
+                if (siteConfig.openInCurrentTab) {
+                    button.target = '_self';
+                    button.onmousedown = (e) => {
+                        if (e.button === 1) {
+                            e.preventDefault();
+                            window.open(button.href, '_blank');
+                        }
+                    };
+                } else {
+                    button.target = '_blank';
+                }
                 button.textContent = user.name;
-                if (user.color) button.style.backgroundColor = user.color;
+                if (user.color) button.style.setProperty('background-color', user.color, 'important');
                 wrapper.appendChild(button);
                 buttonsGrid.appendChild(wrapper);
             });
@@ -2488,7 +2557,7 @@
                 const buttonsGrid = document.createElement('div');
                 buttonsGrid.id = 'buttons-grid';
                 buttonsGridRef = buttonsGrid; // 保存引用
-                platformUsers.forEach((user) => {
+                displayUsers.forEach((user) => {
                     // 跳过被隐藏的项目
                     if (user.hidden) return;
 
@@ -2497,9 +2566,9 @@
                     wrapper.dataset.size = user.size || '1x';
                     const button = document.createElement('a');
                     button.className = 'user-button';
-                    button.href = convertUrlForCurrentSite(user.url);
+                    button.href = user.url;
                     button.textContent = user.name;
-                    if (user.color) button.style.backgroundColor = user.color;
+                    if (user.color) button.style.setProperty('background-color', user.color, 'important');
                     if (siteConfig.openInCurrentTab) {
                         button.target = '_self';
                         button.onmousedown = (e) => {
@@ -2629,7 +2698,7 @@
             header.className = 'panel-header';
             const panelTitle = siteConfig.customPanelName || `${platformData[currentPlatform].name}导航`;
             header.innerHTML = `
-                <div class="panel-title">${panelTitle}</div>
+                <div class="panel-title">${escapeHtml(panelTitle)}</div>
                 <div class="header-buttons">
                     <div class="settings-button" title="高级设置">⚙</div>
                     <div class="close-button">×</div>
@@ -2705,11 +2774,11 @@
             wrapper.dataset.size = user.size || '1x';
             const button = document.createElement('a');
             button.className = 'user-button';
-            button.href = convertUrlForCurrentSite(user.url);
-            button.textContent = user.name;
-            if (user.color) button.style.backgroundColor = user.color;
+                button.href = user.url;
+                button.textContent = user.name;
+                if (user.color) button.style.setProperty('background-color', user.color, 'important');
 
-            // 根据设置控制点击行为
+                // 根据设置控制点击行为
             if (siteConfig.openInCurrentTab) {
                 // 左键当前页，中键新页
                 button.target = '_self';
@@ -2831,6 +2900,43 @@
         panelContainer.classList.add('expanded');
         expandButton.style.display = 'none';
     };
+
+    // 快捷键切换面板展开/收起
+    function togglePanel() {
+        const panelContainer = document.getElementById('panel-container');
+        if (!panelContainer) return;
+        if (panelContainer.classList.contains('expanded')) {
+            panelContainer.classList.remove('expanded');
+            expandButton.style.display = 'flex';
+        } else {
+            // 顶栏模式"临时关闭"会把容器 display 置 none，快捷键展开时恢复显示
+            if (panelContainer.style.display === 'none') panelContainer.style.display = '';
+            panelContainer.classList.add('expanded');
+            expandButton.style.display = 'none';
+        }
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (_recordingShortcut) return;
+        if (e.repeat) return;
+        // 每次按键时实时读取全局快捷键，任一网站修改后无需刷新即在其他网站生效
+        const shortcut = getPanelShortcut();
+        if (!shortcut) return;
+        // 在输入框/可编辑区域内打字时不触发
+        const t = e.target;
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+        const parts = shortcut.split('+');
+        const key = parts[parts.length - 1];
+        const pressedKey = e.key === ' ' ? 'space' : e.key.toLowerCase();
+        if (pressedKey !== key) return;
+        // 修饰键状态须完全一致（按下与未按下都不能多不能少）
+        if (!!e.ctrlKey !== parts.includes('ctrl')) return;
+        if (!!e.altKey !== parts.includes('alt')) return;
+        if (!!e.shiftKey !== parts.includes('shift')) return;
+        if (!!e.metaKey !== parts.includes('meta')) return;
+        e.preventDefault();
+        togglePanel();
+    });
 
     // 顶栏/底栏模式添加关闭按钮
     if (siteConfig.position === 'top' || siteConfig.position === 'bottom') {
