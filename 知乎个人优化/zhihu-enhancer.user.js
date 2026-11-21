@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         知乎样式与功能增强
 // @namespace    https://www.zhihu.com/
-// @version      2.0.18
+// @version      2.0.22
 // @description  全面优化知乎阅读与创作体验：1) 阅读排版：适度放大正文/标题/评论/顶栏字号且不裁切正文行，支持5行摘要预览，点击左右空白区域快速折叠回答或问题详情；2) 侧栏与界面净化：左侧栏放大且窄屏不折叠，支持在偏好设置页拖拽排序、显隐及自定义分隔线，隐藏右栏冗余卡片与刘看山角标；3) 互动与信息增强：作者及评论区ID旁支持一键「屏蔽用户」与可选「+ 关注」，去除赞同数前「航海家」等前缀并在其旁直接显示发布与修改时间；4) 问题页与个人主页优化：问题顶部集中展示「浏览 · 关注」标签与操作按钮（写回答/关注问题/问题日志/评论）并隐藏邀请回答；个人主页展开完整简介、放大头像、Tab栏改用紧凑胶囊分段框并将「搜索动态」框与精简「个人成就」移至列表顶栏（保留按时间排序），他人主页隐藏右侧冗余卡片并将「屏蔽用户」移至关注/发私信旁；5) 创作体验升级：写回答工具栏双排紧凑对齐、展开「更多」菜单中的帮助/设置/MD开关、创作助手与发布设置合并为右侧紧凑悬浮窗（支持定时「选择时间」按钮与默认不展开设置）；专栏写文章标题栏支持直接粘贴图片设为封面；6) 所有功能均可在知乎「偏好设置」页内开关与自定义。
 // @author       AI
 // @match        *://*.zhihu.com/*
@@ -2800,31 +2800,15 @@
         .ChatUserListItem {
             position: relative !important;
         }
-        .zh-chat-add-to-cat-btn {
-            position: absolute !important;
-            right: 8px !important;
-            top: 8px !important;
-            opacity: 0 !important;
-            border: 1px solid #d0d7de !important;
-            background: #ffffff !important;
-            color: #5c6676 !important;
-            border-radius: 4px !important;
-            font-size: 11px !important;
-            padding: 1px 6px !important;
-            cursor: pointer !important;
-            z-index: 3 !important;
+        .zh-chat-action-copy-item {
+            white-space: nowrap !important;
         }
-        .ChatUserListItem:hover .zh-chat-add-to-cat-btn {
-            opacity: 1 !important;
+        .ChatUserListItem .zh-chat-more-cat-btn {
+            opacity: 0;
+            transition: opacity 0.15s ease;
         }
-        .zh-chat-add-to-cat-btn:hover {
-            color: #1772f6 !important;
-            border-color: #1772f6 !important;
-        }
-        html[data-theme="dark"] .zh-chat-add-to-cat-btn {
-            background: #25272d !important;
-            border-color: #3a3d46 !important;
-            color: #d1d5db !important;
+        .ChatUserListItem:hover .zh-chat-more-cat-btn {
+            opacity: 1;
         }
         #zh-chat-cat-picker {
             position: fixed !important;
@@ -3726,7 +3710,7 @@
         }
     }
 
-    function openChatCatPicker(anchorBtn, userInfo) {
+    function openChatCatPicker(anchorBtn, userInfo, onPicked) {
         closeChatCatPicker();
         const picker = document.createElement('div');
         picker.id = 'zh-chat-cat-picker';
@@ -3735,11 +3719,12 @@
         for (const cat of cats) {
             const item = document.createElement('div');
             item.className = 'zh-chat-cat-picker-item';
-            item.textContent = `复制到：${cat.name}`;
+            item.textContent = cat.name;
             item.addEventListener('click', (e) => {
                 e.stopPropagation();
                 addUserToCategory(cat.id, userInfo);
                 closeChatCatPicker();
+                if (typeof onPicked === 'function') onPicked();
             });
             picker.appendChild(item);
         }
@@ -3751,6 +3736,7 @@
         newItem.addEventListener('click', (e) => {
             e.stopPropagation();
             closeChatCatPicker();
+            if (typeof onPicked === 'function') onPicked();
             showZhDialog({
                 title: '新建分类并加入',
                 placeholder: '请输入分类名称',
@@ -3769,12 +3755,20 @@
 
         document.body.appendChild(picker);
         const rect = anchorBtn.getBoundingClientRect();
-        picker.style.left = Math.min(rect.left, window.innerWidth - 180) + 'px';
-        picker.style.top = Math.min(rect.bottom + 4, window.innerHeight - picker.offsetHeight - 10) + 'px';
+        const pw = picker.offsetWidth || 160;
+        const ph = picker.offsetHeight || 120;
+        let left = rect.right + 4;
+        if (left + pw + 8 > window.innerWidth) {
+            left = Math.max(8, rect.left - pw - 4);
+        }
+        const top = Math.max(8, Math.min(rect.top, window.innerHeight - ph - 8));
+        picker.style.left = `${Math.round(left)}px`;
+        picker.style.top = `${Math.round(top)}px`;
 
         setTimeout(() => {
             document.addEventListener('click', closeChatCatPicker, { once: true });
         }, 0);
+        return picker;
     }
 
     function findSidebarChatUserItem(name) {
@@ -4646,6 +4640,88 @@
         renderCustomChatCategories(false);
         enhanceChatInputBox();
 
+        const closeNativeActionMenu = () => {
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+            document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        };
+
+        const injectChatActionMenu = () => {
+            const userInfo = window.__zhPendingChatMenuUser;
+            if (!userInfo) return false;
+            const menus = Array.from(document.querySelectorAll('.Popover-content ul.ActionMenu'));
+            const menu = menus[menus.length - 1];
+            if (!menu) return false;
+            if (menu.dataset.zhCatMenuInjected === '1' && menu.querySelector('.zh-chat-action-copy-item')) return true;
+            menu.dataset.zhCatMenuInjected = '1';
+
+            const copyLi = document.createElement('li');
+            copyLi.className = 'ActionMenu-item zh-chat-action-copy-item';
+            copyLi.textContent = '复制到 ▸';
+
+            let hideTimer = null;
+            const scheduleHide = () => {
+                clearTimeout(hideTimer);
+                hideTimer = setTimeout(() => {
+                    const p = document.getElementById('zh-chat-cat-picker');
+                    if (p && !p.matches(':hover') && !copyLi.matches(':hover')) {
+                        closeChatCatPicker();
+                    }
+                }, 180);
+            };
+            const showSubmenu = () => {
+                clearTimeout(hideTimer);
+                const picker = openChatCatPicker(copyLi, userInfo, closeNativeActionMenu);
+                if (picker) {
+                    picker.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+                    picker.addEventListener('mouseleave', scheduleHide);
+                }
+            };
+
+            copyLi.addEventListener('mouseenter', showSubmenu);
+            copyLi.addEventListener('mouseleave', scheduleHide);
+            copyLi.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                showSubmenu();
+            });
+            menu.appendChild(copyLi);
+            return true;
+        };
+
+        if (!window.__zhChatActionMenuHook) {
+            window.__zhChatActionMenuHook = true;
+            document.addEventListener('click', (e) => {
+                const moreBtn = e.target.closest('.ChatUserListItem .Chat-ActionMenuPopover-Button');
+                if (!moreBtn || moreBtn.classList.contains('zh-chat-more-cat-btn')) return;
+                const itemEl = moreBtn.closest('.ChatUserListItem');
+                if (!itemEl) return;
+                const name = (itemEl.querySelector('.userName-nameArea, [class*="nameArea"]')?.textContent || '').trim();
+                if (!name) return;
+                const matched = findChatEntityByName(name);
+                const uObj = matched?.user || { name };
+                const avatarEl = itemEl.querySelector('img');
+                window.__zhPendingChatMenuUser = {
+                    id: uObj.id ? String(uObj.id) : '',
+                    urlToken: uObj.urlToken || '',
+                    name,
+                    avatar: avatarEl?.getAttribute('src') || uObj.avatarUrl || ''
+                };
+
+                setTimeout(() => {
+                    if (!injectChatActionMenu()) {
+                        setTimeout(() => {
+                            if (!injectChatActionMenu()) {
+                                setTimeout(() => {
+                                    if (!injectChatActionMenu()) setTimeout(injectChatActionMenu, 260);
+                                }, 120);
+                            }
+                        }, 40);
+                    }
+                }, 0);
+            }, true);
+        }
+        injectChatActionMenu();
+
         const items = document.querySelectorAll('.ChatSideBar .ChatUserListItem');
         items.forEach((item) => {
             const nameEl = item.querySelector('.userName-nameArea, [class*="nameArea"]');
@@ -4665,13 +4741,19 @@
             }
             item.classList.remove('zh-blocked-dm-hidden');
 
-            if (!item.querySelector('.zh-chat-add-to-cat-btn')) {
+            // 清理旧的“+ 分类”悬浮按钮，改由原生“...”菜单内嵌分类选项
+            const oldAddBtn = item.querySelector('.zh-chat-add-to-cat-btn');
+            if (oldAddBtn) oldAddBtn.remove();
+
+            // 若当前列表项无原生“...”按钮（如“互相关注”分组），补一个同款“...”按钮
+            if (!item.querySelector('.Chat-ActionMenuPopover-Button')) {
                 const avatarEl = item.querySelector('img');
                 const btn = document.createElement('button');
                 btn.type = 'button';
-                btn.className = 'zh-chat-add-to-cat-btn';
-                btn.textContent = '+ 分类';
-                btn.title = '复制到自定义分类';
+                btn.className = 'Chat-ActionMenuPopover-Button zh-chat-more-cat-btn';
+                btn.setAttribute('aria-label', '更多');
+                btn.title = '分类操作';
+                btn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" class="Zi Zi--Dots Message-status--more" fill="currentColor"><path d="M6 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3ZM10.5 12a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0ZM16.5 12a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Z"></path></svg>';
                 btn.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
