@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         知乎样式与功能增强
 // @namespace    https://www.zhihu.com/
-// @version      2.0.11
+// @version      2.0.13
 // @description  全面优化知乎阅读与创作体验：1) 阅读排版：适度放大正文/标题/评论/顶栏字号且不裁切正文行，支持5行摘要预览，点击左右空白区域快速折叠回答或问题详情；2) 侧栏与界面净化：左侧栏放大且窄屏不折叠，支持在偏好设置页拖拽排序、显隐及自定义分隔线，隐藏右栏冗余卡片与刘看山角标；3) 互动与信息增强：作者及评论区ID旁支持一键「屏蔽用户」与可选「+ 关注」，去除赞同数前「航海家」等前缀并在其旁直接显示发布与修改时间；4) 问题页与个人主页优化：问题顶部集中展示「浏览 · 关注」标签与操作按钮（写回答/关注问题/问题日志/评论）并隐藏邀请回答；个人主页展开完整简介、放大头像、Tab栏改用紧凑胶囊分段框并将「搜索动态」框与精简「个人成就」移至列表顶栏（保留按时间排序），他人主页隐藏右侧冗余卡片并将「屏蔽用户」移至关注/发私信旁；5) 创作体验升级：写回答工具栏双排紧凑对齐、展开「更多」菜单中的帮助/设置/MD开关、创作助手与发布设置合并为右侧紧凑悬浮窗（支持定时「选择时间」按钮与默认不展开设置）；专栏写文章标题栏支持直接粘贴图片设为封面；6) 所有功能均可在知乎「偏好设置」页内开关与自定义。
 // @author       AI
 // @match        *://*.zhihu.com/*
@@ -2364,6 +2364,11 @@
         .Chat-ChatBox > div {
             min-width: 0 !important;
         }
+        html.zh-messages-embed img.ImageMessage,
+        body.zh-messages-embed img.ImageMessage {
+            visibility: visible !important;
+            cursor: zoom-in !important;
+        }
         .zh-chat-toolbar {
             padding: 8px 16px 4px !important;
             display: flex !important;
@@ -4574,6 +4579,33 @@
                 lg.style.setProperty('top', '0px', 'important');
             }
         }
+        if (embed && !window.__zhChatImgPreviewHook) {
+            window.__zhChatImgPreviewHook = true;
+            document.addEventListener('click', (e) => {
+                if (e.target.closest('a, button, .InputBox, .Popover-content, .EmoticonTool, [class*="Avatar"], [class*="avatar"]')) return;
+                let img = e.target.closest('.Chat-ChatBox img');
+                if (!img) {
+                    const wrap = e.target.closest('.Chat-ChatBox div');
+                    if (wrap) {
+                        img = wrap.querySelector(':scope > img.ImageMessage, :scope > img[scene="message"]');
+                    }
+                }
+                if (!img) return;
+                const rc = img.getBoundingClientRect();
+                if (rc.width < 44 && rc.height < 44) return;
+                const src = img.getAttribute('data-original') || img.getAttribute('data-actualsrc') || img.currentSrc || img.src;
+                if (!src) return;
+                e.preventDefault();
+                e.stopPropagation();
+                try {
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage({ type: 'zh-chat-image-preview', src }, '*');
+                    } else {
+                        openChatImageLightbox(src);
+                    }
+                } catch { /* ignore */ }
+            }, true);
+        }
         if (embed && !window.__zhEmbedReadySent && document.querySelector('.ChatWrapper .ChatSideBar')) {
             window.__zhEmbedReadySent = true;
             try {
@@ -4814,6 +4846,8 @@
                 window.addEventListener('message', (e) => {
                     if (e.data && e.data.type === 'zh-messages-embed-ready') {
                         finishLoading();
+                    } else if (e.data && e.data.type === 'zh-chat-image-preview' && e.data.src) {
+                        openChatImageLightbox(e.data.src);
                     }
                 });
             }
@@ -4830,6 +4864,11 @@
             if (!window.__zhQqEscHook) {
                 window.__zhQqEscHook = true;
                 document.addEventListener('keydown', (e) => {
+                    const lb = document.getElementById('zh-chat-img-lightbox');
+                    if (e.key === 'Escape' && lb) {
+                        lb.remove();
+                        return;
+                    }
                     if (e.key === 'Escape' && document.body.classList.contains('zh-qq-chat-open') && !document.body.classList.contains('zh-qq-chat-pinned')) {
                         closeQqChatShell();
                     }
@@ -4837,6 +4876,33 @@
             }
         }
         return shell;
+    }
+
+    function openChatImageLightbox(src) {
+        const old = document.getElementById('zh-chat-img-lightbox');
+        if (old) old.remove();
+        const lb = document.createElement('div');
+        lb.id = 'zh-chat-img-lightbox';
+        lb.style.cssText = 'position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,0.84);display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+        const img = document.createElement('img');
+        img.src = src;
+        img.style.cssText = 'max-width:92vw;max-height:92vh;object-fit:contain;border-radius:6px;box-shadow:0 12px 40px rgba(0,0,0,0.45);transition:transform 0.12s ease;cursor:default;';
+        let scale = 1;
+        img.addEventListener('click', (e) => e.stopPropagation());
+        img.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            scale = Math.max(0.5, Math.min(4, scale + (e.deltaY < 0 ? 0.15 : -0.15)));
+            img.style.transform = `scale(${scale.toFixed(2)})`;
+        }, { passive: false });
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.textContent = '×';
+        closeBtn.style.cssText = 'position:fixed;top:16px;right:20px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,0.16);color:#fff;font-size:22px;line-height:36px;cursor:pointer;';
+        closeBtn.addEventListener('click', () => lb.remove());
+        lb.addEventListener('click', () => lb.remove());
+        lb.appendChild(img);
+        lb.appendChild(closeBtn);
+        document.body.appendChild(lb);
     }
 
     function openQqChatShell() {
