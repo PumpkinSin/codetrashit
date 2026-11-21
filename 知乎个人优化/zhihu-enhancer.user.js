@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         知乎样式与功能增强
 // @namespace    https://www.zhihu.com/
-// @version      2.0.13
+// @version      2.0.18
 // @description  全面优化知乎阅读与创作体验：1) 阅读排版：适度放大正文/标题/评论/顶栏字号且不裁切正文行，支持5行摘要预览，点击左右空白区域快速折叠回答或问题详情；2) 侧栏与界面净化：左侧栏放大且窄屏不折叠，支持在偏好设置页拖拽排序、显隐及自定义分隔线，隐藏右栏冗余卡片与刘看山角标；3) 互动与信息增强：作者及评论区ID旁支持一键「屏蔽用户」与可选「+ 关注」，去除赞同数前「航海家」等前缀并在其旁直接显示发布与修改时间；4) 问题页与个人主页优化：问题顶部集中展示「浏览 · 关注」标签与操作按钮（写回答/关注问题/问题日志/评论）并隐藏邀请回答；个人主页展开完整简介、放大头像、Tab栏改用紧凑胶囊分段框并将「搜索动态」框与精简「个人成就」移至列表顶栏（保留按时间排序），他人主页隐藏右侧冗余卡片并将「屏蔽用户」移至关注/发私信旁；5) 创作体验升级：写回答工具栏双排紧凑对齐、展开「更多」菜单中的帮助/设置/MD开关、创作助手与发布设置合并为右侧紧凑悬浮窗（支持定时「选择时间」按钮与默认不展开设置）；专栏写文章标题栏支持直接粘贴图片设为封面；6) 所有功能均可在知乎「偏好设置」页内开关与自定义。
 // @author       AI
 // @match        *://*.zhihu.com/*
@@ -2367,6 +2367,7 @@
         html.zh-messages-embed img.ImageMessage,
         body.zh-messages-embed img.ImageMessage {
             visibility: visible !important;
+            pointer-events: auto !important;
             cursor: zoom-in !important;
         }
         .zh-chat-toolbar {
@@ -4579,31 +4580,60 @@
                 lg.style.setProperty('top', '0px', 'important');
             }
         }
+        if (embed) {
+            document.querySelectorAll('.Chat-ChatBox img.ImageMessage, .Chat-ChatBox img[scene="message"]').forEach((img) => {
+                if (img.getAttribute('loading') === 'lazy') {
+                    img.setAttribute('loading', 'eager');
+                }
+                img.style.setProperty('visibility', 'visible', 'important');
+                img.style.setProperty('cursor', 'zoom-in', 'important');
+            });
+        }
         if (embed && !window.__zhChatImgPreviewHook) {
             window.__zhChatImgPreviewHook = true;
-            document.addEventListener('click', (e) => {
-                if (e.target.closest('a, button, .InputBox, .Popover-content, .EmoticonTool, [class*="Avatar"], [class*="avatar"]')) return;
-                let img = e.target.closest('.Chat-ChatBox img');
-                if (!img) {
-                    const wrap = e.target.closest('.Chat-ChatBox div');
-                    if (wrap) {
-                        img = wrap.querySelector(':scope > img.ImageMessage, :scope > img[scene="message"]');
-                    }
-                }
+            const triggerPreview = (img, e) => {
                 if (!img) return;
                 const rc = img.getBoundingClientRect();
                 if (rc.width < 44 && rc.height < 44) return;
                 const src = img.getAttribute('data-original') || img.getAttribute('data-actualsrc') || img.currentSrc || img.src;
                 if (!src) return;
-                e.preventDefault();
-                e.stopPropagation();
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
                 try {
+                    if (typeof unsafeWindow !== 'undefined' && unsafeWindow.parent && typeof unsafeWindow.parent.__zhOpenChatLightbox === 'function') {
+                        unsafeWindow.parent.__zhOpenChatLightbox(src);
+                        return;
+                    }
+                } catch { /* ignore */ }
+                try {
+                    if (typeof unsafeWindow !== 'undefined' && unsafeWindow.parent && unsafeWindow.parent !== unsafeWindow) {
+                        unsafeWindow.parent.postMessage({ type: 'zh-chat-image-preview', src }, '*');
+                    }
                     if (window.parent && window.parent !== window) {
                         window.parent.postMessage({ type: 'zh-chat-image-preview', src }, '*');
                     } else {
                         openChatImageLightbox(src);
                     }
                 } catch { /* ignore */ }
+            };
+            document.addEventListener('click', (e) => {
+                if (e.target.closest('button, .InputBox, .Popover-content, .EmoticonTool')) return;
+                let img = e.target.closest('.Chat-ChatBox img.ImageMessage, .Chat-ChatBox img[scene="message"]');
+                if (!img) {
+                    const anyImg = e.target.closest('.Chat-ChatBox img');
+                    if (anyImg && !anyImg.closest('a, [class*="Avatar"], [class*="avatar"]')) {
+                        img = anyImg;
+                    }
+                }
+                if (!img) {
+                    const wrap = e.target.closest('.Chat-ChatBox div');
+                    if (wrap) {
+                        img = wrap.querySelector(':scope > img.ImageMessage, :scope > img[scene="message"]');
+                    }
+                }
+                triggerPreview(img, e);
             }, true);
         }
         if (embed && !window.__zhEmbedReadySent && document.querySelector('.ChatWrapper .ChatSideBar')) {
@@ -4843,13 +4873,20 @@
             });
             if (!window.__zhQqMsgHook) {
                 window.__zhQqMsgHook = true;
-                window.addEventListener('message', (e) => {
+                if (typeof unsafeWindow !== 'undefined') {
+                    unsafeWindow.__zhOpenChatLightbox = openChatImageLightbox;
+                }
+                const onParentMsg = (e) => {
                     if (e.data && e.data.type === 'zh-messages-embed-ready') {
                         finishLoading();
                     } else if (e.data && e.data.type === 'zh-chat-image-preview' && e.data.src) {
                         openChatImageLightbox(e.data.src);
                     }
-                });
+                };
+                window.addEventListener('message', onParentMsg);
+                if (typeof unsafeWindow !== 'undefined' && unsafeWindow !== window) {
+                    unsafeWindow.addEventListener('message', onParentMsg);
+                }
             }
             const pinBtn = shell.querySelector('.zh-qq-pin-btn');
             if (pinBtn) {
@@ -4878,15 +4915,24 @@
         return shell;
     }
 
-    function openChatImageLightbox(src) {
-        const old = document.getElementById('zh-chat-img-lightbox');
+    let lastLightboxSrc = '';
+    let lastLightboxAt = 0;
+
+    function openChatImageLightbox(src, targetDoc) {
+        const doc = targetDoc || document;
+        const now = Date.now();
+        if (src === lastLightboxSrc && now - lastLightboxAt < 200) return;
+        lastLightboxSrc = src;
+        lastLightboxAt = now;
+        const old = doc.getElementById('zh-chat-img-lightbox');
         if (old) old.remove();
-        const lb = document.createElement('div');
+        const lb = doc.createElement('div');
         lb.id = 'zh-chat-img-lightbox';
-        lb.style.cssText = 'position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,0.84);display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
-        const img = document.createElement('img');
+        lb.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:zoom-out;';
+        const img = doc.createElement('img');
+        img.referrerPolicy = 'origin';
         img.src = src;
-        img.style.cssText = 'max-width:92vw;max-height:92vh;object-fit:contain;border-radius:6px;box-shadow:0 12px 40px rgba(0,0,0,0.45);transition:transform 0.12s ease;cursor:default;';
+        img.style.cssText = 'max-width:92vw;max-height:88vh;object-fit:contain;border-radius:6px;box-shadow:0 12px 40px rgba(0,0,0,0.45);transition:transform 0.12s ease;cursor:default;background:#fff;';
         let scale = 1;
         img.addEventListener('click', (e) => e.stopPropagation());
         img.addEventListener('wheel', (e) => {
@@ -4894,15 +4940,30 @@
             scale = Math.max(0.5, Math.min(4, scale + (e.deltaY < 0 ? 0.15 : -0.15)));
             img.style.transform = `scale(${scale.toFixed(2)})`;
         }, { passive: false });
-        const closeBtn = document.createElement('button');
+        img.addEventListener('error', () => {
+            const errTip = doc.createElement('div');
+            errTip.style.cssText = 'color:#fff;font-size:14px;';
+            errTip.textContent = '图片加载失败，请点击下方在新标签页打开';
+            lb.insertBefore(errTip, img);
+            img.style.display = 'none';
+        });
+        const openLink = doc.createElement('a');
+        openLink.href = src;
+        openLink.target = '_blank';
+        openLink.rel = 'noopener noreferrer';
+        openLink.textContent = '在新标签页打开原图';
+        openLink.style.cssText = 'color:#e5e7eb;font-size:12.5px;text-decoration:underline;';
+        openLink.addEventListener('click', (e) => e.stopPropagation());
+        const closeBtn = doc.createElement('button');
         closeBtn.type = 'button';
         closeBtn.textContent = '×';
-        closeBtn.style.cssText = 'position:fixed;top:16px;right:20px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,0.16);color:#fff;font-size:22px;line-height:36px;cursor:pointer;';
+        closeBtn.style.cssText = 'position:fixed;top:16px;right:20px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,0.2);color:#fff;font-size:22px;line-height:36px;cursor:pointer;';
         closeBtn.addEventListener('click', () => lb.remove());
         lb.addEventListener('click', () => lb.remove());
         lb.appendChild(img);
+        lb.appendChild(openLink);
         lb.appendChild(closeBtn);
-        document.body.appendChild(lb);
+        (doc.body || doc.documentElement).appendChild(lb);
     }
 
     function openQqChatShell() {
@@ -5845,8 +5906,10 @@
             const previewDiv = document.createElement('div');
             previewDiv.className = 'zh-5line-preview';
             previewDiv.textContent = fullText;
-            inner.insertBefore(previewDiv, richText);
-            rc.setAttribute('data-zh-has-preview', 'true');
+            if (richText.parentNode) {
+                richText.parentNode.insertBefore(previewDiv, richText);
+                rc.setAttribute('data-zh-has-preview', 'true');
+            }
         }
     }
 
@@ -7959,26 +8022,33 @@
     let rafPending = false;
     function runEnhancements() {
         rafPending = false;
-        applySettingsClasses();
-        parseInitialData();
-        tagLeftSidebar();
-        enhanceTopHeader();
-        attachBlockButtons();
-        attachAnswerTimes();
-        attachFiveLinePreviews();
-        adjustProfileHeader();
-        enhanceProfileSearchBar();
-        syncQuestionHeaderWidth();
-        enhanceQuestionPageHeader();
-        hideRightSidebarCards();
-        injectPreferenceSettings();
-        enhanceArticleTitlePasteCover();
-        unpackToolbarMoreMenu();
-        moveSecondaryToolsToTopBar();
-        layoutAiAssistantPanel();
-        collapseAnswerPublishSettings();
-        enhanceMessagesPage();
-        checkAndAutoReadMutedCategoryDms();
+        const steps = [
+            applySettingsClasses,
+            parseInitialData,
+            tagLeftSidebar,
+            enhanceTopHeader,
+            attachBlockButtons,
+            attachAnswerTimes,
+            attachFiveLinePreviews,
+            adjustProfileHeader,
+            enhanceProfileSearchBar,
+            syncQuestionHeaderWidth,
+            enhanceQuestionPageHeader,
+            hideRightSidebarCards,
+            injectPreferenceSettings,
+            enhanceArticleTitlePasteCover,
+            unpackToolbarMoreMenu,
+            moveSecondaryToolsToTopBar,
+            layoutAiAssistantPanel,
+            collapseAnswerPublishSettings,
+            enhanceMessagesPage,
+            checkAndAutoReadMutedCategoryDms
+        ];
+        for (const fn of steps) {
+            try {
+                fn();
+            } catch { /* isolate step errors */ }
+        }
     }
 
     function scheduleEnhance() {
