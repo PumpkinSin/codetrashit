@@ -156,12 +156,12 @@
         panelWidth: 300,
         topBarStyle: 'default', // 'default' | 'compact'
         topBarHeight: 60, // 顶栏/底栏高度（px）
-        topBarWidth: 600, // 顶栏/底栏最大宽度（px）
+        topBarWidth: 900, // 顶栏/底栏最大宽度（px）
         topBarOffset: 0, // 顶栏/底栏水平偏移量（%）：-80到80，负数左移，正数右移
         sideBarOffset: 0, // 侧边栏垂直偏移量（%）：-80到80，负数上移，正数下移
         openInCurrentTab: false, // 左键当前页打开，中键新页打开
         autoExpandContent: false, // 收藏内容默认展开
-        panelTheme: 'default', // 配色模式：'default' 跟随主题色（现状）| 'light' 浅色抗干扰 | 'dark' 深色抗干扰
+        panelTheme: 'default', // 配色模式：'default' 跟随主题色 | 'light' 浅色抗干扰 | 'dark' 深色抗干扰
         searchBoxWidth: 500, // search-top 模式搜索框宽度（px）
         searchBoxHeight: 44, // search-top 模式搜索框高度（px）
         topBarModulesOrder: [
@@ -173,41 +173,31 @@
         customPanelName: '', // 自定义面板名称
         sharedDomains: [currentHost] // 共享数据的域名列表，默认只包含当前域名
     };
-    const siteConfig = GM_getValue(configKey, defaultConfig);
+    const siteConfig = { ...defaultConfig, ...GM_getValue(configKey, {}) };
 
-    // 确保配置完整性
-    if (siteConfig.showTitle === undefined) siteConfig.showTitle = true;
+    // 确保配置完整性（兼容旧版本配置）
     if (!siteConfig.gridColumns) siteConfig.gridColumns = 2;
     if (!siteConfig.searchPosition) siteConfig.searchPosition = 'top';
     if (!siteConfig.panelWidth) siteConfig.panelWidth = 300;
     if (!siteConfig.topBarStyle) siteConfig.topBarStyle = 'default';
     if (siteConfig.topBarHeight === undefined || siteConfig.topBarHeight === null) siteConfig.topBarHeight = 60;
     if (!siteConfig.topBarWidth) siteConfig.topBarWidth = 900;
-    if (siteConfig.topBarOffset === undefined) siteConfig.topBarOffset = 0;
-    if (siteConfig.sideBarOffset === undefined) siteConfig.sideBarOffset = 0;
-    if (siteConfig.openInCurrentTab === undefined) siteConfig.openInCurrentTab = false;
-    if (siteConfig.autoExpandContent === undefined) siteConfig.autoExpandContent = false;
     if (!siteConfig.panelTheme) siteConfig.panelTheme = 'default';
     if (!siteConfig.searchBoxWidth) siteConfig.searchBoxWidth = 500;
     if (!siteConfig.searchBoxHeight) siteConfig.searchBoxHeight = 44;
-    if (!siteConfig.topBarModulesOrder || !Array.isArray(siteConfig.topBarModulesOrder) || siteConfig.topBarModulesOrder.length === 0) {
-        siteConfig.topBarModulesOrder = [
-            { id: 'search', order: 0, visible: true },
-            { id: 'favorites', order: 1, visible: true },
-            { id: 'buttons', order: 2, visible: true }
-        ];
-    }
-    // 兼容旧版本：如果是字符串数组，转换为对象数组
-    if (siteConfig.topBarModulesOrder.length > 0 && typeof siteConfig.topBarModulesOrder[0] === 'string') {
+    if (!Array.isArray(siteConfig.searchEngines)) siteConfig.searchEngines = [];
+    if (!Array.isArray(siteConfig.topBarModulesOrder) || siteConfig.topBarModulesOrder.length === 0) {
+        siteConfig.topBarModulesOrder = defaultConfig.topBarModulesOrder.map(m => ({ ...m }));
+    } else if (typeof siteConfig.topBarModulesOrder[0] === 'string') {
+        // 兼容旧版本字符串数组
         siteConfig.topBarModulesOrder = siteConfig.topBarModulesOrder.map((id, index) => ({
-            id: id,
-            order: index,
-            visible: true
+            id, order: index, visible: true
         }));
     }
     if (!siteConfig.primaryColor) siteConfig.primaryColor = platformData[currentPlatform].color;
-    if (siteConfig.customPanelName === undefined) siteConfig.customPanelName = '';
-    if (!siteConfig.sharedDomains || !Array.isArray(siteConfig.sharedDomains)) siteConfig.sharedDomains = [currentHost];
+    if (!Array.isArray(siteConfig.sharedDomains) || siteConfig.sharedDomains.length === 0) {
+        siteConfig.sharedDomains = [currentHost];
+    }
 
     // 始终使用当前平台的独立存储键（不再使用共享键）
     const storageKey = `${currentPlatform}_users`;
@@ -228,8 +218,8 @@
         }
     }
 
-    // 加载并合并所有镜像站点的数据
-    function loadMirrorSitesData() {
+    // 动态加载并合并所有镜像站点的数据（每次渲染时调用，确保增删改实时生效）
+    function getDisplayUsers() {
         if (!siteConfig.sharedDomains || siteConfig.sharedDomains.length <= 1) {
             return platformUsers;
         }
@@ -237,22 +227,19 @@
         const allUsers = [...platformUsers];
         const seenUrls = new Set(platformUsers.map(u => u.url));
 
-        // 遍历所有镜像站点
         siteConfig.sharedDomains.forEach(domain => {
-            if (domain === currentHost) return; // 跳过当前站点
+            if (domain === currentHost) return;
 
             const mirrorPlatform = domain.replace(/\./g, '_');
-            const mirrorKey = `${mirrorPlatform}_users`;
-            const mirrorUsers = GM_getValue(mirrorKey, []);
+            const mirrorUsers = GM_getValue(`${mirrorPlatform}_users`, []);
 
-            // 合并镜像站点的数据，并转换URL
             mirrorUsers.forEach(user => {
                 const convertedUrl = convertUrlToCurrentDomain(user.url, domain);
                 if (!seenUrls.has(convertedUrl)) {
                     allUsers.push({
                         ...user,
                         url: convertedUrl,
-                        _originalDomain: domain // 标记原始域名，用于调试
+                        _originalDomain: domain
                     });
                     seenUrls.add(convertedUrl);
                 }
@@ -261,9 +248,6 @@
 
         return allUsers;
     }
-
-    // 使用合并后的数据用于显示
-    const displayUsers = loadMirrorSitesData();
 
 
     function saveSiteConfig() { GM_setValue(configKey, siteConfig); }
@@ -445,775 +429,581 @@
         return shortcut.split('+').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('+');
     }
 
-    function darkenColor(color, percent) {
-        const num = parseInt(color.replace('#', ''), 16);
+    // 解析 3/6 位 hex 颜色，非法输入回退为默认蓝色
+    function parseHex(color) {
+        const clean = String(color || '').trim().replace('#', '');
+        const full = clean.length === 3
+            ? clean.split('').map(c => c + c).join('')
+            : clean;
+        if (!/^[0-9a-fA-F]{6}$/.test(full)) return [74, 144, 226];
+        const num = parseInt(full, 16);
+        return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+    }
+
+    function adjustColor(color, percent) {
+        const [r, g, b] = parseHex(color);
         const amt = Math.round(2.55 * percent);
-        const R = (num >> 16) - amt, G = (num >> 8 & 0x00FF) - amt, B = (num & 0x0000FF) - amt;
-        return '#' + (0x1000000 + (R < 0 ? 0 : R) * 0x10000 + (G < 0 ? 0 : G) * 0x100 + (B < 0 ? 0 : B)).toString(16).slice(1);
+        const clamp = v => Math.max(0, Math.min(255, v));
+        const R = clamp(r + amt), G = clamp(g + amt), B = clamp(b + amt);
+        return '#' + ((1 << 24) + (R << 16) + (G << 8) + B).toString(16).slice(1);
+    }
+
+    function darkenColor(color, percent) {
+        return adjustColor(color, -Math.abs(percent));
     }
 
     function lightenColor(color, percent) {
-        const num = parseInt(color.replace('#', ''), 16);
-        const amt = Math.round(2.55 * percent);
-        const R = (num >> 16) + amt, G = (num >> 8 & 0x00FF) + amt, B = (num & 0x0000FF) + amt;
-        return '#' + (0x1000000 + (R > 255 ? 255 : R) * 0x10000 + (G > 255 ? 255 : G) * 0x100 + (B > 255 ? 255 : B)).toString(16).slice(1);
+        return adjustColor(color, Math.abs(percent));
     }
 
-    const primaryColor = siteConfig.primaryColor;
-    const headerColor = lightenColor(primaryColor, 5);
-    const buttonColor = darkenColor(primaryColor, 5);
-    const actionButtonColor = lightenColor(primaryColor, 5);
+    function hexToRgba(color, alpha) {
+        const [r, g, b] = parseHex(color);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function getThemeColors() {
+        const primary = siteConfig.primaryColor || '#4a90e2';
+        return {
+            primary,
+            header: lightenColor(primary, 5),
+            button: darkenColor(primary, 5),
+            action: lightenColor(primary, 5)
+        };
+    }
+
+    // 轻量级非侵入式 Toast 提示，替代频繁打断操作的 alert
+    let _toastTimer = null;
+    function showToast(message, type = 'info') {
+        let toast = document.getElementById('mp-nav-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'mp-nav-toast';
+            document.body.appendChild(toast);
+        }
+        toast.textContent = message;
+        toast.className = `mp-toast mp-toast-${type} show`;
+        clearTimeout(_toastTimer);
+        _toastTimer = setTimeout(() => {
+            toast.classList.remove('show');
+        }, 2400);
+    }
 
     // 抗干扰配色模式（panelTheme: 'light' | 'dark'）：
     // 把面板全部颜色声明加 !important，利用"样式表 !important > 行内样式 > 网站普通样式"的
     // 优先级规则隔离网站对颜色/背景的污染；主题色仍作为点缀色（深色模式下自动调亮保证可见）
-    function getThemePalette(theme) {
+    function getThemePalette(theme, primary) {
         if (theme === 'dark') {
             return {
-                panelBg: '#252526', itemBg: '#2d2d2d', itemHover: '#3a3a3a',
-                text: '#e0e0e0', muted: '#a0a0a0', border: '#3c3c3c',
-                inputBg: '#333333', inputText: '#ffffff', inputBorder: '#555555',
-                toggleOff: '#555555', accent: lightenColor(primaryColor, 20)
+                panelBg: '#1c1e24', itemBg: '#252830', itemHover: '#2f333d',
+                sectionBg: '#22252c', text: '#e8eaed', muted: '#9aa0a6', border: '#343844',
+                inputBg: '#2b2f3a', inputText: '#f1f3f4', inputBorder: '#444957',
+                toggleOff: '#4a4f5e', accent: lightenColor(primary, 18)
             };
         }
         // light：强制浅色
         return {
-            panelBg: '#ffffff', itemBg: '#f8f8f8', itemHover: '#f0f0f0',
-            text: '#333333', muted: '#666666', border: '#e5e5e5',
-            inputBg: '#ffffff', inputText: '#000000', inputBorder: '#cccccc',
-            toggleOff: '#cccccc', accent: primaryColor
+            panelBg: '#ffffff', itemBg: '#f5f7fa', itemHover: '#ebeff5',
+            sectionBg: '#f9fafb', text: '#1f2937', muted: '#6b7280', border: '#e5e7eb',
+            inputBg: '#ffffff', inputText: '#111827', inputBorder: '#d1d5db',
+            toggleOff: '#cbd5e1', accent: primary
         };
     }
 
     function buildThemeCss(t) {
+        const accentHover = darkenColor(t.accent, 10);
+        const accentGlow = hexToRgba(t.accent, 0.22);
         return `
             /* ===== 抗干扰配色模式：全部颜色声明带 !important，优先级高于网站样式与行内样式 ===== */
-            /* --- 主面板 --- */
             #panel-container, .favorites-buttons-container, .search-container, #search-top-container {
                 background-color: ${t.panelBg} !important;
                 color: ${t.text} !important;
-                border-bottom-color: ${t.border} !important;
+                border-color: ${t.border} !important;
             }
             #expand-button { background-color: ${t.accent} !important; color: #fff !important; }
-            #expand-button:hover { background-color: ${darkenColor(t.accent, 10)} !important; }
-            .panel-header { background-color: ${t.accent} !important; }
+            #expand-button:hover { background-color: ${accentHover} !important; }
+            .panel-header { background: linear-gradient(135deg, ${lightenColor(t.accent, 6)}, ${t.accent}) !important; }
             .panel-header, .panel-header * { color: #fff !important; }
             .user-button { background-color: ${t.accent} !important; color: #fff !important; }
-            .user-button:hover { background-color: ${darkenColor(t.accent, 10)} !important; }
+            .user-button:hover { background-color: ${accentHover} !important; box-shadow: 0 4px 12px ${accentGlow} !important; }
             .action-button { background-color: ${t.accent} !important; color: #fff !important; }
-            .action-button:hover { background-color: ${darkenColor(t.accent, 10)} !important; }
-            .search-engine-item { background-color: ${t.itemBg} !important; }
-            #multi-platform-panel .search-engine-item input { background-color: ${t.inputBg} !important; color: ${t.inputText} !important; }
+            .action-button:hover { background-color: ${accentHover} !important; }
+            .search-engine-item { background-color: ${t.itemBg} !important; border-color: ${t.border} !important; }
+            #multi-platform-panel .search-engine-item input { background-color: transparent !important; color: ${t.inputText} !important; }
             .search-engine-item button { background-color: ${t.accent} !important; color: #fff !important; }
             #multi-platform-panel .search-input, .search-input { background-color: ${t.inputBg} !important; color: ${t.inputText} !important; border-color: ${t.inputBorder} !important; }
+            #multi-platform-panel .search-input:focus, .search-input:focus { border-color: ${t.accent} !important; box-shadow: 0 0 0 2px ${accentGlow} !important; }
             .search-button { background-color: ${t.accent} !important; color: #fff !important; }
-            .search-button:hover { background-color: ${darkenColor(t.accent, 10)} !important; }
+            .search-button:hover { background-color: ${accentHover} !important; }
             .close-button-top { background-color: ${t.accent} !important; color: #fff !important; }
 
             /* --- 设置面板 --- */
-            #settings-panel { background-color: ${t.panelBg} !important; color: ${t.text} !important; }
-            #settings-panel .settings-header { background-color: ${t.accent} !important; }
+            #settings-panel { background-color: ${t.panelBg} !important; color: ${t.text} !important; border-color: ${t.border} !important; }
+            #settings-panel .settings-header { background: linear-gradient(135deg, ${lightenColor(t.accent, 6)}, ${t.accent}) !important; }
             #settings-panel .settings-header, #settings-panel .settings-header * { color: #fff !important; }
-            #settings-panel .setting-section h3 { color: ${t.text} !important; border-bottom-color: ${t.accent} !important; }
+            #settings-panel .setting-section { background-color: ${t.sectionBg} !important; border-color: ${t.border} !important; }
+            #settings-panel .setting-section h3 { color: ${t.text} !important; }
+            #settings-panel .setting-section h3::before { background-color: ${t.accent} !important; }
             #settings-panel .setting-item { border-bottom-color: ${t.border} !important; }
-            #settings-panel .setting-label, #settings-panel .style-item-name { color: ${t.text} !important; }
-            #settings-panel .setting-description { color: ${t.muted} !important; }
+            #settings-panel .setting-label, #settings-panel .style-item-name, #settings-panel .module-name { color: ${t.text} !important; }
+            #settings-panel .setting-description, #settings-panel .drag-handle, #settings-panel .module-drag-handle, #settings-panel .module-width-value, #settings-panel .search-engine-url { color: ${t.muted} !important; }
             #settings-panel .toggle-switch { background-color: ${t.toggleOff} !important; }
             #settings-panel .toggle-switch.active { background-color: ${t.accent} !important; }
             #settings-panel .toggle-switch::after { background-color: #fff !important; }
-            #settings-panel .radio-option { color: ${t.text} !important; border-color: ${t.accent} !important; background-color: transparent !important; }
+            #settings-panel .radio-group { background-color: ${t.itemBg} !important; border-color: ${t.border} !important; }
+            #settings-panel .radio-option { color: ${t.muted} !important; background-color: transparent !important; }
+            #settings-panel .radio-option:hover { color: ${t.text} !important; }
             #settings-panel .radio-option.active { background-color: ${t.accent} !important; color: #fff !important; }
-            #settings-panel .style-item, #settings-panel .module-config-item { background-color: ${t.itemBg} !important; }
+            #settings-panel .style-item, #settings-panel .module-config-item { background-color: ${t.itemBg} !important; border-color: ${t.border} !important; }
             #settings-panel .style-item:hover, #settings-panel .module-config-item:hover { background-color: ${t.itemHover} !important; }
-            #settings-panel .drag-handle, #settings-panel .module-drag-handle, #settings-panel .module-width-value, #settings-panel .search-engine-url { color: ${t.muted} !important; }
-            #settings-panel .search-engine-item { background-color: ${t.itemBg} !important; }
             #settings-panel .search-engine-name { color: ${t.accent} !important; }
             #settings-panel input[type="text"] { color: ${t.inputText} !important; background-color: ${t.inputBg} !important; border-color: ${t.inputBorder} !important; }
             #settings-panel .size-preview { background-color: ${t.inputBg} !important; color: ${t.inputText} !important; border-color: ${t.inputBorder} !important; }
-            #settings-panel .color-dropdown, #settings-panel .size-dropdown { background-color: ${t.panelBg} !important; }
-            #settings-panel .size-option { background-color: ${t.panelBg} !important; color: ${t.text} !important; }
+            #settings-panel .size-dropdown { background-color: ${t.panelBg} !important; border-color: ${t.border} !important; }
+            #settings-panel .size-option { background-color: transparent !important; color: ${t.text} !important; }
             #settings-panel .size-option:hover { background-color: ${t.itemHover} !important; }
             #settings-panel .size-option.active { background-color: ${t.accent} !important; color: #fff !important; }
-            #settings-panel .rename-btn-mini { background-color: ${t.accent} !important; color: #fff !important; }
-            #settings-panel .add-search-btn { background-color: ${t.accent} !important; color: #fff !important; }
-            #settings-panel .delete-btn-mini, #settings-panel .remove-search-btn { background-color: #e74c3c !important; color: #fff !important; }
+            #settings-panel .rename-btn-mini, #settings-panel .add-search-btn { background-color: ${t.accent} !important; color: #fff !important; }
+            #settings-panel .delete-btn-mini { background-color: #ef4444 !important; color: #fff !important; }
             #settings-panel .settings-content { scrollbar-color: ${t.muted} ${t.itemBg} !important; }
             #settings-panel .settings-content::-webkit-scrollbar-track { background: ${t.itemBg} !important; }
             #settings-panel .settings-content::-webkit-scrollbar-thumb { background: ${t.muted} !important; }
         `;
     }
 
+    // 侧边栏样式（left / right）
+    function buildSideStyles(isLeft, c) {
+        const edge = isLeft ? 'left' : 'right';
+        const btnRadius = isLeft ? '0 8px 8px 0' : '8px 0 0 8px';
+        const panelRadius = isLeft ? '0 14px 14px 0' : '14px 0 0 14px';
+        const shadowDir = isLeft ? '4px' : '-4px';
+        return `
+            #expand-button {
+                position: fixed; ${edge}: 0; top: calc(50% + ${siteConfig.sideBarOffset}%); transform: translateY(-50%); z-index: 9999;
+                width: 22px; height: 48px; background: linear-gradient(180deg, ${lightenColor(c.header, 5)}, ${c.header}); color: #fff;
+                display: flex; align-items: center; justify-content: center; border-radius: ${btnRadius};
+                cursor: pointer; box-shadow: ${shadowDir} 2px 10px rgba(0, 0, 0, 0.16);
+                transition: width 0.2s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.2s, box-shadow 0.2s;
+                font-size: 11px; user-select: none;
+            }
+            #expand-button:hover { width: 26px; box-shadow: ${shadowDir} 4px 14px rgba(0, 0, 0, 0.22); }
+            #panel-container {
+                position: fixed; ${edge}: -${siteConfig.panelWidth + 24}px; top: calc(50% + ${siteConfig.sideBarOffset}%); transform: translateY(-50%); z-index: 10000;
+                width: ${siteConfig.panelWidth}px; ${isLeft ? 'height: 85vh;' : 'max-height: 85vh;'}
+                background-color: rgba(255, 255, 255, 0.92); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
+                border: 1px solid rgba(255, 255, 255, 0.55); border-${edge}: none;
+                box-shadow: ${shadowDir} 8px 32px rgba(0, 0, 0, 0.16); border-radius: ${panelRadius};
+                transition: ${edge} 0.3s cubic-bezier(0.22, 1, 0.36, 1); display: flex; flex-direction: column; overflow: hidden;
+            }
+            #panel-container.expanded { ${edge}: 0; }
+        `;
+    }
+
+    // 顶栏/底栏共享样式（合并原重复的 topStyles 与 bottomStyles）
+    function buildBarStyles(isBottom, c) {
+        const edge = isBottom ? 'bottom' : 'top';
+        const oppositeEdge = isBottom ? 'top' : 'bottom';
+        const hiddenY = isBottom ? '100%' : '-100%';
+        const btnRadius = isBottom ? '8px 8px 0 0' : '0 0 8px 8px';
+        const barRadius = isBottom ? '12px 12px 0 0' : '0 0 12px 12px';
+        const shadowY = isBottom ? '-4px' : '4px';
+        return `
+            #expand-button {
+                position: fixed; left: 50%; ${edge}: 0; transform: translateX(-50%); z-index: 9999;
+                width: 64px; height: 22px; background: linear-gradient(135deg, ${lightenColor(c.header, 5)}, ${c.header}); color: #fff;
+                display: flex; align-items: center; justify-content: center; border-radius: ${btnRadius};
+                cursor: pointer; box-shadow: 0 ${shadowY} 10px rgba(0, 0, 0, 0.16);
+                transition: height 0.2s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.2s; font-size: 11px; user-select: none;
+            }
+            #expand-button:hover { height: 26px; }
+            #panel-container {
+                position: fixed; left: 50%; ${edge}: 0;
+                transform: translateX(-50%) translateY(${hiddenY}); z-index: 10000;
+                display: flex; flex-direction: row; gap: 10px; padding: 0 10px;
+                transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+                pointer-events: none; overflow: visible;
+            }
+            #panel-container.expanded { transform: translateX(-50%) translateY(0); }
+            .close-button-top {
+                position: fixed; right: 12px; ${edge}: 8px; z-index: 10002;
+                width: 26px; height: 26px; background: ${c.header}; color: #fff; border-radius: 50%;
+                display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); opacity: 0;
+                transition: opacity 0.25s, transform 0.2s; pointer-events: auto;
+            }
+            .close-button-top:hover { transform: scale(1.1); }
+            #panel-container.expanded ~ .close-button-top { opacity: 1; }
+            .panel-header { display: none !important; }
+            .favorites-buttons-container {
+                flex: 0 0 auto; max-width: ${siteConfig.topBarWidth}px;
+                height: ${siteConfig.topBarHeight}px; min-height: ${siteConfig.topBarHeight}px; max-height: ${siteConfig.topBarHeight}px;
+                display: flex; flex-direction: row; gap: 8px;
+                background-color: rgba(255, 255, 255, 0.92); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
+                border: 1px solid rgba(255, 255, 255, 0.55); border-${edge}: none;
+                box-shadow: 0 ${shadowY} 24px rgba(0, 0, 0, 0.14); border-radius: ${barRadius};
+                pointer-events: auto; padding: 6px 22px; transform: translateX(${siteConfig.topBarOffset}%);
+                flex-wrap: nowrap; align-items: center; margin: 0 20px; position: relative; overflow: visible;
+            }
+            .search-engines-container {
+                flex: 0 0 auto; width: 280px; display: flex; flex-direction: column;
+                gap: 6px; align-items: stretch; justify-content: center;
+            }
+            .search-engine-item {
+                display: flex; gap: 4px; align-items: center; background: #f3f4f6;
+                border: 1px solid #e5e7eb; border-radius: 6px; padding: 3px 6px; white-space: nowrap;
+                transition: border-color 0.2s, box-shadow 0.2s;
+            }
+            .search-engine-item:focus-within {
+                border-color: ${c.primary}; box-shadow: 0 0 0 2px ${hexToRgba(c.primary, 0.18)};
+            }
+            .search-engine-item input {
+                border: none; background: transparent; outline: none; flex: 1; min-width: 80px; font-size: 12px;
+            }
+            .search-engine-item button {
+                background: ${c.primary}; color: #fff; border: none; border-radius: 4px;
+                padding: 3px 8px; cursor: pointer; font-size: 11px; font-weight: 500;
+                transition: background-color 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+            }
+            .search-engine-item button:hover { background: ${darkenColor(c.primary, 10)}; }
+            .search-engine-item.hidden { display: none; }
+            #buttons-grid {
+                flex: 1; min-width: 200px; min-height: ${siteConfig.topBarHeight - 10}px;
+                display: flex !important; flex-direction: row !important; gap: 6px;
+                overflow: hidden; align-items: center; padding: 4px 2px !important;
+            }
+            #buttons-grid.expanded {
+                flex-wrap: wrap; overflow-y: auto; max-height: 80vh;
+                justify-content: flex-start; align-content: flex-start;
+            }
+            .favorites-buttons-container:has(#buttons-grid.expanded) { height: auto !important; max-height: none !important; }
+            #buttons-grid.expanded .button-wrapper { flex: 1 1 auto; min-width: 84px; max-width: 200px; }
+            #buttons-grid.expanded .button-wrapper[data-size="2x"] { min-width: 175px; max-width: 300px; }
+            #buttons-grid.expanded .button-wrapper[data-size="3x"] { min-width: 266px; max-width: 400px; }
+            .button-wrapper { flex: 0 0 auto; width: 84px; height: auto; }
+            .button-wrapper[data-size="2x"] { width: 175px; }
+            .button-wrapper[data-size="3x"] { width: 266px; }
+            .user-button {
+                width: 100%; height: auto; font-size: 12px; padding: 6px 8px;
+                text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3;
+            }
+            .button-container {
+                flex: 0 0 auto; width: 42px; display: flex; flex-direction: column;
+                gap: 6px; align-items: center; justify-content: center; overflow: hidden;
+            }
+            .topbar-buttons-container {
+                flex: 0 0 auto; width: auto; display: flex; flex-direction: row;
+                gap: 6px; align-items: center; justify-content: center;
+            }
+            .action-button {
+                width: 30px !important; height: 30px !important; min-width: 30px !important;
+                border-radius: 50% !important; padding: 0 !important;
+                display: flex !important; align-items: center !important; justify-content: center !important;
+                font-size: 15px !important; flex-shrink: 0 !important;
+            }
+            .button-container .action-button.hidden { display: none !important; }
+            .temp-close-btn {
+                position: absolute; right: 5px; ${oppositeEdge}: 4px; width: 18px; height: 18px;
+                border-radius: 50%; background: rgba(0, 0, 0, 0.45); color: #fff;
+                border: 1px solid rgba(255, 255, 255, 0.6); cursor: pointer;
+                display: flex; align-items: center; justify-content: center; font-size: 13px; line-height: 1;
+                opacity: 0; transition: opacity 0.2s, background-color 0.2s; z-index: 100; pointer-events: none;
+            }
+            #panel-container:hover .temp-close-btn { opacity: 1; pointer-events: auto; }
+            .temp-close-btn:hover { background: rgba(0, 0, 0, 0.75); }
+            #panel-container.content-expanded .favorites-buttons-container { max-height: 80vh; overflow-y: auto; }
+        `;
+    }
+
+    function buildAllStyles() {
+        const c = getThemeColors();
+        const primaryGlow = hexToRgba(c.primary, 0.22);
+        const positionStyles = siteConfig.position === 'top'
+            ? buildBarStyles(false, c)
+            : siteConfig.position === 'bottom'
+                ? buildBarStyles(true, c)
+                : buildSideStyles(siteConfig.position === 'left', c);
+
+        const baseCss = `
+            #multi-platform-panel *, #settings-panel * {
+                box-sizing: border-box;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            }
+            #multi-platform-panel input, #multi-platform-panel textarea { color: #111827 !important; }
+            ${positionStyles}
+            #expand-button:hover { background-color: ${darkenColor(c.header, 8)}; }
+
+            .panel-header {
+                display: flex; justify-content: space-between; align-items: center;
+                padding: 12px 16px; background: linear-gradient(135deg, ${lightenColor(c.header, 5)}, ${c.header});
+                color: #fff; flex-shrink: 0;
+            }
+            .panel-title { font-weight: 600; font-size: 14px; letter-spacing: 0.2px; }
+            .header-buttons { display: flex; gap: 6px; align-items: center; }
+            .settings-button, .close-button {
+                cursor: pointer; font-size: 16px; line-height: 1; width: 26px; height: 26px;
+                display: flex; align-items: center; justify-content: center; border-radius: 6px;
+                transition: background-color 0.2s, transform 0.2s;
+            }
+            .settings-button:hover, .close-button:hover { background-color: rgba(255, 255, 255, 0.2); }
+
+            .search-container { padding: 10px 14px; background-color: #f8fafc; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
+            .search-box { display: flex; gap: 6px; }
+            .search-input {
+                flex: 1; padding: 7px 11px; border: 1px solid #d1d5db; border-radius: 6px;
+                font-size: 13px; background-color: #fff; outline: none;
+                transition: border-color 0.2s, box-shadow 0.2s;
+            }
+            .search-input:focus { border-color: ${c.primary}; box-shadow: 0 0 0 2px ${primaryGlow}; }
+            .search-button {
+                padding: 7px 13px; background-color: ${c.action}; color: #fff; border: none;
+                border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
+                transition: background-color 0.2s, transform 0.15s;
+            }
+            .search-button:hover { background-color: ${darkenColor(c.action, 10)}; }
+            .search-button:active { transform: scale(0.97); }
+
+            #buttons-grid {
+                display: grid; grid-template-columns: repeat(${siteConfig.gridColumns || 2}, 1fr);
+                gap: 8px; padding: 14px; overflow-y: auto; flex: 1;
+                scrollbar-width: thin; scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+            }
+            #buttons-grid::-webkit-scrollbar { width: 5px; height: 5px; }
+            #buttons-grid::-webkit-scrollbar-track { background: transparent; }
+            #buttons-grid::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.5); border-radius: 3px; }
+            #buttons-grid::-webkit-scrollbar-thumb:hover { background: rgba(107, 114, 128, 0.7); }
+
+            .button-wrapper { position: relative; }
+            .button-wrapper[data-size="1x"] { grid-column: span 1; grid-row: span 1; }
+            .button-wrapper[data-size="2x"] { grid-column: span 2; grid-row: span 1; }
+            .button-wrapper[data-size="3x"] { grid-column: span 3; grid-row: span 1; }
+
+            .user-button {
+                display: block; padding: 8px 10px; background-color: ${c.button}; color: #fff !important;
+                text-align: center; border-radius: 6px; text-decoration: none; font-weight: 500; font-size: 12px;
+                transition: background-color 0.2s, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s;
+                cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                height: 100%; width: 100%; line-height: 1.5;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+            }
+            .user-button:hover {
+                background-color: ${darkenColor(c.button, 8)};
+                transform: translateY(-1px);
+                box-shadow: 0 4px 10px ${primaryGlow};
+            }
+            .user-button:active { transform: translateY(0) scale(0.98); }
+
+            .action-button {
+                padding: 8px 12px; color: #fff; text-align: center; border-radius: 6px; cursor: pointer;
+                font-weight: 500; transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
+                font-size: 13px; background-color: ${c.action}; user-select: none;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            }
+            .action-button:hover {
+                background-color: ${darkenColor(c.action, 10)};
+                transform: translateY(-1px);
+                box-shadow: 0 3px 8px ${primaryGlow};
+            }
+            .action-button:active { transform: scale(0.96); }
+            .button-container { display: flex; flex-direction: row; gap: 10px; padding: 0 14px 14px; flex-shrink: 0; align-items: center; }
+            .button-container-left { flex: 1; display: flex; gap: 8px; }
+            .button-container-right { display: flex; gap: 8px; }
+            .compact-button { width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+
+            /* 设置面板与遮罩 */
+            .overlay {
+                position: fixed; inset: 0; background-color: rgba(15, 23, 42, 0.45);
+                backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+                z-index: 10000; display: none; opacity: 0; transition: opacity 0.22s ease;
+            }
+            .overlay.show { display: block; opacity: 1; }
+
+            @keyframes mpPanelIn {
+                from { opacity: 0; transform: translate(-50%, -48%) scale(0.97); }
+                to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            }
+            #settings-panel {
+                position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10001;
+                width: 92%; max-width: 780px; max-height: 86vh; background-color: #ffffff;
+                border-radius: 14px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.24);
+                border: 1px solid rgba(0, 0, 0, 0.06); display: none; flex-direction: column; overflow: hidden;
+                color: #1f2937 !important;
+            }
+            #settings-panel.show { display: flex !important; animation: mpPanelIn 0.22s cubic-bezier(0.22, 1, 0.36, 1); }
+            #settings-panel input[type="range"] { accent-color: ${c.primary}; cursor: pointer; }
+            .settings-header {
+                display: flex; justify-content: space-between; align-items: center;
+                padding: 15px 22px; background: linear-gradient(135deg, ${lightenColor(c.header, 5)}, ${c.header});
+                color: #fff; font-weight: 600; font-size: 16px; flex-shrink: 0;
+            }
+            .settings-content {
+                padding: 18px 22px; overflow-y: auto !important; overflow-x: hidden !important; flex: 1 1 auto; min-height: 0;
+                scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent;
+            }
+            .settings-content::-webkit-scrollbar { width: 6px; }
+            .settings-content::-webkit-scrollbar-track { background: transparent; }
+            .settings-content::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+            .settings-content::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+            .setting-section {
+                margin-bottom: 16px; padding: 16px 18px; background-color: #f9fafb;
+                border: 1px solid #eef0f3; border-radius: 10px;
+            }
+            .setting-section:last-child { margin-bottom: 0; }
+            .setting-section h3 {
+                margin: 0 0 12px 0; font-size: 15px; color: #1f2937 !important; font-weight: 600;
+                display: flex; align-items: center; gap: 8px; text-align: left;
+            }
+            .setting-section h3::before {
+                content: ''; display: inline-block; width: 3px; height: 15px;
+                background-color: ${c.primary}; border-radius: 2px;
+            }
+            .setting-item {
+                display: flex; justify-content: space-between; align-items: center;
+                padding: 10px 0; border-bottom: 1px solid #eef0f3;
+            }
+            .setting-item:last-child { border-bottom: none; padding-bottom: 0; }
+            .setting-label { font-size: 13.5px; color: #1f2937; font-weight: 500; }
+            .setting-description { color: #6b7280; line-height: 1.5; }
+            #panel-shortcut-display { color: #1f2937; background-color: #fff; }
+            .setting-control { display: flex; gap: 10px; align-items: center; }
+
+            .toggle-switch {
+                position: relative; width: 44px; height: 24px; background-color: #cbd5e1;
+                border-radius: 12px; cursor: pointer; transition: background-color 0.25s; flex-shrink: 0;
+            }
+            .toggle-switch.active { background-color: ${c.primary}; }
+            .toggle-switch::after {
+                content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px;
+                background-color: #fff; border-radius: 50%; transition: left 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            }
+            .toggle-switch.active::after { left: 22px; }
+
+            .radio-group {
+                display: inline-flex; gap: 4px; padding: 3px; background-color: #eef0f4;
+                border: 1px solid #e2e6ed; border-radius: 8px;
+            }
+            .radio-option {
+                padding: 5px 12px; border: none; border-radius: 6px; cursor: pointer;
+                transition: all 0.2s; font-size: 12.5px; font-weight: 500; color: #4b5563; background-color: transparent;
+            }
+            .radio-option:hover { color: #111827; }
+            .radio-option.active {
+                background-color: ${c.primary}; color: #fff;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+            }
+
+            .style-list { margin-top: 8px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+            .style-item {
+                display: flex; align-items: center; gap: 6px; padding: 8px 10px;
+                background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px;
+                transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+            }
+            .style-item:hover { background-color: #f3f4f6; border-color: #d1d5db; }
+            .style-item.dragging { opacity: 0.45; }
+            .style-item.drag-over { border-top: 3px solid ${c.primary}; }
+            .drag-handle { font-size: 14px; color: #9ca3af; cursor: grab; padding: 0 3px; user-select: none; }
+            .drag-handle:active { cursor: grabbing; }
+            .style-item-name { flex: 1; font-size: 12.5px; font-weight: 500; color: #1f2937; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .style-controls { display: flex; gap: 4px; align-items: center; }
+
+            .size-picker-wrapper { position: relative; }
+            .size-preview {
+                width: 32px; height: 24px; border-radius: 5px; cursor: pointer; border: 1px solid #d1d5db;
+                transition: border-color 0.2s, transform 0.15s; display: flex; align-items: center; justify-content: center;
+                font-size: 11px; font-weight: 600; background: #fff; color: #1f2937;
+            }
+            .size-preview:hover { border-color: ${c.primary}; transform: scale(1.06); }
+            .size-dropdown {
+                display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+                margin-bottom: 5px; padding: 4px; background: #fff; border: 1px solid #e5e7eb;
+                border-radius: 8px; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14); z-index: 1000; min-width: 58px;
+            }
+            .size-dropdown.show { display: block; }
+            .size-option {
+                padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px;
+                transition: background-color 0.15s; text-align: center; margin-bottom: 2px;
+                color: #1f2937; background-color: transparent;
+            }
+            .size-option:last-child { margin-bottom: 0; }
+            .size-option:hover { background-color: ${hexToRgba(c.primary, 0.12)}; }
+            .size-option.active { background-color: ${c.primary}; color: #fff; font-weight: 600; }
+
+            .delete-btn-mini {
+                padding: 4px 8px; background-color: #ef4444; color: #fff; border: none;
+                border-radius: 5px; cursor: pointer; font-size: 11px; font-weight: 500; transition: background-color 0.2s;
+            }
+            .delete-btn-mini:hover { background-color: #dc2626; }
+            .rename-btn-mini {
+                padding: 4px 8px; background-color: ${c.primary}; color: #fff; border: none;
+                border-radius: 5px; cursor: pointer; font-size: 11px; font-weight: 500; transition: background-color 0.2s;
+            }
+            .rename-btn-mini:hover { background-color: ${darkenColor(c.primary, 10)}; }
+
+            .search-engine-list { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+            .search-engine-name { font-weight: 600; color: ${c.primary}; font-size: 13px; }
+            .search-engine-url { font-size: 11px; color: #6b7280; margin-top: 2px; }
+            .add-search-btn {
+                padding: 7px 14px; background-color: ${c.action}; color: #fff; border: none;
+                border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 500;
+                margin-top: 10px; transition: background-color 0.2s, transform 0.15s;
+            }
+            .add-search-btn:hover { background-color: ${darkenColor(c.action, 10)}; }
+            .add-search-btn:active { transform: scale(0.97); }
+
+            .module-config-item {
+                display: flex; align-items: center; gap: 12px; padding: 12px;
+                background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px;
+                margin-bottom: 8px; transition: background-color 0.2s;
+            }
+            .module-config-item:hover { background-color: #f3f4f6; }
+            .module-drag-handle { font-size: 16px; color: #9ca3af; cursor: grab; padding: 0 4px; user-select: none; }
+            .module-name { flex: 0 0 80px; font-size: 13.5px; font-weight: 500; }
+            .shared-domains-list { width: 100%; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
+
+            /* 轻量级 Toast 通知 */
+            #mp-nav-toast {
+                position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(16px);
+                z-index: 10005; padding: 9px 18px; border-radius: 8px;
+                background: rgba(17, 24, 39, 0.9); color: #fff; font-size: 13px; font-weight: 500;
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); backdrop-filter: blur(8px);
+                opacity: 0; pointer-events: none; transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+            }
+            #mp-nav-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+            #mp-nav-toast.mp-toast-success { background: rgba(16, 185, 129, 0.94); }
+            #mp-nav-toast.mp-toast-warn { background: rgba(245, 158, 11, 0.94); }
+        `;
+
+        const themeCss = (siteConfig.panelTheme === 'light' || siteConfig.panelTheme === 'dark')
+            ? buildThemeCss(getThemePalette(siteConfig.panelTheme, c.primary))
+            : '';
+
+        return baseCss + themeCss;
+    }
+
+    let _dynamicStyleEl = null;
+    function applyStyles() {
+        const css = buildAllStyles();
+        if (_dynamicStyleEl && _dynamicStyleEl.isConnected) {
+            _dynamicStyleEl.textContent = css;
+            return;
+        }
+        const injected = typeof GM_addStyle === 'function' ? GM_addStyle(css) : null;
+        if (injected && injected.tagName === 'STYLE') {
+            _dynamicStyleEl = injected;
+        } else {
+            const style = document.createElement('style');
+            style.id = 'mp-nav-dynamic-style';
+            style.textContent = css;
+            (document.head || document.documentElement).appendChild(style);
+            _dynamicStyleEl = style;
+        }
+    }
+
     const container = document.createElement('div');
     container.id = 'multi-platform-panel';
     document.body.appendChild(container);
 
-    const sideStyles = siteConfig.position === 'left' ? `
-        #expand-button {
-            position: fixed; left: 0; top: calc(50% + ${siteConfig.sideBarOffset}%); transform: translateY(-50%); z-index: 9999;
-            width: 20px; height: 40px; background-color: ${headerColor}; color: white;
-            display: flex; align-items: center; justify-content: center; border-radius: 0 5px 5px 0;
-            cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: all 0.3s ease;
-        }
-        #panel-container {
-            position: fixed; left: -${siteConfig.panelWidth + 20}px; top: calc(50% + ${siteConfig.sideBarOffset}%); transform: translateY(-50%); z-index: 10000;
-            width: ${siteConfig.panelWidth}px; height: 85vh; background-color: rgba(255, 255, 255, 0.98);
-            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2); border-radius: 0 8px 8px 0;
-            transition: left 0.3s ease; display: flex; flex-direction: column; overflow: hidden;
-        }
-        #panel-container.expanded { left: 0; }
-    ` : `
-        #expand-button {
-            position: fixed; right: 0; top: calc(50% + ${siteConfig.sideBarOffset}%); transform: translateY(-50%); z-index: 9999;
-            width: 20px; height: 40px; background-color: ${headerColor}; color: white;
-            display: flex; align-items: center; justify-content: center; border-radius: 5px 0 0 5px;
-            cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: all 0.3s ease;
-        }
-        #panel-container {
-            position: fixed; right: -${siteConfig.panelWidth + 20}px; top: calc(50% + ${siteConfig.sideBarOffset}%); transform: translateY(-50%); z-index: 10000;
-            width: ${siteConfig.panelWidth}px; background-color: rgba(255, 255, 255, 0.98); border-radius: 10px 0 0 10px;
-            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.3); transition: right 0.3s ease; max-height: 85vh;
-            overflow: hidden; display: flex; flex-direction: column;
-        }
-        #panel-container.expanded { right: 0; }
-    `;
-
-    const topStyles = `
-        #expand-button {
-            position: fixed; left: 50%; top: 0; transform: translateX(-50%); z-index: 9999;
-            width: 60px; height: 20px; background-color: ${headerColor}; color: white;
-            display: flex; align-items: center; justify-content: center; border-radius: 0 0 5px 5px;
-            cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: all 0.3s ease; font-size: 12px;
-        }
-
-        #panel-container {
-            position: fixed;
-            left: 50%;
-            top: 0;
-            transform: translateX(-50%) translateY(-100%);
-            z-index: 10000;
-            display: flex;
-            flex-direction: row;
-            gap: 10px;
-            padding: 0 10px;
-            transition: transform 0.3s ease;
-            pointer-events: none;
-            overflow: visible;
-        }
-        #panel-container.expanded {
-            transform: translateX(-50%) translateY(0);
-        }
-
-        .close-button-top {
-            position: fixed;
-            right: 10px;
-            top: 5px;
-            z-index: 10002;
-            width: 24px;
-            height: 24px;
-            background: ${headerColor};
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 16px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            opacity: 0;
-            transition: opacity 0.3s;
-            pointer-events: auto;
-        }
-        #panel-container.expanded ~ .close-button-top {
-            opacity: 1;
-        }
-
-        /* 隐藏标题栏 */
-        .panel-header { display: none !important; }
-
-        /* 单一容器：搜索框 + 收藏内容 + 按钮 */
-        .favorites-buttons-container {
-            flex: 0 0 auto;
-            max-width: ${siteConfig.topBarWidth}px;
-            height: ${siteConfig.topBarHeight}px;
-            min-height: ${siteConfig.topBarHeight}px;
-            max-height: ${siteConfig.topBarHeight}px;
-            display: flex;
-            flex-direction: row;
-            gap: 4px;
-            background-color: rgba(255, 255, 255, 0.98);
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-            border-radius: 0 0 8px 8px;
-            pointer-events: auto;
-            padding: 6px 20px;
-            transform: translateX(${siteConfig.topBarOffset}%);
-            flex-wrap: nowrap;
-            align-items: center;
-            margin: 0 20px;
-            position: relative;
-            overflow: visible;
-        }
-
-        /* 搜索框容器 */
-        .search-engines-container {
-            flex: 0 0 auto;
-            width: 300px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            align-items: stretch;
-            justify-content: center;
-        }
-        .search-engine-item {
-            display: flex;
-            gap: 4px;
-            align-items: center;
-            background: #f0f0f0;
-            border-radius: 4px;
-            padding: 3px 6px;
-            white-space: nowrap;
-        }
-        .search-engine-item input {
-            border: none;
-            background: transparent;
-            outline: none;
-            flex: 1;
-            min-width: 80px;
-            font-size: 12px;
-        }
-        .search-engine-item button {
-            background: ${primaryColor};
-            color: white;
-            border: none;
-            border-radius: 3px;
-            padding: 3px 6px;
-            cursor: pointer;
-            font-size: 11px;
-            transition: all 0.2s;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 100%;
-        }
-        .search-engine-item button:hover {
-            background: ${darkenColor(primaryColor, 10)};
-        }
-        .search-engine-item.hidden {
-            display: none;
-        }
-
-        /* 收藏内容区域 */
-        #buttons-grid {
-            flex: 1;
-            min-width: 200px;
-            min-height: ${siteConfig.topBarHeight - 8}px;
-            display: flex !important;
-            flex-direction: row !important;
-            gap: 6px;
-            overflow: hidden;
-            align-items: center;
-        }
-        #buttons-grid.expanded {
-            flex-wrap: wrap;
-            overflow-y: auto;
-            max-height: 80vh;
-            justify-content: flex-start;
-            align-content: flex-start;
-        }
-        /* 展开状态下的容器 */
-        .favorites-buttons-container:has(#buttons-grid.expanded) {
-            height: auto !important;
-            max-height: none !important;
-        }
-        /* 展开状态下的按钮宽度优化 */
-        #buttons-grid.expanded .button-wrapper {
-            flex: 1 1 auto;
-            min-width: 84px;
-            max-width: 200px;
-        }
-        #buttons-grid.expanded .button-wrapper[data-size="2x"] {
-            min-width: 175px;
-            max-width: 300px;
-        }
-        #buttons-grid.expanded .button-wrapper[data-size="3x"] {
-            min-width: 266px;
-            max-width: 400px;
-        }
-
-        .button-wrapper {
-            flex: 0 0 auto;
-            width: 84px;
-            height: auto;
-        }
-        .button-wrapper[data-size="2x"] { width: 175px; }
-        .button-wrapper[data-size="3x"] { width: 266px; }
-        .user-button {
-            width: 100%;
-            height: auto;
-            font-size: 12px;
-            padding: 6px 4px;
-            text-align: center;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            line-height: 1.2;
-        }
-
-        /* 按钮容器 - 在收藏内容右侧 */
-        .button-container {
-            flex: 0 0 auto;
-            width: 42px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-
-        /* 顶栏/底栏模式专用按钮容器 */
-        .topbar-buttons-container {
-            flex: 0 0 auto;
-            width: auto;
-            display: flex;
-            flex-direction: row;
-            gap: 6px;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .action-button {
-            width: 30px !important;
-            height: 30px !important;
-            min-width: 30px !important;
-            border-radius: 50% !important;
-            padding: 0 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            font-size: 16px !important;
-            flex-shrink: 0 !important;
-            transition: opacity 0.3s, transform 0.3s;
-        }
-
-        /* 未展开时隐藏其他按钮 */
-        .button-container .action-button.hidden {
-            display: none !important;
-        }
-
-        /* 临时关闭按钮 - 顶栏版本(右下角,面板内部) */
-        .temp-close-btn {
-            position: absolute;
-            right: 4px;
-            bottom: 2px;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: rgba(0, 0, 0, 0.6);
-            color: white;
-            border: 1px solid white;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            opacity: 0;
-            transition: opacity 0.3s, background 0.3s;
-            z-index: 100;
-            pointer-events: none;
-        }
-        #panel-container:hover .temp-close-btn {
-            opacity: 1;
-            pointer-events: auto;
-        }
-        .temp-close-btn:hover {
-            background: rgba(0, 0, 0, 0.8);
-        }
-
-        #panel-container.content-expanded .favorites-buttons-container {
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-    `;
-
-    const bottomStyles = `
-        #expand-button {
-            position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 9999;
-            width: 60px; height: 20px; background-color: ${headerColor}; color: white;
-            display: flex; align-items: center; justify-content: center; border-radius: 5px 5px 0 0;
-            cursor: pointer; box-shadow: 0 -2px 5px rgba(0,0,0,0.2); transition: all 0.3s ease; font-size: 12px;
-        }
-
-        #panel-container {
-            position: fixed;
-            left: 50%;
-            bottom: 0;
-            transform: translateX(-50%) translateY(100%);
-            z-index: 10000;
-            display: flex;
-            flex-direction: row;
-            gap: 10px;
-            padding: 0 10px;
-            transition: transform 0.3s ease;
-            pointer-events: none;
-            overflow: visible;
-        }
-        #panel-container.expanded {
-            transform: translateX(-50%) translateY(0);
-        }
-
-        .close-button-top {
-            position: fixed;
-            right: 10px;
-            bottom: 5px;
-            z-index: 10002;
-            width: 24px;
-            height: 24px;
-            background: ${headerColor};
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 16px;
-            box-shadow: 0 -2px 5px rgba(0,0,0,0.2);
-            opacity: 0;
-            transition: opacity 0.3s;
-            pointer-events: auto;
-        }
-        #panel-container.expanded ~ .close-button-top {
-            opacity: 1;
-        }
-
-        /* 隐藏标题栏 */
-        .panel-header { display: none !important; }
-
-        /* 单一容器：搜索框 + 收藏内容 + 按钮 */
-        .favorites-buttons-container {
-            flex: 0 0 auto;
-            max-width: ${siteConfig.topBarWidth}px;
-            height: ${siteConfig.topBarHeight}px;
-            min-height: ${siteConfig.topBarHeight}px;
-            max-height: ${siteConfig.topBarHeight}px;
-            display: flex;
-            flex-direction: row;
-            gap: 4px;
-            background-color: rgba(255, 255, 255, 0.98);
-            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
-            border-radius: 8px 8px 0 0;
-            pointer-events: auto;
-            padding: 6px 20px;
-            transform: translateX(${siteConfig.topBarOffset}%);
-            flex-wrap: nowrap;
-            align-items: center;
-            margin: 0 20px;
-            position: relative;
-            overflow: visible;
-        }
-
-        /* 搜索框容器 */
-        .search-engines-container {
-            flex: 0 0 auto;
-            width: 300px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            align-items: stretch;
-            justify-content: center;
-        }
-        .search-engine-item {
-            display: flex;
-            gap: 4px;
-            align-items: center;
-            background: #f0f0f0;
-            border-radius: 4px;
-            padding: 3px 6px;
-            white-space: nowrap;
-        }
-        .search-engine-item input {
-            border: none;
-            background: transparent;
-            outline: none;
-            flex: 1;
-            min-width: 80px;
-            font-size: 12px;
-        }
-        .search-engine-item button {
-            background: ${primaryColor};
-            color: white;
-            border: none;
-            border-radius: 3px;
-            padding: 3px 6px;
-            cursor: pointer;
-            font-size: 11px;
-            transition: all 0.2s;
-        }
-        .search-engine-item button:hover {
-            background: ${darkenColor(primaryColor, 10)};
-        }
-        .search-engine-item.hidden {
-            display: none;
-        }
-
-        /* 收藏内容区域 */
-        #buttons-grid {
-            flex: 1;
-            min-width: 200px;
-            min-height: ${siteConfig.topBarHeight - 8}px;
-            display: flex !important;
-            flex-direction: row !important;
-            gap: 6px;
-            overflow: hidden;
-            align-items: center;
-        }
-        #buttons-grid.expanded {
-            flex-wrap: wrap;
-            overflow-y: auto;
-            max-height: 80vh;
-            justify-content: flex-start;
-            align-content: flex-start;
-        }
-        /* 展开状态下的容器 */
-        .favorites-buttons-container:has(#buttons-grid.expanded) {
-            height: auto !important;
-            max-height: none !important;
-        }
-        /* 展开状态下的按钮宽度优化 */
-        #buttons-grid.expanded .button-wrapper {
-            flex: 1 1 auto;
-            min-width: 84px;
-            max-width: 200px;
-        }
-        #buttons-grid.expanded .button-wrapper[data-size="2x"] {
-            min-width: 175px;
-            max-width: 300px;
-        }
-        #buttons-grid.expanded .button-wrapper[data-size="3x"] {
-            min-width: 266px;
-            max-width: 400px;
-        }
-
-        .button-wrapper {
-            flex: 0 0 auto;
-            width: 84px;
-            height: auto;
-        }
-        .button-wrapper[data-size="2x"] { width: 175px; }
-        .button-wrapper[data-size="3x"] { width: 266px; }
-        .user-button {
-            width: 100%;
-            height: auto;
-            font-size: 12px;
-            padding: 6px 4px;
-            text-align: center;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            line-height: 1.2;
-        }
-
-        /* 按钮容器 - 在收藏内容右侧 */
-        .button-container {
-            flex: 0 0 auto;
-            width: 42px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-
-        /* 顶栏/底栏模式专用按钮容器 */
-        .topbar-buttons-container {
-            flex: 0 0 auto;
-            width: auto;
-            display: flex;
-            flex-direction: row;
-            gap: 6px;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .action-button {
-            width: 30px !important;
-            height: 30px !important;
-            min-width: 30px !important;
-            border-radius: 50% !important;
-            padding: 0 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            font-size: 16px !important;
-            flex-shrink: 0 !important;
-            transition: opacity 0.3s, transform 0.3s;
-        }
-
-        /* 未展开时隐藏其他按钮 */
-        .button-container .action-button.hidden {
-            display: none !important;
-        }
-
-        /* 临时关闭按钮 - 底栏版本(右上角,面板内部) */
-        .temp-close-btn {
-            position: absolute;
-            right: 4px;
-            top: 2px;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: rgba(0, 0, 0, 0.6);
-            color: white;
-            border: 1px solid white;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            opacity: 0;
-            transition: opacity 0.3s, background 0.3s;
-            z-index: 100;
-            pointer-events: none;
-        }
-        #panel-container:hover .temp-close-btn {
-            opacity: 1;
-            pointer-events: auto;
-        }
-        .temp-close-btn:hover {
-            background: rgba(0, 0, 0, 0.8);
-        }
-
-        #panel-container.content-expanded .favorites-buttons-container {
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-    `;
-    GM_addStyle(`
-        #multi-platform-panel * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-        #multi-platform-panel input, #multi-platform-panel textarea { color: #000 !important; }
-        ${siteConfig.position === 'top' ? topStyles : siteConfig.position === 'bottom' ? bottomStyles : sideStyles}
-        #expand-button:hover { background-color: ${darkenColor(headerColor, 10)}; }
-        .panel-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background-color: ${headerColor}; color: white; flex-shrink: 0; }
-        .panel-title { font-weight: bold; font-size: 14px; }
-        .header-buttons { display: flex; gap: 10px; align-items: center; }
-        .settings-button, .close-button { cursor: pointer; font-size: 18px; line-height: 1; transition: transform 0.2s; padding: 2px 5px; }
-        .settings-button:hover, .close-button:hover { transform: scale(1.2); }
-        .search-container { padding: 10px 15px; background-color: #f5f5f5; border-bottom: 1px solid #ddd; flex-shrink: 0; }
-        .search-box { display: flex; gap: 5px; }
-        .search-input { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 15px; background-color: transparent; }
-        .search-button { padding: 8px 15px; background-color: ${actionButtonColor}; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s; }
-        .search-button:hover { background-color: ${darkenColor(actionButtonColor, 10)}; }
-        #buttons-grid { display: grid; grid-template-columns: repeat(${siteConfig.gridColumns || 2}, 1fr); gap: 8px; padding: 15px; overflow-y: auto; flex: 1; scrollbar-width: thin; scrollbar-color: #d0d0d0 #f5f5f5; }
-        #buttons-grid::-webkit-scrollbar { width: 6px; height: 6px; }
-        #buttons-grid::-webkit-scrollbar-track { background: #f5f5f5; }
-        #buttons-grid::-webkit-scrollbar-thumb { background: #d0d0d0; border-radius: 3px; }
-        .button-wrapper { position: relative; }
-        .button-wrapper[data-size="1x"] { grid-column: span 1; grid-row: span 1; }
-        .button-wrapper[data-size="2x"] { grid-column: span 2; grid-row: span 1; }
-        .button-wrapper[data-size="3x"] { grid-column: span 3; grid-row: span 1; }
-        .user-button { display: block; padding: 8px 10px; background-color: ${buttonColor}; color: white !important; text-align: center; border-radius: 4px; text-decoration: none; font-weight: 500; font-size: 12px; transition: all 0.3s; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 100%; width: 100%; line-height: 1.5; }
-        .user-button:hover { background-color: ${darkenColor(buttonColor, 10)}; transform: scale(1.05); }
-        .action-button { padding: 8px 12px; color: white; text-align: center; border-radius: 5px; cursor: pointer; font-weight: 500; transition: all 0.3s; font-size: 13px; background-color: ${actionButtonColor}; }
-        .action-button:hover { background-color: ${darkenColor(actionButtonColor, 10)}; transform: scale(1.05); }
-        .button-container { display: flex; flex-direction: row; gap: 10px; padding: 0 15px 15px; flex-shrink: 0; align-items: center; }
-        .button-container-left { flex: 1; display: flex; gap: 8px; }
-        .button-container-right { display: flex; gap: 8px; }
-        .compact-button { width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; }
-        #settings-panel { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10001; width: 90%; max-width: 800px; max-height: 85vh; background-color: white; border-radius: 10px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); display: none; flex-direction: column; overflow: hidden; }
-        #settings-panel.show { display: flex !important; }
-        .settings-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background-color: ${headerColor}; color: white; font-weight: bold; font-size: 16px; flex-shrink: 0; }
-        .settings-content { padding: 20px; overflow-y: auto !important; overflow-x: hidden !important; flex: 1 1 auto; min-height: 0; scrollbar-width: thin; scrollbar-color: #d0d0d0 #f5f5f5; }
-        .settings-content::-webkit-scrollbar { width: 8px; }
-        .settings-content::-webkit-scrollbar-track { background: #f5f5f5; }
-        .settings-content::-webkit-scrollbar-thumb { background: #d0d0d0; border-radius: 4px; }
-        .settings-content::-webkit-scrollbar-thumb:hover { background: #b0b0b0; }
-        .setting-section { margin-bottom: 25px; }
-        .setting-section h3 { margin: 0 0 15px 0; font-size: 16px; color: #333; font-weight: 600; border-bottom: 2px solid ${primaryColor}; padding-bottom: 8px; text-align: left; }
-        .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee; }
-        .setting-item:last-child { border-bottom: none; }
-        .setting-label { font-size: 14px; color: #000; font-weight: 500; }
-        .setting-description { color: #666; }
-        #panel-shortcut-display { color: #000; }
-        .setting-control { display: flex; gap: 10px; align-items: center; }
-        .toggle-switch { position: relative; width: 50px; height: 24px; background-color: #ccc; border-radius: 12px; cursor: pointer; transition: background-color 0.3s; }
-        .toggle-switch.active { background-color: ${primaryColor}; }
-        .toggle-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background-color: white; border-radius: 50%; transition: left 0.3s; }
-        .toggle-switch.active::after { left: 28px; }
-        .radio-group { display: flex; gap: 10px; }
-        .radio-option { padding: 5px 15px; border: 2px solid ${primaryColor}; border-radius: 5px; cursor: pointer; transition: all 0.3s; font-size: 13px; color: #000; background-color: transparent; }
-        .radio-option.active { background-color: ${primaryColor}; color: white; }
-        .style-list { margin-top: 10px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-        .style-item { display: flex; align-items: center; gap: 6px; padding: 8px; background-color: #f8f8f8; border-radius: 6px; transition: all 0.3s; }
-        .style-item:hover { background-color: #f0f0f0; }
-        .style-item.dragging { opacity: 0.5; }
-        .style-item.drag-over { border-top: 3px solid ${primaryColor}; }
-        .drag-handle { font-size: 14px; color: #999; cursor: grab; padding: 0 3px; }
-        .drag-handle:active { cursor: grabbing; }
-        .style-item-name { flex: 1; font-size: 12px; font-weight: 500; color: #000; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .shared-domains-list .style-item-name { color: #000; }
-        .style-controls { display: flex; gap: 4px; align-items: center; }
-        .color-picker-wrapper { position: relative; }
-        .color-preview { width: 16px; height: 16px; border-radius: 3px; cursor: pointer; border: none; transition: all 0.3s; }
-        .color-preview:hover { border-color: ${primaryColor}; transform: scale(1.1); }
-        .color-dropdown { display: none; position: absolute; bottom: 100%; right: 0; margin-bottom: 5px; padding: 10px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000; min-width: 200px; }
-        .color-dropdown.show { display: block; }
-        .color-palette-mini { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
-        .color-swatch-mini { width: 100%; aspect-ratio: 1; border-radius: 4px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; }
-        .color-swatch-mini:hover { transform: scale(1.1); border-color: #333; }
-        .color-swatch-mini.custom { background: linear-gradient(45deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); display: flex; align-items: center; justify-content: center; font-size: 16px; }
-        .custom-color-input { width: 100%; height: 32px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; }
-        .size-picker-wrapper { position: relative; }
-        .size-preview { width: 32px; height: 24px; border-radius: 4px; cursor: pointer; border: 1px solid #ddd; transition: all 0.3s; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; background: white; color: #000; }
-        .size-preview:hover { border-color: ${primaryColor}; transform: scale(1.1); }
-        .size-dropdown { display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 5px; padding: 6px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000; min-width: 60px; }
-        .size-dropdown.show { display: block; }
-        .size-option { padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; transition: all 0.2s; text-align: center; margin-bottom: 4px; border: 2px solid transparent; color: #000; background-color: white; }
-        .size-option:last-child { margin-bottom: 0; }
-        .size-option:hover { background-color: ${lightenColor(primaryColor, 40)}; border-color: ${primaryColor}; }
-        .size-option.active { background-color: ${primaryColor}; color: white; border-color: ${primaryColor}; }
-        .delete-btn-mini { padding: 4px 8px; background-color: #e74c3c; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; transition: all 0.3s; }
-        .delete-btn-mini:hover { background-color: #c0392b; }
-        .rename-btn-mini { padding: 4px 8px; background-color: ${primaryColor}; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; transition: all 0.3s; }
-        .rename-btn-mini:hover { background-color: ${darkenColor(primaryColor, 10)}; }
-        .search-engine-list { margin-top: 10px; }
-        .search-engine-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; background-color: #f5f5f5; border-radius: 5px; margin-bottom: 5px; }
-        .search-engine-info { flex: 1; font-size: 13px; }
-        .search-engine-name { font-weight: bold; color: ${primaryColor}; }
-        .search-engine-url { font-size: 11px; color: #666; margin-top: 2px; }
-        .remove-search-btn { padding: 3px 8px; background-color: #e74c3c; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; }
-        .add-search-btn { padding: 8px 15px; background-color: ${actionButtonColor}; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; margin-top: 10px; transition: all 0.3s; }
-        .add-search-btn:hover { background-color: ${darkenColor(actionButtonColor, 10)}; }
-        .button-order-list { display: flex; gap: 8px; flex-wrap: wrap; }
-        .button-order-item { padding: 8px 15px; background-color: #f5f5f5; border-radius: 5px; cursor: move; border: 2px solid #ddd; transition: all 0.3s; }
-        .button-order-item:hover { background-color: #e8e8e8; border-color: ${primaryColor}; }
-        .button-order-item.dragging { opacity: 0.5; }
-        .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.5); z-index: 10000; display: none; }
-        .overlay.show { display: block; }
-        .module-config-item { display: flex; align-items: center; gap: 12px; padding: 12px; background-color: #f8f8f8; border-radius: 8px; margin-bottom: 8px; transition: all 0.3s; border: 2px solid transparent; }
-        .module-config-item:hover { background-color: #f0f0f0; }
-        .module-config-item.dragging { opacity: 0.5; }
-        .module-config-item.drag-over { border-top: 3px solid ${primaryColor}; }
-        .module-drag-handle { font-size: 18px; color: #999; cursor: grab; padding: 0 5px; user-select: none; }
-        .module-drag-handle:active { cursor: grabbing; }
-        .module-name { flex: 0 0 80px; font-size: 14px; font-weight: 500; }
-        .module-visible-toggle { flex: 0 0 auto; }
-        .module-width-control { flex: 1; display: flex; align-items: center; gap: 8px; }
-        .module-width-slider { flex: 1; min-width: 100px; }
-        .module-width-value { flex: 0 0 50px; font-size: 13px; color: #666; text-align: right; }
-        .shared-domains-list { width: 100%; margin-bottom: 10px; }
-        .shared-domains-list .style-item { margin-bottom: 5px; }
-        /* 防止宿主网站的全局样式覆盖面板文字颜色：
-           部分网站（尤其深色主题站点）会对 h1~h6 等标签设置全局浅色文字，
-           甚至带 !important 或在页面加载后动态注入样式，压过本脚本中不带 !important 的规则，
-           导致设置面板的分组标题在白底上几乎不可见 */
-        #settings-panel { color: #333 !important; }
-        #settings-panel .setting-section h3 { color: #333 !important; }
-    `);
-
-    // 抗干扰配色模式：主题样式追加在基础样式之后，同权重时后者胜出
-    if (siteConfig.panelTheme === 'light' || siteConfig.panelTheme === 'dark') {
-        GM_addStyle(buildThemeCss(getThemePalette(siteConfig.panelTheme)));
-    }
+    applyStyles();
 
     const overlay = document.createElement('div');
     overlay.className = 'overlay';
@@ -1223,6 +1013,61 @@
     expandButton.id = 'expand-button';
     expandButton.textContent = siteConfig.position === 'top' ? '▼' : siteConfig.position === 'bottom' ? '▲' : '▶';
     container.appendChild(expandButton);
+
+    // 通用拖拽排序辅助函数
+    function enableDragSort(listEl, itemSelector, onReorder) {
+        let draggedItem = null;
+        listEl.addEventListener('dragstart', (e) => {
+            const item = e.target.closest(itemSelector);
+            if (!item || !listEl.contains(item)) return;
+            draggedItem = item;
+            item.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        listEl.addEventListener('dragend', () => {
+            if (!draggedItem) return;
+            draggedItem.classList.remove('dragging');
+            listEl.querySelectorAll(itemSelector).forEach(i => i.classList.remove('drag-over'));
+            draggedItem = null;
+            onReorder();
+        });
+        listEl.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        });
+        listEl.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            const target = e.target.closest(itemSelector);
+            if (!draggedItem || !target || target === draggedItem || !listEl.contains(target)) return;
+            const rect = target.getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            listEl.insertBefore(draggedItem, e.clientY < midpoint ? target : target.nextSibling);
+        });
+        listEl.addEventListener('drop', (e) => {
+            e.preventDefault();
+            listEl.querySelectorAll(itemSelector).forEach(i => i.classList.remove('drag-over'));
+        });
+    }
+
+    // 通用显示/隐藏切换按钮
+    function createVisibilityToggleBtn(itemObj, rowEl, onSave) {
+        const btn = document.createElement('button');
+        const syncState = () => {
+            btn.textContent = itemObj.hidden ? '👁' : '👁‍🗨';
+            btn.title = itemObj.hidden ? '显示' : '隐藏';
+            btn.style.opacity = itemObj.hidden ? '0.5' : '1';
+            rowEl.style.opacity = itemObj.hidden ? '0.58' : '1';
+        };
+        btn.className = 'rename-btn-mini';
+        syncState();
+        btn.onclick = () => {
+            itemObj.hidden = !itemObj.hidden;
+            onSave();
+            renderPanel();
+            syncState();
+        };
+        return btn;
+    }
 
     function createSettingsPanel() {
         const settingsPanel = document.createElement('div');
@@ -1239,7 +1084,7 @@
                     <div class="setting-item">
                         <span class="setting-label">面板名称</span>
                         <div class="setting-control">
-                            <input type="text" id="custom-panel-name" value="${escapeHtml(siteConfig.customPanelName || '')}" placeholder="${platformData[currentPlatform].name}导航" style="width: 200px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background-color: transparent; color: #000;">
+                            <input type="text" id="custom-panel-name" value="${escapeHtml(siteConfig.customPanelName || '')}" placeholder="${escapeHtml(platformData[currentPlatform].name)}导航" style="width: 200px; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background-color: #fff; color: #111827;">
                         </div>
                     </div>
                     <div class="setting-item">
@@ -1268,7 +1113,7 @@
                     <div class="setting-item">
                         <span class="setting-label">展开/收起快捷键</span>
                         <div class="setting-control" style="gap: 8px;">
-                            <span id="panel-shortcut-display" style="font-size: 13px; min-width: 70px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 3px 10px;">${getPanelShortcut() ? formatShortcut(getPanelShortcut()) : '未设置'}</span>
+                            <span id="panel-shortcut-display" style="font-size: 13px; min-width: 70px; text-align: center; border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 10px;">${getPanelShortcut() ? formatShortcut(getPanelShortcut()) : '未设置'}</span>
                             <button class="rename-btn-mini" id="panel-shortcut-record-btn">${getPanelShortcut() ? '修改' : '设置'}</button>
                             <button class="rename-btn-mini" id="panel-shortcut-clear-btn">清除</button>
                         </div>
@@ -1279,8 +1124,8 @@
                     <div class="setting-item">
                         <span class="setting-label">主题色</span>
                         <div class="setting-control">
-                            <input type="color" id="primary-color-picker" value="${siteConfig.primaryColor}" style="width: 60px; height: 30px; border: none; outline: none; border-radius: 4px; cursor: pointer; padding: 0;">
-                            <button class="rename-btn-mini" id="reset-color-btn" style="margin-left: 8px;">恢复默认</button>
+                            <input type="color" id="primary-color-picker" value="${siteConfig.primaryColor}" style="width: 52px; height: 28px; border: none; outline: none; border-radius: 6px; cursor: pointer; padding: 0;">
+                            <button class="rename-btn-mini" id="reset-color-btn" style="margin-left: 4px;">恢复默认</button>
                         </div>
                     </div>
                     <div class="setting-item">
@@ -1388,7 +1233,7 @@
                         <div class="shared-domains-list" id="shared-domains-list"></div>
                         <div style="display: flex; gap: 10px;">
                             <button class="add-search-btn" id="add-shared-domain-btn">+ 添加共享域名</button>
-                            <button class="add-search-btn" id="migrate-mirror-data-btn" style="background-color: #e74c3c;">迁移镜像数据到本站</button>
+                            <button class="add-search-btn" id="migrate-mirror-data-btn" style="background-color: #ef4444;">迁移镜像数据到本站</button>
                         </div>
                     </div>
                 </div>
@@ -1410,88 +1255,76 @@
 
         document.body.appendChild(settingsPanel);
 
-        // 面板尺寸滑块
+        // 面板尺寸滑块（实时生效）
         const widthSlider = settingsPanel.querySelector('#panel-width-slider');
         const widthValue = settingsPanel.querySelector('#panel-width-value');
-        widthSlider.oninput = () => {
-            siteConfig.panelWidth = parseInt(widthSlider.value);
-            widthValue.textContent = siteConfig.panelWidth + 'px';
-            saveSiteConfig();
-        };
+        if (widthSlider) {
+            widthSlider.oninput = () => {
+                siteConfig.panelWidth = parseInt(widthSlider.value, 10);
+                widthValue.textContent = siteConfig.panelWidth + 'px';
+                saveSiteConfig();
+                applyStyles();
+            };
+        }
 
         // 侧边栏偏移滑块
         const sidebarOffsetSlider = settingsPanel.querySelector('#sidebar-offset-slider');
         const sidebarOffsetValue = settingsPanel.querySelector('#sidebar-offset-value');
         if (sidebarOffsetSlider) {
             sidebarOffsetSlider.oninput = () => {
-                siteConfig.sideBarOffset = parseInt(sidebarOffsetSlider.value);
+                siteConfig.sideBarOffset = parseInt(sidebarOffsetSlider.value, 10);
                 sidebarOffsetValue.textContent = siteConfig.sideBarOffset + '%';
                 saveSiteConfig();
-                // 直接修改DOM样式
                 const panelContainer = document.querySelector('#panel-container');
-                const expandButton = document.querySelector('#expand-button');
-                if (panelContainer) {
-                    panelContainer.style.top = `calc(50% + ${siteConfig.sideBarOffset}%)`;
-                }
-                if (expandButton) {
-                    expandButton.style.top = `calc(50% + ${siteConfig.sideBarOffset}%)`;
-                }
+                const expBtn = document.querySelector('#expand-button');
+                if (panelContainer) panelContainer.style.top = `calc(50% + ${siteConfig.sideBarOffset}%)`;
+                if (expBtn) expBtn.style.top = `calc(50% + ${siteConfig.sideBarOffset}%)`;
             };
         }
 
-        // 顶栏宽度滑块（仅top模式）
+        // 顶栏宽度滑块（仅top/bottom模式）
         const topbarWidthSlider = settingsPanel.querySelector('#topbar-width-slider');
         const topbarWidthValue = settingsPanel.querySelector('#topbar-width-value');
         if (topbarWidthSlider) {
             topbarWidthSlider.oninput = () => {
-                siteConfig.topBarWidth = parseInt(topbarWidthSlider.value);
+                siteConfig.topBarWidth = parseInt(topbarWidthSlider.value, 10);
                 topbarWidthValue.textContent = siteConfig.topBarWidth + 'px';
                 saveSiteConfig();
-                // 直接修改DOM样式
                 const favContainer = document.querySelector('.favorites-buttons-container');
-                if (favContainer) {
-                    favContainer.style.maxWidth = siteConfig.topBarWidth + 'px';
-                }
+                if (favContainer) favContainer.style.maxWidth = siteConfig.topBarWidth + 'px';
             };
         }
 
-        // 顶栏偏移滑块（仅top模式）
+        // 顶栏偏移滑块（仅top/bottom模式）
         const topbarOffsetSlider = settingsPanel.querySelector('#topbar-offset-slider');
         const topbarOffsetValue = settingsPanel.querySelector('#topbar-offset-value');
         if (topbarOffsetSlider) {
             topbarOffsetSlider.oninput = () => {
-                siteConfig.topBarOffset = parseInt(topbarOffsetSlider.value);
+                siteConfig.topBarOffset = parseInt(topbarOffsetSlider.value, 10);
                 topbarOffsetValue.textContent = siteConfig.topBarOffset + '%';
                 saveSiteConfig();
-                // 直接修改DOM样式
                 const favContainer = document.querySelector('.favorites-buttons-container');
-                if (favContainer) {
-                    favContainer.style.transform = `translateX(${siteConfig.topBarOffset}%)`;
-                }
+                if (favContainer) favContainer.style.transform = `translateX(${siteConfig.topBarOffset}%)`;
             };
         }
-        // 顶栏高度滑块(仅top/bottom模式)
+
+        // 顶栏高度滑块（仅top/bottom模式）
         const topbarHeightSlider = settingsPanel.querySelector('#topbar-height-slider');
         const topbarHeightValue = settingsPanel.querySelector('#topbar-height-value');
         if (topbarHeightSlider) {
             topbarHeightSlider.oninput = () => {
-                const oldValue = siteConfig.topBarHeight;
-                siteConfig.topBarHeight = parseInt(topbarHeightSlider.value);
+                siteConfig.topBarHeight = parseInt(topbarHeightSlider.value, 10);
                 topbarHeightValue.textContent = siteConfig.topBarHeight + 'px';
-
                 saveSiteConfig();
-                // 直接修改DOM样式
                 const favContainer = document.querySelector('.favorites-buttons-container');
                 const buttonsGrid = document.querySelector('#buttons-grid');
                 if (favContainer) {
                     favContainer.style.height = siteConfig.topBarHeight + 'px';
                     favContainer.style.minHeight = siteConfig.topBarHeight + 'px';
                     favContainer.style.maxHeight = siteConfig.topBarHeight + 'px';
-
                 }
                 if (buttonsGrid) {
-                    buttonsGrid.style.minHeight = (siteConfig.topBarHeight - 12) + 'px';
-
+                    buttonsGrid.style.minHeight = (siteConfig.topBarHeight - 10) + 'px';
                 }
             };
         }
@@ -1502,82 +1335,57 @@
             if (!modulesListContainer) return;
 
             const moduleNames = {
-                'search': '搜索框',
-                'favorites': '收藏内容',
-                'buttons': '操作按钮'
+                search: '搜索框',
+                favorites: '收藏内容',
+                buttons: '操作按钮'
             };
 
-            // 清空现有内容
             modulesListContainer.innerHTML = '';
-
-            // 重新排序并渲染
             const reorderedModules = [...sortedModules].sort((a, b) => a.order - b.order);
 
             reorderedModules.forEach((module, index) => {
                 const item = document.createElement('div');
                 item.className = 'module-config-item';
-                item.style.flex = '1';
-                item.style.display = 'flex';
-                item.style.flexDirection = 'column';
-                item.style.alignItems = 'center';
-                item.style.gap = '8px';
+                item.style.cssText = 'flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;';
 
-                // 模块名称
                 const nameSpan = document.createElement('span');
                 nameSpan.textContent = moduleNames[module.id] || module.id;
-                nameSpan.style.fontSize = '14px';
-                nameSpan.style.fontWeight = '600';
+                nameSpan.style.cssText = 'font-size: 13.5px; font-weight: 600;';
                 item.appendChild(nameSpan);
 
-                // 箭头按钮容器
                 const arrowContainer = document.createElement('div');
-                arrowContainer.style.display = 'flex';
-                arrowContainer.style.gap = '8px';
+                arrowContainer.style.cssText = 'display: flex; gap: 8px;';
 
-                // 左箭头按钮
-                const leftBtn = document.createElement('button');
-                leftBtn.textContent = '←';
-                leftBtn.className = 'rename-btn-mini';
-                leftBtn.style.width = '36px';
-                leftBtn.disabled = index === 0;
-                if (leftBtn.disabled) leftBtn.style.opacity = '0.3';
-                leftBtn.onclick = () => {
-                    const temp = reorderedModules[index - 1].order;
-                    reorderedModules[index - 1].order = module.order;
-                    module.order = temp;
-                    saveSiteConfig();
-                    updateModulesOrderList(panel, reorderedModules);
-                    renderPanel();
+                const makeMoveBtn = (label, targetIndex, disabled) => {
+                    const btn = document.createElement('button');
+                    btn.textContent = label;
+                    btn.className = 'rename-btn-mini';
+                    btn.style.width = '36px';
+                    btn.disabled = disabled;
+                    if (disabled) btn.style.opacity = '0.3';
+                    btn.onclick = () => {
+                        const temp = reorderedModules[targetIndex].order;
+                        reorderedModules[targetIndex].order = module.order;
+                        module.order = temp;
+                        saveSiteConfig();
+                        updateModulesOrderList(panel, reorderedModules);
+                        renderPanel();
+                    };
+                    return btn;
                 };
-                arrowContainer.appendChild(leftBtn);
 
-                // 右箭头按钮
-                const rightBtn = document.createElement('button');
-                rightBtn.textContent = '→';
-                rightBtn.className = 'rename-btn-mini';
-                rightBtn.style.width = '36px';
-                rightBtn.disabled = index === reorderedModules.length - 1;
-                if (rightBtn.disabled) rightBtn.style.opacity = '0.3';
-                rightBtn.onclick = () => {
-                    const temp = reorderedModules[index + 1].order;
-                    reorderedModules[index + 1].order = module.order;
-                    module.order = temp;
-                    saveSiteConfig();
-                    updateModulesOrderList(panel, reorderedModules);
-                    renderPanel();
-                };
-                arrowContainer.appendChild(rightBtn);
+                arrowContainer.appendChild(makeMoveBtn('←', index - 1, index === 0));
+                arrowContainer.appendChild(makeMoveBtn('→', index + 1, index === reorderedModules.length - 1));
                 item.appendChild(arrowContainer);
 
-                // 可见性开关
                 const visibleToggle = document.createElement('div');
                 visibleToggle.className = `toggle-switch ${module.visible ? 'active' : ''}`;
-                visibleToggle.style.marginTop = '8px';
+                visibleToggle.style.marginTop = '6px';
                 visibleToggle.onclick = () => {
                     visibleToggle.classList.toggle('active');
                     module.visible = visibleToggle.classList.contains('active');
                     saveSiteConfig();
-                    renderPanel(); // 只刷新主面板，不刷新设置面板
+                    renderPanel();
                 };
                 item.appendChild(visibleToggle);
 
@@ -1588,16 +1396,12 @@
         // 顶栏模块配置
         const modulesListContainer = settingsPanel.querySelector('#topbar-modules-list');
         if (modulesListContainer && (siteConfig.position === 'top' || siteConfig.position === 'bottom')) {
-            // 水平布局
             modulesListContainer.style.display = 'flex';
             modulesListContainer.style.gap = '12px';
-
-            // 使用辅助函数初始化模块列表
             updateModulesOrderList(settingsPanel, siteConfig.topBarModulesOrder);
         }
 
-        // Toggle开关事件处理（跳过无 data-setting 的开关——顶栏模块可见性开关有各自专属的处理逻辑，
-        // 不能被这里的通用逻辑覆盖，否则会写出 siteConfig["undefined"] 且模块开关失效）
+        // Toggle开关事件处理（跳过无 data-setting 的顶栏模块开关）
         settingsPanel.querySelectorAll('.toggle-switch').forEach(toggle => {
             if (!toggle.dataset.setting) return;
             toggle.onclick = () => {
@@ -1605,21 +1409,27 @@
                 siteConfig[setting] = !siteConfig[setting];
                 toggle.classList.toggle('active');
                 saveSiteConfig();
-                alert('设置已保存，刷新页面后生效');
+                if (setting === 'autoExpand') {
+                    showToast('已保存，下次打开页面时生效', 'success');
+                } else {
+                    renderPanel();
+                    showToast('设置已生效', 'success');
+                }
             };
         });
 
         // 样式列表
         const styleList = settingsPanel.querySelector('#style-list');
-        let draggedElement = null; // 拖拽状态变量（外部作用域）
+        const defaultBtnColor = getThemeColors().button;
 
-        platformUsers.forEach((user, index) => {
+        platformUsers.forEach((user) => {
             const item = document.createElement('div');
             item.className = 'style-item';
             item.draggable = true;
+            item._userObject = user;
 
             const size = user.size || '1x';
-            const color = user.color || buttonColor;
+            const color = user.color || defaultBtnColor;
 
             item.innerHTML = `
                 <span class="drag-handle">☰</span>
@@ -1629,11 +1439,11 @@
             const controls = document.createElement('div');
             controls.className = 'style-controls';
 
-            // 颜色选择 - 使用原生颜色选择器
+            // 颜色选择 - 原生颜色选择器
             const colorInput = document.createElement('input');
             colorInput.type = 'color';
             colorInput.value = color;
-            colorInput.style.cssText = 'width: 24px; height: 24px; border: none; border-radius: 3px; cursor: pointer;';
+            colorInput.style.cssText = 'width: 24px; height: 24px; border: none; border-radius: 4px; cursor: pointer; padding: 0; background: transparent;';
             colorInput.title = '选择颜色';
             colorInput.oninput = () => {
                 user.color = colorInput.value;
@@ -1642,7 +1452,7 @@
             };
             controls.appendChild(colorInput);
 
-            // 尺寸选择 - 改为下拉菜单
+            // 尺寸选择 - 下拉菜单
             const sizeWrapper = document.createElement('div');
             sizeWrapper.className = 'size-picker-wrapper';
             const sizePreview = document.createElement('div');
@@ -1677,43 +1487,22 @@
             };
 
             // 隐藏/显示按钮
-            const hideBtn = document.createElement('button');
-            hideBtn.className = 'rename-btn-mini';
-            hideBtn.textContent = user.hidden ? '👁' : '👁‍🗨';
-            hideBtn.title = user.hidden ? '显示' : '隐藏';
-            hideBtn.style.opacity = user.hidden ? '0.5' : '1';
-            hideBtn.onclick = () => {
-                user.hidden = !user.hidden;
-                saveUsers();
-                renderPanel();
-                // 更新按钮状态
-                hideBtn.textContent = user.hidden ? '👁' : '👁‍🗨';
-                hideBtn.title = user.hidden ? '显示' : '隐藏';
-                hideBtn.style.opacity = user.hidden ? '0.5' : '1';
-                item.style.opacity = user.hidden ? '0.6' : '1';
-            };
-            controls.appendChild(hideBtn);
-
-            // 如果项目被隐藏，设置半透明样式
-            if (user.hidden) {
-                item.style.opacity = '0.6';
-            }
+            controls.appendChild(createVisibilityToggleBtn(user, item, saveUsers));
 
             // 重命名按钮
             const renameBtn = document.createElement('button');
             renameBtn.className = 'rename-btn-mini';
             renameBtn.textContent = '重命名';
             renameBtn.onclick = () => {
-                const newName = prompt(`请输入新名称：`, user.name);
+                const newName = prompt('请输入新名称：', user.name);
                 if (newName && newName.trim() && newName !== user.name) {
                     user.name = newName.trim();
                     saveUsers();
                     renderPanel();
-                    // 更新当前项的显示
                     const nameSpan = item.querySelector('.style-item-name');
                     if (nameSpan) {
-                        nameSpan.textContent = newName.trim();
-                        nameSpan.title = newName.trim();
+                        nameSpan.textContent = user.name;
+                        nameSpan.title = user.name;
                     }
                 }
             };
@@ -1725,12 +1514,10 @@
             deleteBtn.textContent = '删除';
             deleteBtn.onclick = () => {
                 if (confirm(`确定要删除 "${user.name}" 吗？`)) {
-                    // 用对象引用定位，避免删除某项后其余项的闭包索引失效
                     const idx = platformUsers.indexOf(user);
                     if (idx > -1) platformUsers.splice(idx, 1);
                     saveUsers();
                     renderPanel();
-                    // 移除当前项
                     item.remove();
                 }
             };
@@ -1738,83 +1525,31 @@
 
             item.appendChild(controls);
             styleList.appendChild(item);
+        });
 
-            // 拖拽排序 - 改进版，更灵敏
-            item.ondragstart = (e) => {
-                draggedElement = item;
-                item.classList.add('dragging');
-                e.dataTransfer.effectAllowed = 'move';
-            };
-
-            item.ondragend = () => {
-                item.classList.remove('dragging');
-                styleList.querySelectorAll('.style-item').forEach(i => i.classList.remove('drag-over'));
-
-                // 根据DO M顺序重新构建platformUsers数组
-                const newOrder = [];
-                styleList.querySelectorAll('.style-item').forEach(styleItem => {
-                    // 使用存储的用户对象引用
-                    if (styleItem._userObject) {
-                        newOrder.push(styleItem._userObject);
-                    }
-                });
-
-                platformUsers.length = 0;
-                platformUsers.push(...newOrder);
-                saveUsers();
-                renderPanel();
-
-                draggedElement = null;
-            };
-
-            item.ondragover = (e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-            };
-
-            item.ondragenter = (e) => {
-                e.preventDefault();
-                if (draggedElement && draggedElement !== item) {
-                    const rect = item.getBoundingClientRect();
-                    const midpoint = rect.top + rect.height / 2;
-
-                    if (e.clientY < midpoint) {
-                        styleList.insertBefore(draggedElement, item);
-                    } else {
-                        styleList.insertBefore(draggedElement, item.nextSibling);
-                    }
-                }
-            };
-
-            item.ondragleave = () => {
-                item.classList.remove('drag-over');
-            };
-
-            item.ondrop = (e) => {
-                e.preventDefault();
-                item.classList.remove('drag-over');
-            };
-
-            // 存储用户对象的直接引用（而非索引）
-            item._userObject = user;
+        enableDragSort(styleList, '.style-item', () => {
+            const newOrder = Array.from(styleList.querySelectorAll('.style-item'))
+                .map(el => el._userObject)
+                .filter(Boolean);
+            platformUsers.length = 0;
+            platformUsers.push(...newOrder);
+            saveUsers();
+            renderPanel();
         });
 
         // 搜索引擎列表
         const searchList = settingsPanel.querySelector('#search-engine-list');
-        let draggedSearchElement = null; // 拖拽状态变量（外部作用域）
-
-        siteConfig.searchEngines.forEach((engine, index) => {
+        siteConfig.searchEngines.forEach((engine) => {
             const item = document.createElement('div');
-            item.className = 'style-item'; // 复用样式
+            item.className = 'style-item';
             item.draggable = true;
+            item._engineObject = engine;
 
-            // 拖拽手柄
             const dragHandle = document.createElement('span');
             dragHandle.className = 'drag-handle';
             dragHandle.textContent = '☰';
             item.appendChild(dragHandle);
 
-            // 搜索引擎信息
             const infoDiv = document.createElement('div');
             infoDiv.style.cssText = 'flex: 1; min-width: 0;';
             infoDiv.innerHTML = `
@@ -1823,138 +1558,63 @@
             `;
             item.appendChild(infoDiv);
 
-            // 隐藏/显示按钮
-            const hideBtn = document.createElement('button');
-            hideBtn.className = 'rename-btn-mini';
-            hideBtn.textContent = engine.hidden ? '👁' : '👁‍🗨';
-            hideBtn.title = engine.hidden ? '显示' : '隐藏';
-            hideBtn.style.opacity = engine.hidden ? '0.5' : '1';
-            hideBtn.onclick = () => {
-                engine.hidden = !engine.hidden;
-                saveSiteConfig();
-                renderPanel();
-                // 更新按钮状态
-                hideBtn.textContent = engine.hidden ? '👁' : '👁‍🗨';
-                hideBtn.title = engine.hidden ? '显示' : '隐藏';
-                hideBtn.style.opacity = engine.hidden ? '0.5' : '1';
-                item.style.opacity = engine.hidden ? '0.6' : '1';
-            };
-            item.appendChild(hideBtn);
+            item.appendChild(createVisibilityToggleBtn(engine, item, saveSiteConfig));
 
-            // 如果搜索引擎被隐藏，设置半透明样式
-            if (engine.hidden) {
-                item.style.opacity = '0.6';
-            }
-
-            // 删除按钮
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'delete-btn-mini';
             deleteBtn.textContent = '删除';
             deleteBtn.onclick = () => {
                 if (confirm(`确定要删除搜索引擎 "${engine.name}" 吗？`)) {
-                    // 用对象引用定位，避免删除某项后其余项的闭包索引失效
                     const idx = siteConfig.searchEngines.indexOf(engine);
                     if (idx > -1) siteConfig.searchEngines.splice(idx, 1);
                     saveSiteConfig();
                     renderPanel();
-                    // 移除当前项
                     item.remove();
                 }
             };
             item.appendChild(deleteBtn);
 
             searchList.appendChild(item);
+        });
 
-            // 拖拽排序 - 改进版，更灵敏
-            item.ondragstart = (e) => {
-                draggedSearchElement = item;
-                item.classList.add('dragging');
-                e.dataTransfer.effectAllowed = 'move';
-            };
-
-            item.ondragend = () => {
-                item.classList.remove('dragging');
-                searchList.querySelectorAll('.style-item').forEach(i => i.classList.remove('drag-over'));
-
-                // 根据DO M顺序重新构建searchEngines数组
-                const newOrder = [];
-                searchList.querySelectorAll('.style-item').forEach(searchItem => {
-                    // 使用存储的搜索引擎对象引用
-                    if (searchItem._engineObject) {
-                        newOrder.push(searchItem._engineObject);
-                    }
-                });
-
-                siteConfig.searchEngines.length = 0;
-                siteConfig.searchEngines.push(...newOrder);
-                saveSiteConfig();
-                renderPanel();
-
-                draggedSearchElement = null;
-            };
-
-            item.ondragover = (e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-            };
-
-            item.ondragenter = (e) => {
-                e.preventDefault();
-                if (draggedSearchElement && draggedSearchElement !== item) {
-                    const rect = item.getBoundingClientRect();
-                    const midpoint = rect.top + rect.height / 2;
-
-                    if (e.clientY < midpoint) {
-                        searchList.insertBefore(draggedSearchElement, item);
-                    } else {
-                        searchList.insertBefore(draggedSearchElement, item.nextSibling);
-                    }
-                }
-            };
-
-            item.ondragleave = () => {
-                item.classList.remove('drag-over');
-            };
-
-            item.ondrop = (e) => {
-                e.preventDefault();
-                item.classList.remove('drag-over');
-            };
-
-            // 存储搜索引擎对象的直接引用
-            item._engineObject = engine;
+        enableDragSort(searchList, '.style-item', () => {
+            const newOrder = Array.from(searchList.querySelectorAll('.style-item'))
+                .map(el => el._engineObject)
+                .filter(Boolean);
+            siteConfig.searchEngines.length = 0;
+            siteConfig.searchEngines.push(...newOrder);
+            saveSiteConfig();
+            renderPanel();
         });
 
         // 共享域名列表
         const sharedDomainsList = settingsPanel.querySelector('#shared-domains-list');
-        siteConfig.sharedDomains.forEach((domain, index) => {
+        siteConfig.sharedDomains.forEach((domain) => {
             const item = document.createElement('div');
             item.className = 'style-item';
 
             const domainText = document.createElement('div');
-            domainText.style.cssText = 'flex: 1; font-size: 13px; padding: 8px 0;';
+            domainText.style.cssText = 'flex: 1; font-size: 13px; padding: 4px 0;';
             domainText.textContent = domain;
             if (domain === currentHost) {
-                domainText.innerHTML += ' <span style="color: #999; font-size: 11px;">(当前域名)</span>';
+                domainText.innerHTML += ' <span style="color: #9ca3af; font-size: 11px;">(当前域名)</span>';
             }
             item.appendChild(domainText);
 
-            // 只有非当前域名才能删除
             if (domain !== currentHost) {
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'delete-btn-mini';
                 deleteBtn.textContent = '删除';
                 deleteBtn.onclick = () => {
                     if (confirm(`确定要删除镜像域名 "${domain}" 吗?\n\n删除后,该域名将使用独立的数据存储。`)) {
-                        // 从当前站点删除
-                        siteConfig.sharedDomains.splice(index, 1);
+                        const curIdx = siteConfig.sharedDomains.indexOf(domain);
+                        if (curIdx > -1) siteConfig.sharedDomains.splice(curIdx, 1);
                         saveSiteConfig();
 
                         // 【双向删除】从镜像站点也删除当前域名
                         const mirrorPlatform = domain.replace(/\./g, '_');
                         const mirrorConfigKey = `${mirrorPlatform}_config`;
                         const mirrorConfig = GM_getValue(mirrorConfigKey, {});
-
                         if (mirrorConfig.sharedDomains) {
                             const idx = mirrorConfig.sharedDomains.indexOf(currentHost);
                             if (idx > -1) {
@@ -1983,11 +1643,8 @@
             option.onclick = () => {
                 siteConfig.position = option.dataset.position;
                 saveSiteConfig();
-
-                // 更新active状态
                 option.parentElement.querySelectorAll('.radio-option').forEach(o => o.classList.remove('active'));
                 option.classList.add('active');
-
                 alert('面板位置已更改！页面将刷新。');
                 location.reload();
             };
@@ -1995,23 +1652,24 @@
 
         settingsPanel.querySelectorAll('.radio-option[data-columns]').forEach(option => {
             option.onclick = () => {
-                siteConfig.gridColumns = parseInt(option.dataset.columns);
+                siteConfig.gridColumns = parseInt(option.dataset.columns, 10);
                 saveSiteConfig();
                 settingsPanel.querySelectorAll('.radio-option[data-columns]').forEach(o => o.classList.remove('active'));
                 option.classList.add('active');
-                alert('列数设置已保存，刷新页面后生效');
+                applyStyles();
+                showToast(`已切换为 ${siteConfig.gridColumns} 列布局`, 'success');
             };
         });
 
-        // 配色模式切换（浅色/深色为全 !important 抗干扰主题，切换后刷新生效）
+        // 配色模式切换（实时生效）
         settingsPanel.querySelectorAll('.radio-option[data-theme]').forEach(option => {
             option.onclick = () => {
                 siteConfig.panelTheme = option.dataset.theme;
                 saveSiteConfig();
                 settingsPanel.querySelectorAll('.radio-option[data-theme]').forEach(o => o.classList.remove('active'));
                 option.classList.add('active');
-                alert('配色模式已更改！页面将刷新。');
-                location.reload();
+                applyStyles();
+                showToast('配色模式已切换', 'success');
             };
         });
 
@@ -2022,6 +1680,7 @@
                 settingsPanel.querySelectorAll('.radio-option[data-search-pos]').forEach(o => o.classList.remove('active'));
                 option.classList.add('active');
                 renderPanel();
+                showToast('搜索框位置已更新', 'success');
             };
         });
 
@@ -2035,6 +1694,7 @@
             }
             siteConfig.searchEngines.push({ name, urlTemplate });
             saveSiteConfig();
+            renderPanel();
             settingsPanel.remove();
             openSettings();
         };
@@ -2044,33 +1704,27 @@
             const domain = prompt('请输入要共享数据的域名:\n\n例如: example.com 或 github.com\n\n添加后,该域名的数据将与当前网站共享。');
             if (!domain) return;
 
-            // 验证域名格式
             const domainPattern = /^[a-zA-Z0-9][-a-zA-Z0-9]{0,62}(\.[a-zA-Z0-9][-a-zA-Z0-9]{0,62})+$/;
             if (!domainPattern.test(domain)) {
                 alert('域名格式不正确,请输入有效的域名(例如: example.com)');
                 return;
             }
-
-            // 检查是否已存在
             if (siteConfig.sharedDomains.includes(domain)) {
                 alert('该域名已在共享列表中');
                 return;
             }
 
-            // 添加到共享列表
             siteConfig.sharedDomains.push(domain);
             saveSiteConfig();
             alert('共享域名已添加,页面将刷新以应用更改。');
             location.reload();
         };
 
-        // 点击空白处关闭颜色/尺寸下拉菜单
-        // 先移除旧面板绑定的监听器，避免每次打开设置都向 document 累积监听器
+        // 点击空白处关闭尺寸下拉菜单（先移除旧监听器避免累积）
         if (_closeDropdownsHandler) {
             document.removeEventListener('click', _closeDropdownsHandler);
         }
         _closeDropdownsHandler = () => {
-            settingsPanel.querySelectorAll('.color-dropdown').forEach(d => d.classList.remove('show'));
             settingsPanel.querySelectorAll('.size-dropdown').forEach(d => d.classList.remove('show'));
         };
         document.addEventListener('click', _closeDropdownsHandler);
@@ -2083,10 +1737,8 @@
                 saveSiteConfig();
                 renderPanel();
             });
-            customNameInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    customNameInput.blur();
-                }
+            customNameInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') customNameInput.blur();
             });
         }
 
@@ -2110,7 +1762,6 @@
                     e.stopPropagation();
                     const keyName = e.key.toLowerCase();
                     if (keyName === 'escape') { finishRecording(); return; }
-                    // 只按了修饰键时继续等待
                     if (['control', 'alt', 'shift', 'meta'].includes(keyName)) return;
                     const parts = [];
                     if (e.ctrlKey) parts.push('ctrl');
@@ -2118,14 +1769,13 @@
                     if (e.shiftKey) parts.push('shift');
                     if (e.metaKey) parts.push('meta');
                     parts.push(e.key === ' ' ? 'space' : keyName);
-                    // 无修饰键的单字符键（字母/数字）极易与页面输入冲突，要求配合修饰键
                     if (parts.length === 1 && keyName.length === 1) {
-                        alert('为避免误触，字母/数字键需配合 Ctrl / Alt / Shift 使用');
+                        showToast('为避免误触，字母/数字键需配合 Ctrl / Alt / Shift 使用', 'warn');
                         return;
                     }
                     setPanelShortcut(parts.join('+'));
                     finishRecording();
-                    alert(`快捷键已全局设置：${formatShortcut(getPanelShortcut())}，所有启用面板的网站立即生效`);
+                    showToast(`快捷键已全局设置：${formatShortcut(getPanelShortcut())}`, 'success');
                 };
                 document.addEventListener('keydown', recordHandler, true);
             };
@@ -2135,26 +1785,34 @@
                 setPanelShortcut('');
                 shortcutDisplay.textContent = '未设置';
                 if (shortcutRecordBtn) shortcutRecordBtn.textContent = '设置';
+                showToast('快捷键已清除', 'info');
             };
         }
 
-        // 主题色选择器
+        // 主题色选择器（实时生效）
         const colorPicker = settingsPanel.querySelector('#primary-color-picker');
         if (colorPicker) {
+            colorPicker.addEventListener('input', () => {
+                siteConfig.primaryColor = colorPicker.value;
+                applyStyles();
+            });
             colorPicker.addEventListener('change', () => {
                 siteConfig.primaryColor = colorPicker.value;
                 saveSiteConfig();
-                alert('主题色已更新，刷新页面后生效');
+                applyStyles();
+                showToast('主题色已更新', 'success');
             });
         }
 
-        // 恢复默认颜色按钮
+        // 恢复默认颜色按钮（实时生效）
         const resetColorBtn = settingsPanel.querySelector('#reset-color-btn');
         if (resetColorBtn) {
             resetColorBtn.addEventListener('click', () => {
                 siteConfig.primaryColor = platformData[currentPlatform].color;
+                if (colorPicker) colorPicker.value = siteConfig.primaryColor;
                 saveSiteConfig();
-                alert('已恢复默认主题色，刷新页面后生效');
+                applyStyles();
+                showToast('已恢复默认主题色', 'success');
             });
         }
 
@@ -2243,7 +1901,119 @@
         overlay.classList.remove('show');
     };
 
+    // 公共辅助：收藏当前页面 / 手动添加收藏
+    function promptCollectCurrentPage() {
+        const name = prompt('请输入收藏名称：', document.title);
+        if (name && name.trim()) {
+            platformUsers.push({ name: name.trim(), url: window.location.href, size: '1x' });
+            saveUsers();
+            renderPanel();
+            showToast('已添加到收藏', 'success');
+        }
+    }
+
+    function promptAddFavorite() {
+        const name = prompt('请输入名称：');
+        if (!name || !name.trim()) return;
+        const url = prompt('请输入链接地址：');
+        if (url && url.trim()) {
+            platformUsers.push({ name: name.trim(), url: url.trim(), size: '1x' });
+            saveUsers();
+            renderPanel();
+            showToast('已添加导航项', 'success');
+        }
+    }
+
+    // 公共辅助：创建单个收藏按钮
+    function createUserButtonElement(user) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'button-wrapper';
+        wrapper.dataset.size = user.size || '1x';
+
+        const button = document.createElement('a');
+        button.className = 'user-button';
+        button.href = user.url;
+        button.textContent = user.name;
+        button.title = user.name;
+        if (user.color) button.style.setProperty('background-color', user.color, 'important');
+
+        if (siteConfig.openInCurrentTab) {
+            button.target = '_self';
+            button.onmousedown = (e) => {
+                if (e.button === 1) {
+                    e.preventDefault();
+                    window.open(button.href, '_blank');
+                }
+            };
+        } else {
+            button.target = '_blank';
+        }
+
+        wrapper.appendChild(button);
+        return wrapper;
+    }
+
+    // 公共辅助：创建单个搜索引擎输入框项
+    function createSearchEngineItem(engine, { itemClass, inputClass = '', btnClass = '', isHidden = false }) {
+        const searchItem = document.createElement('div');
+        searchItem.className = itemClass + (isHidden ? ' hidden' : '');
+
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        if (inputClass) searchInput.className = inputClass;
+        searchInput.placeholder = engine.name;
+
+        const searchBtn = document.createElement('button');
+        if (btnClass) searchBtn.className = btnClass;
+        searchBtn.textContent = '搜索';
+        searchBtn.title = engine.name;
+
+        const performSearch = () => {
+            const query = searchInput.value.trim();
+            if (!query) {
+                showToast('请输入搜索内容', 'warn');
+                searchInput.focus();
+                return;
+            }
+            const url = engine.urlTemplate.replace('{query}', encodeURIComponent(query));
+            window.open(url, '_blank');
+            searchInput.value = '';
+        };
+
+        searchBtn.onclick = performSearch;
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') performSearch();
+        });
+
+        searchItem.appendChild(searchInput);
+        searchItem.appendChild(searchBtn);
+        return searchItem;
+    }
+
+    // 公共辅助：创建面板标题栏
+    function renderPanelHeader(panelContainer) {
+        if (!siteConfig.showTitle) return;
+        const header = document.createElement('div');
+        header.className = 'panel-header';
+        const panelTitle = siteConfig.customPanelName || `${platformData[currentPlatform].name}导航`;
+        header.innerHTML = `
+            <div class="panel-title">${escapeHtml(panelTitle)}</div>
+            <div class="header-buttons">
+                <div class="settings-button" title="高级设置">⚙</div>
+                <div class="close-button" title="收起">×</div>
+            </div>
+        `;
+        panelContainer.appendChild(header);
+        header.querySelector('.settings-button').onclick = openSettings;
+        header.querySelector('.close-button').onclick = () => {
+            panelContainer.classList.remove('expanded');
+            expandButton.style.display = 'flex';
+        };
+    }
+
     function renderPanel() {
+        const displayUsers = getDisplayUsers();
+
         // 清理旧的容器
         const oldPanel = document.getElementById('panel-container');
         const oldSearchTop = document.getElementById('search-top-container');
@@ -2253,23 +2023,15 @@
 
         // search-top模式：搜索框在顶部，内容在侧边
         if (siteConfig.position === 'search-top' && siteConfig.searchEngines.length > 0) {
-            // 创建顶部搜索框容器
+            const c = getThemeColors();
             const searchTopContainer = document.createElement('div');
             searchTopContainer.id = 'search-top-container';
             searchTopContainer.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 50%;
-                transform: translateX(-50%);
-                width: ${siteConfig.searchBoxWidth}px;
-                height: ${siteConfig.searchBoxHeight}px;
-                z-index: 10001;
-                background: rgba(255, 255, 255, 0.98);
-                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-                border-radius: 0 0 8px 8px;
-                display: flex;
-                align-items: center;
-                padding: 0 10px;
+                position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+                width: ${siteConfig.searchBoxWidth}px; height: ${siteConfig.searchBoxHeight}px;
+                z-index: 10001; background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(12px);
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14); border-radius: 0 0 10px 10px;
+                display: flex; align-items: center; padding: 0 10px;
             `;
 
             const searchBox = document.createElement('div');
@@ -2279,12 +2041,8 @@
             searchInput.className = 'search-input';
             searchInput.placeholder = '输入搜索内容...';
             searchInput.style.cssText = `
-                flex: 1;
-                padding: 0 12px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                font-size: 14px;
-                height: ${siteConfig.searchBoxHeight - 10}px;
+                flex: 1; padding: 0 12px; border: 1px solid #d1d5db; border-radius: 6px;
+                font-size: 14px; height: ${siteConfig.searchBoxHeight - 10}px;
             `;
 
             let activeEngineIndex = 0;
@@ -2292,19 +2050,13 @@
             searchButton.className = 'search-button';
             searchButton.textContent = siteConfig.searchEngines[0].name;
             searchButton.style.cssText = `
-                padding: 0 16px;
-                background-color: ${primaryColor};
-                color: white;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 13px;
-                height: ${siteConfig.searchBoxHeight - 10}px;
+                padding: 0 16px; background-color: ${c.primary}; color: #fff; border: none;
+                border-radius: 6px; cursor: pointer; font-size: 13px; height: ${siteConfig.searchBoxHeight - 10}px;
             `;
 
             const performSearch = () => {
                 const query = searchInput.value.trim();
-                if (!query) { alert('请输入搜索内容'); return; }
+                if (!query) { showToast('请输入搜索内容', 'warn'); return; }
                 const url = siteConfig.searchEngines[activeEngineIndex].urlTemplate.replace('{query}', encodeURIComponent(query));
                 window.open(url, '_blank');
             };
@@ -2317,175 +2069,67 @@
                     performSearch();
                 }
             };
-            searchInput.onkeypress = (e) => { if (e.key === 'Enter') performSearch(); };
+            searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') performSearch(); });
 
             searchBox.appendChild(searchInput);
             searchBox.appendChild(searchButton);
             searchTopContainer.appendChild(searchBox);
             document.body.appendChild(searchTopContainer);
 
-            // 主面板使用侧边模式（不包含搜索框）
             const panelContainer = document.createElement('div');
             panelContainer.id = 'panel-container';
             if (wasExpanded || siteConfig.autoExpand) panelContainer.classList.add('expanded');
             container.appendChild(panelContainer);
 
-            // 标题栏
-            if (siteConfig.showTitle) {
-                const header = document.createElement('div');
-                header.className = 'panel-header';
-                header.innerHTML = `
-                    <div class="panel-title">${platformData[currentPlatform].name}导航</div>
-                    <div class="header-buttons">
-                        <div class="settings-button" title="高级设置">⚙</div>
-                        <div class="close-button">×</div>
-                    </div>
-                `;
-                panelContainer.appendChild(header);
-                header.querySelector('.settings-button').onclick = openSettings;
-                header.querySelector('.close-button').onclick = () => {
-                    panelContainer.classList.remove('expanded');
-                    expandButton.style.display = 'flex';
-                };
+            renderPanelHeader(panelContainer);
+
+            const visibleEngines = siteConfig.searchEngines.filter(e => !e.hidden);
+            const buildSearchList = (marginStyle) => {
+                if (visibleEngines.length === 0) return null;
+                const sc = document.createElement('div');
+                sc.className = 'search-engines-container';
+                sc.style.cssText = `width: 100%; ${marginStyle}`;
+                visibleEngines.forEach(engine => {
+                    sc.appendChild(createSearchEngineItem(engine, { itemClass: 'search-engine-item' }));
+                });
+                return sc;
+            };
+
+            if (siteConfig.searchPosition === 'top') {
+                const topSc = buildSearchList('margin-bottom: 10px;');
+                if (topSc) panelContainer.appendChild(topSc);
             }
 
-            // 按钮网格
             const buttonsGrid = document.createElement('div');
             buttonsGrid.id = 'buttons-grid';
             displayUsers.forEach((user) => {
-                // 跳过被隐藏的项目
-                if (user.hidden) return;
-
-                const wrapper = document.createElement('div');
-                wrapper.className = 'button-wrapper';
-                wrapper.dataset.size = user.size || '1x';
-                const button = document.createElement('a');
-                button.className = 'user-button';
-                button.href = user.url;
-                // 根据设置控制点击行为：左键当前页打开，中键新页打开
-                if (siteConfig.openInCurrentTab) {
-                    button.target = '_self';
-                    button.onmousedown = (e) => {
-                        if (e.button === 1) {
-                            e.preventDefault();
-                            window.open(button.href, '_blank');
-                        }
-                    };
-                } else {
-                    button.target = '_blank';
-                }
-                button.textContent = user.name;
-                if (user.color) button.style.setProperty('background-color', user.color, 'important');
-                wrapper.appendChild(button);
-                buttonsGrid.appendChild(wrapper);
+                if (!user.hidden) buttonsGrid.appendChild(createUserButtonElement(user));
             });
-
-            // 搜索引擎列表(根据searchPosition决定位置)
-            if (siteConfig.searchEngines.length > 0) {
-                const searchContainer = document.createElement('div');
-                searchContainer.className = 'search-engines-container';
-                searchContainer.style.cssText = 'width: 100%; margin-bottom: 10px;';
-                siteConfig.searchEngines.forEach((engine) => {
-                    // 跳过被隐藏的搜索引擎
-                    if (engine.hidden) return;
-
-                    const searchItem = document.createElement('div');
-                    searchItem.className = 'search-engine-item';
-                    const searchInput = document.createElement('input');
-                    searchInput.type = 'text';
-                    searchInput.placeholder = engine.name;
-                    const searchBtn = document.createElement('button');
-                    searchBtn.textContent = '搜索';
-                    searchBtn.title = engine.name;
-                    const performSearch = () => {
-                        const query = searchInput.value.trim();
-                        if (!query) {
-                            alert('请输入搜索内容');
-                            return;
-                        }
-                        const url = engine.urlTemplate.replace('{query}', encodeURIComponent(query));
-                        window.open(url, '_blank');
-                        searchInput.value = '';
-                    };
-                    searchBtn.onclick = performSearch;
-                    searchInput.onkeypress = (e) => {
-                        if (e.key === 'Enter') performSearch();
-                    };
-                    searchItem.appendChild(searchInput);
-                    searchItem.appendChild(searchBtn);
-                    searchContainer.appendChild(searchItem);
-                });
-                if (siteConfig.searchPosition === 'top') {
-                    panelContainer.appendChild(searchContainer);
-                }
-            }
-
             panelContainer.appendChild(buttonsGrid);
 
-            // 搜索引擎列表(底部)
-            if (siteConfig.searchEngines.length > 0 && siteConfig.searchPosition === 'bottom') {
-                const searchContainer = document.createElement('div');
-                searchContainer.className = 'search-engines-container';
-                searchContainer.style.cssText = 'width: 100%; margin-top: 10px;';
-                siteConfig.searchEngines.forEach((engine) => {
-                    const searchItem = document.createElement('div');
-                    searchItem.className = 'search-engine-item';
-                    const searchInput = document.createElement('input');
-                    searchInput.type = 'text';
-                    searchInput.placeholder = engine.name;
-                    const searchBtn = document.createElement('button');
-                    searchBtn.textContent = '搜索';
-                    searchBtn.title = engine.name;
-                    const performSearch = () => {
-                        const query = searchInput.value.trim();
-                        if (!query) {
-                            alert('请输入搜索内容');
-                            return;
-                        }
-                        const url = engine.urlTemplate.replace('{query}', encodeURIComponent(query));
-                        window.open(url, '_blank');
-                        searchInput.value = '';
-                    };
-                    searchBtn.onclick = performSearch;
-                    searchInput.onkeypress = (e) => {
-                        if (e.key === 'Enter') performSearch();
-                    };
-                    searchItem.appendChild(searchInput);
-                    searchItem.appendChild(searchBtn);
-                    searchContainer.appendChild(searchItem);
-                });
-                panelContainer.appendChild(searchContainer);
+            if (siteConfig.searchPosition === 'bottom') {
+                const botSc = buildSearchList('margin-top: 10px;');
+                if (botSc) panelContainer.appendChild(botSc);
             }
 
-            // 操作按钮
             const buttonContainer = document.createElement('div');
             buttonContainer.className = 'button-container';
-
             const leftButtons = document.createElement('div');
             leftButtons.className = 'button-container-left';
-
             const rightButtons = document.createElement('div');
             rightButtons.className = 'button-container-right';
 
             const collectBtn = document.createElement('div');
             collectBtn.className = 'action-button';
             collectBtn.textContent = '收藏';
-            collectBtn.onclick = () => {
-                const name = prompt('请输入收藏名称：', document.title);
-                if (name) { platformUsers.push({ name, url: window.location.href, size: '1x' }); saveUsers(); renderPanel(); }
-            };
+            collectBtn.onclick = promptCollectCurrentPage;
             leftButtons.appendChild(collectBtn);
 
             const addBtn = document.createElement('div');
             addBtn.className = 'action-button compact-button';
             addBtn.textContent = '+';
             addBtn.title = '添加';
-            addBtn.onclick = () => {
-                const name = prompt('请输入用户名：');
-                if (!name) return;
-                const url = prompt('请输入用户主页链接：');
-                if (url) { platformUsers.push({ name, url, size: '1x' }); saveUsers(); renderPanel(); }
-            };
+            addBtn.onclick = promptAddFavorite;
             rightButtons.appendChild(addBtn);
 
             const settingsBtn = document.createElement('div');
@@ -2508,80 +2152,27 @@
             if (wasExpanded || siteConfig.autoExpand) panelContainer.classList.add('expanded');
             container.appendChild(panelContainer);
 
-            // ============================================
-            // 重构后的顶栏/底栏模块化渲染代码
-            // 替换位置：第1568行到第1738行
-            // ============================================
-            // 创建各个模块的辅助函数
-            let buttonsGridRef = null; // 保存收藏网格的引用，供按钮模块使用
+            let buttonsGridRef = null;
             const createSearchModule = () => {
-                if (siteConfig.searchEngines.length === 0) return null;
+                const visibleEngines = siteConfig.searchEngines.filter(e => !e.hidden);
+                if (visibleEngines.length === 0) return null;
                 const searchContainer = document.createElement('div');
                 searchContainer.className = 'search-engines-container';
-                siteConfig.searchEngines.forEach((engine, index) => {
-                    // 跳过被隐藏的搜索引擎
-                    if (engine.hidden) return;
-
-                    const searchItem = document.createElement('div');
-                    searchItem.className = 'search-engine-item';
-                    if (index > 0) {
-                        searchItem.classList.add('hidden');
-                    }
-                    const searchInput = document.createElement('input');
-                    searchInput.type = 'text';
-                    searchInput.placeholder = engine.name;
-                    const searchBtn = document.createElement('button');
-                    searchBtn.textContent = '搜索';
-                    searchBtn.title = engine.name;
-                    const performSearch = () => {
-                        const query = searchInput.value.trim();
-                        if (!query) {
-                            alert('请输入搜索内容');
-                            return;
-                        }
-                        const url = engine.urlTemplate.replace('{query}', encodeURIComponent(query));
-                        window.open(url, '_blank');
-                        searchInput.value = '';
-                    };
-                    searchBtn.onclick = performSearch;
-                    searchInput.onkeypress = (e) => {
-                        if (e.key === 'Enter') performSearch();
-                    };
-                    searchItem.appendChild(searchInput);
-                    searchItem.appendChild(searchBtn);
-                    searchContainer.appendChild(searchItem);
+                visibleEngines.forEach((engine, index) => {
+                    searchContainer.appendChild(createSearchEngineItem(engine, {
+                        itemClass: 'search-engine-item',
+                        isHidden: index > 0 && !siteConfig.autoExpandContent
+                    }));
                 });
                 return searchContainer;
             };
+
             const createFavoritesModule = () => {
                 const buttonsGrid = document.createElement('div');
                 buttonsGrid.id = 'buttons-grid';
-                buttonsGridRef = buttonsGrid; // 保存引用
+                buttonsGridRef = buttonsGrid;
                 displayUsers.forEach((user) => {
-                    // 跳过被隐藏的项目
-                    if (user.hidden) return;
-
-                    const wrapper = document.createElement('div');
-                    wrapper.className = 'button-wrapper';
-                    wrapper.dataset.size = user.size || '1x';
-                    const button = document.createElement('a');
-                    button.className = 'user-button';
-                    button.href = user.url;
-                    button.textContent = user.name;
-                    if (user.color) button.style.setProperty('background-color', user.color, 'important');
-                    if (siteConfig.openInCurrentTab) {
-                        button.target = '_self';
-                        button.onmousedown = (e) => {
-                            if (e.button === 1) {
-                                e.preventDefault();
-                                window.open(button.href, '_blank');
-                            }
-                        };
-                    } else {
-                        button.target = '_blank';
-                    }
-                    wrapper.appendChild(button);
-                    buttonsGrid.appendChild(wrapper);
+                    if (!user.hidden) buttonsGrid.appendChild(createUserButtonElement(user));
                 });
                 if (siteConfig.autoExpandContent) {
                     buttonsGrid.classList.add('expanded');
@@ -2589,6 +2180,7 @@
                 }
                 return buttonsGrid;
             };
+
             const createButtonsModule = () => {
                 const isBottom = siteConfig.position === 'bottom';
                 const expandBtn = document.createElement('div');
@@ -2597,16 +2189,15 @@
                 expandBtn.title = siteConfig.autoExpandContent ? '收起' : '展开查看更多';
                 expandBtn.onclick = () => {
                     const buttonsGrid = buttonsGridRef;
+                    if (!buttonsGrid) return;
                     const isExpanded = buttonsGrid.classList.contains('expanded');
-                    const searchItems = document.querySelectorAll('.search-engine-item');
+                    const searchItems = panelContainer.querySelectorAll('.search-engine-item');
                     if (isExpanded) {
                         buttonsGrid.classList.remove('expanded');
                         panelContainer.classList.remove('content-expanded');
                         expandBtn.innerHTML = isBottom ? '▲' : '▼';
                         expandBtn.title = '展开查看更多';
-                        searchItems.forEach((item, idx) => {
-                            if (idx > 0) item.classList.add('hidden');
-                        });
+                        searchItems.forEach((item, idx) => { if (idx > 0) item.classList.add('hidden'); });
                     } else {
                         buttonsGrid.classList.add('expanded');
                         panelContainer.classList.add('content-expanded');
@@ -2615,281 +2206,116 @@
                         searchItems.forEach(item => item.classList.remove('hidden'));
                     }
                 };
-                const collectBtn = document.createElement('div');
-                collectBtn.className = 'action-button';
-                collectBtn.textContent = '★';
-                collectBtn.title = '收藏';
-                collectBtn.onclick = () => {
-                    const name = prompt('请输入收藏名称：', document.title);
-                    if (name) { platformUsers.push({ name, url: window.location.href, size: '1x' }); saveUsers(); renderPanel(); }
+
+                const makeBarBtn = (text, title, onClick) => {
+                    const btn = document.createElement('div');
+                    btn.className = 'action-button';
+                    btn.textContent = text;
+                    btn.title = title;
+                    btn.onclick = onClick;
+                    return btn;
                 };
-                const addBtn = document.createElement('div');
-                addBtn.className = 'action-button';
-                addBtn.textContent = '+';
-                addBtn.title = '添加';
-                addBtn.onclick = () => {
-                    const name = prompt('请输入用户名：');
-                    if (!name) return;
-                    const url = prompt('请输入用户主页链接：');
-                    if (url) { platformUsers.push({ name, url, size: '1x' }); saveUsers(); renderPanel(); }
-                };
-                const settingsBtn = document.createElement('div');
-                settingsBtn.className = 'action-button';
-                settingsBtn.textContent = '⚙';
-                settingsBtn.title = '高级设置';
-                settingsBtn.onclick = openSettings;
+
                 const buttonsContainer = document.createElement('div');
                 buttonsContainer.className = 'topbar-buttons-container';
                 buttonsContainer.appendChild(expandBtn);
-                buttonsContainer.appendChild(collectBtn);
-                buttonsContainer.appendChild(addBtn);
-                buttonsContainer.appendChild(settingsBtn);
+                buttonsContainer.appendChild(makeBarBtn('★', '收藏当前页', promptCollectCurrentPage));
+                buttonsContainer.appendChild(makeBarBtn('+', '添加导航', promptAddFavorite));
+                buttonsContainer.appendChild(makeBarBtn('⚙', '高级设置', openSettings));
                 return buttonsContainer;
             };
-            // 根据配置顺序创建并添加模块
+
             const mainContainer = document.createElement('div');
             mainContainer.className = 'favorites-buttons-container';
             const moduleCreators = {
-                'search': createSearchModule,
-                'favorites': createFavoritesModule,
-                'buttons': createButtonsModule
+                search: createSearchModule,
+                favorites: createFavoritesModule,
+                buttons: createButtonsModule
             };
-            // 按order排序，然后根据visible属性过滤
+
             const sortedModules = [...siteConfig.topBarModulesOrder].sort((a, b) => a.order - b.order);
             sortedModules.forEach(module => {
-                // 兼容旧版本：如果是字符串，直接使用；如果是对象，提取id和visible
                 const moduleId = typeof module === 'string' ? module : module.id;
                 const isVisible = typeof module === 'string' ? true : (module.visible !== false);
-
-                if (isVisible) {
-                    const creator = moduleCreators[moduleId];
-                    if (creator) {
-                        const moduleElement = creator();
-                        if (moduleElement) {
-                            mainContainer.appendChild(moduleElement);
-                        }
-                    }
+                if (isVisible && moduleCreators[moduleId]) {
+                    const moduleElement = moduleCreators[moduleId]();
+                    if (moduleElement) mainContainer.appendChild(moduleElement);
                 }
             });
 
-            // 添加临时关闭按钮到mainContainer中
             const tempCloseBtn = document.createElement('button');
             tempCloseBtn.className = 'temp-close-btn';
             tempCloseBtn.innerHTML = '×';
             tempCloseBtn.title = '临时关闭';
-            tempCloseBtn.onclick = () => {
-                panelContainer.style.display = 'none';
-            };
+            tempCloseBtn.onclick = () => { panelContainer.style.display = 'none'; };
             mainContainer.appendChild(tempCloseBtn);
 
             panelContainer.appendChild(mainContainer);
             return;
         }
 
-        // 常规模式（side/top）
+        // 常规侧边栏模式（left / right）
         const panelContainer = document.createElement('div');
         panelContainer.id = 'panel-container';
         if (wasExpanded || siteConfig.autoExpand) panelContainer.classList.add('expanded');
         container.appendChild(panelContainer);
 
-        // 标题栏（根据showTitle设置显示）
-        if (siteConfig.showTitle) {
-            const header = document.createElement('div');
-            header.className = 'panel-header';
-            const panelTitle = siteConfig.customPanelName || `${platformData[currentPlatform].name}导航`;
-            header.innerHTML = `
-                <div class="panel-title">${escapeHtml(panelTitle)}</div>
-                <div class="header-buttons">
-                    <div class="settings-button" title="高级设置">⚙</div>
-                    <div class="close-button">×</div>
-                </div>
-            `;
-            panelContainer.appendChild(header);
-            header.querySelector('.settings-button').onclick = openSettings;
-            header.querySelector('.close-button').onclick = () => {
-                panelContainer.classList.remove('expanded');
-                expandButton.style.display = 'flex';
-            };
-        }
+        renderPanelHeader(panelContainer);
 
-        // 创建搜索框（稍后根据位置添加）
         let searchContainer = null;
-        if (siteConfig.searchEngines.length > 0) {
+        const visibleEngines = siteConfig.searchEngines.filter(e => !e.hidden);
+        if (visibleEngines.length > 0) {
             searchContainer = document.createElement('div');
             searchContainer.className = 'search-container';
-
-            // 为每个搜索引擎创建一个搜索框
-            siteConfig.searchEngines.forEach((engine) => {
-                // 跳过被隐藏的搜索引擎
-                if (engine.hidden) return;
-
-                const searchBox = document.createElement('div');
-                searchBox.className = 'search-box';
-                searchBox.style.marginBottom = '6px';
-
-                const searchInput = document.createElement('input');
-                searchInput.className = 'search-input';
-                searchInput.placeholder = engine.name;
-
-                const searchButton = document.createElement('button');
-                searchButton.className = 'search-button';
-                searchButton.textContent = '搜索';
-
-                const performSearch = () => {
-                    const query = searchInput.value.trim();
-                    if (!query) {
-                        alert('请输入搜索内容');
-                        return;
-                    }
-                    const url = engine.urlTemplate.replace('{query}', encodeURIComponent(query));
-                    window.open(url, '_blank');
-                    searchInput.value = '';
-                };
-
-                searchButton.onclick = performSearch;
-                searchInput.onkeypress = (e) => {
-                    if (e.key === 'Enter') performSearch();
-                };
-
-                searchBox.appendChild(searchInput);
-                searchBox.appendChild(searchButton);
-                searchContainer.appendChild(searchBox);
+            visibleEngines.forEach((engine) => {
+                const box = createSearchEngineItem(engine, {
+                    itemClass: 'search-box',
+                    inputClass: 'search-input',
+                    btnClass: 'search-button'
+                });
+                box.style.marginBottom = '6px';
+                searchContainer.appendChild(box);
             });
+            const lastBox = searchContainer.lastElementChild;
+            if (lastBox) lastBox.style.marginBottom = '0';
         }
 
-        // 如果搜索框在顶部，先添加
         if (searchContainer && siteConfig.searchPosition === 'top') {
             panelContainer.appendChild(searchContainer);
         }
 
-        // 按钮网格
         const buttonsGrid = document.createElement('div');
         buttonsGrid.id = 'buttons-grid';
         displayUsers.forEach((user) => {
-            // 跳过被隐藏的项目
-            if (user.hidden) return;
-
-            const wrapper = document.createElement('div');
-            wrapper.className = 'button-wrapper';
-            wrapper.dataset.size = user.size || '1x';
-            const button = document.createElement('a');
-            button.className = 'user-button';
-                button.href = user.url;
-                button.textContent = user.name;
-                if (user.color) button.style.setProperty('background-color', user.color, 'important');
-
-                // 根据设置控制点击行为
-            if (siteConfig.openInCurrentTab) {
-                // 左键当前页，中键新页
-                button.target = '_self';
-                button.onmousedown = (e) => {
-                    if (e.button === 1) { // 中键
-                        e.preventDefault();
-                        window.open(button.href, '_blank');
-                    }
-                };
-            } else {
-                // 左键和中键都是新页
-                button.target = '_blank';
-            }
-
-            wrapper.appendChild(button);
-            buttonsGrid.appendChild(wrapper);
+            if (!user.hidden) buttonsGrid.appendChild(createUserButtonElement(user));
         });
-
         panelContainer.appendChild(buttonsGrid);
 
         // 操作按钮
         const buttonContainer = document.createElement('div');
         buttonContainer.className = 'button-container';
-
         const leftButtons = document.createElement('div');
         leftButtons.className = 'button-container-left';
-
         const rightButtons = document.createElement('div');
         rightButtons.className = 'button-container-right';
 
-        const buttonDefs = {
-            collect: {
-                text: '收藏', compact: false, action: () => {
-                    const name = prompt('请输入收藏名称：', document.title);
-                    if (name) { platformUsers.push({ name, url: window.location.href, size: '1x' }); saveUsers(); renderPanel(); }
-                }
-            },
-            add: {
-                text: '+', compact: true, action: () => {
-                    const name = prompt('请输入用户名：');
-                    if (!name) return;
-                    const url = prompt('请输入用户主页链接：');
-                    if (url) { platformUsers.push({ name, url, size: '1x' }); saveUsers(); renderPanel(); }
-                }
-            },
-            settings: { text: '⚙', compact: true, action: openSettings }
+        const makeActionBtn = (text, title, compact, onClick) => {
+            const btn = document.createElement('div');
+            btn.className = 'action-button' + (compact ? ' compact-button' : '');
+            btn.textContent = text;
+            if (title) btn.title = title;
+            btn.onclick = onClick;
+            return btn;
         };
 
-        // 展开按钮在最左边（仅顶栏模式）
-        if (siteConfig.position === 'top') {
-            const expandBtn = document.createElement('div');
-            expandBtn.className = 'action-button compact-button';
-            expandBtn.title = '展开查看更多';
-
-            // 根据autoExpandContent设置初始状态
-            if (siteConfig.autoExpandContent) {
-                buttonsGrid.classList.add('expanded');
-                panelContainer.classList.add('content-expanded');
-                expandBtn.innerHTML = '▲';
-                expandBtn.title = '收起';
-            } else {
-                expandBtn.innerHTML = '▼';
-            }
-
-            expandBtn.onclick = () => {
-                const isExpanded = buttonsGrid.classList.contains('expanded');
-
-                if (isExpanded) {
-                    buttonsGrid.classList.remove('expanded');
-                    panelContainer.classList.remove('content-expanded');
-                    expandBtn.innerHTML = '▼';
-                    expandBtn.title = '展开查看更多';
-                } else {
-                    buttonsGrid.classList.add('expanded');
-                    panelContainer.classList.add('content-expanded');
-                    expandBtn.innerHTML = '▲';
-                    expandBtn.title = '收起';
-                }
-            };
-            rightButtons.appendChild(expandBtn);
-        }
-
-        // 收藏按钮（星星图标）
-        const collectBtn = document.createElement('div');
-        collectBtn.className = 'action-button compact-button';
-        collectBtn.textContent = '★';
-        collectBtn.title = '收藏';
-        collectBtn.onclick = buttonDefs.collect.action;
-        rightButtons.appendChild(collectBtn);
-
-        // 添加按钮
-        const addBtn = document.createElement('div');
-        addBtn.className = 'action-button compact-button';
-        addBtn.textContent = '+';
-        addBtn.title = '添加';
-        addBtn.onclick = buttonDefs.add.action;
-        rightButtons.appendChild(addBtn);
-
-        // 设置按钮
-        const settingsBtn = document.createElement('div');
-        settingsBtn.className = 'action-button compact-button';
-        settingsBtn.textContent = '⚙';
-        settingsBtn.title = '高级设置';
-        settingsBtn.onclick = buttonDefs.settings.action;
-        rightButtons.appendChild(settingsBtn);
+        rightButtons.appendChild(makeActionBtn('★', '收藏当前页', true, promptCollectCurrentPage));
+        rightButtons.appendChild(makeActionBtn('+', '添加导航', true, promptAddFavorite));
+        rightButtons.appendChild(makeActionBtn('⚙', '高级设置', true, openSettings));
 
         buttonContainer.appendChild(leftButtons);
         buttonContainer.appendChild(rightButtons);
         panelContainer.appendChild(buttonContainer);
 
-        // 如果搜索框在底部，最后添加（在所有内容之后）
         if (searchContainer && siteConfig.searchPosition === 'bottom') {
             panelContainer.appendChild(searchContainer);
         }

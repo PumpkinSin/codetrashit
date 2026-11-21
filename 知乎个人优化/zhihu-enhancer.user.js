@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         知乎样式与功能增强
 // @namespace    https://www.zhihu.com/
-// @version      2.0.26
+// @version      2.0.30
 // @description  全面优化知乎阅读与创作体验：1) 阅读排版：适度放大正文/标题/评论/顶栏字号且不裁切正文行，支持5行摘要预览，点击左右空白区域快速折叠回答或问题详情；2) 侧栏与界面净化：左侧栏放大且窄屏不折叠，支持在偏好设置页拖拽排序、显隐及自定义分隔线，隐藏右栏冗余卡片与刘看山角标；3) 互动与信息增强：作者及评论区ID旁支持一键「屏蔽用户」与可选「+ 关注」，去除赞同数前「航海家」等前缀并在其旁直接显示发布与修改时间；4) 问题页与个人主页优化：问题顶部集中展示「浏览 · 关注」标签与操作按钮（写回答/关注问题/问题日志/评论）并隐藏邀请回答；个人主页展开完整简介、放大头像、Tab栏改用紧凑胶囊分段框并将「搜索动态」框与精简「个人成就」移至列表顶栏（保留按时间排序），他人主页隐藏右侧冗余卡片并将「屏蔽用户」移至关注/发私信旁；5) 创作体验升级：写回答工具栏双排紧凑对齐、展开「更多」菜单中的帮助/设置/MD开关、创作助手与发布设置合并为右侧紧凑悬浮窗（支持定时「选择时间」按钮与默认不展开设置）；专栏写文章标题栏支持直接粘贴图片设为封面；6) 所有功能均可在知乎「偏好设置」页内开关与自定义。
 // @author       AI
 // @match        *://*.zhihu.com/*
@@ -675,6 +675,47 @@
         body.zh-sidebar-hamburger .ztext {
             word-break: break-word !important;
             overflow-wrap: anywhere !important;
+        }
+        /* 窄屏下防止信息流封面图上移遮挡标题 */
+        body.zh-sidebar-hamburger .ContentItem-title {
+            position: relative !important;
+            z-index: 1 !important;
+            margin-bottom: 8px !important;
+        }
+        body.zh-sidebar-hamburger .RichContent {
+            display: block !important;
+            position: relative !important;
+            margin-top: 6px !important;
+        }
+        body.zh-sidebar-hamburger .RichContent-cover {
+            position: relative !important;
+            top: auto !important;
+            left: auto !important;
+            float: none !important;
+            margin: 0 0 8px 0 !important;
+            max-width: 100% !important;
+            height: 105px !important;
+            overflow: hidden !important;
+            border-radius: 6px !important;
+        }
+        body.zh-sidebar-hamburger .RichContent-cover-inner {
+            position: relative !important;
+            top: auto !important;
+            left: auto !important;
+            width: 100% !important;
+            height: 100% !important;
+            transform: none !important;
+            overflow: hidden !important;
+        }
+        body.zh-sidebar-hamburger .RichContent-cover img {
+            position: static !important;
+            top: auto !important;
+            left: auto !important;
+            transform: none !important;
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+            display: block !important;
         }
         /* 左侧栏窄屏自动收起为仅图标模式（主内容区空间不足时自动触发） */
         body.zh-sidebar-collapsed [data-zh-sidebar-col="true"] {
@@ -1868,6 +1909,17 @@
             justify-content: flex-start !important;
             gap: 4px 6px !important;
             padding: 6px 8px !important;
+        }
+        /* 窄窗下底部发布栏自动换行，防止右侧“提交修改”等按钮被裁切 */
+        body.zh-sidebar-hamburger #AnswerFormPortalContainer [data-zh-publish-bar-wrap="true"] {
+            flex-wrap: wrap !important;
+            gap: 6px 8px !important;
+            padding: 8px !important;
+        }
+        body.zh-sidebar-hamburger #AnswerFormPortalContainer [data-zh-publish-bar="true"] {
+            flex-wrap: wrap !important;
+            max-width: 100% !important;
+            gap: 6px !important;
         }
         #AnswerFormPortalContainer .toolbarV3 .moreArea[data-zh-more-unpacked="true"] .Popover > button,
         #AnswerFormPortalContainer .toolbarV3 .ToolbarButton.zh-more-hidden-trigger,
@@ -6590,13 +6642,29 @@
     }
 
     // =========================================================================
-    // 8. 任意页面：展开回答或问题详情后，点击左右空白区域折叠
+    // 8. 任意页面：点击左右空白区域展开或折叠回答/问题详情
     // =========================================================================
     function findCollapseButton(itemEl) {
         const buttons = itemEl.querySelectorAll('button');
         for (const btn of buttons) {
             const text = btn.textContent.replace(/\s+/g, '');
             if (text === '收起' || text === '收起全文' || (text.startsWith('收起') && text.length <= 4)) {
+                return btn;
+            }
+        }
+        return null;
+    }
+
+    function findExpandButton(itemEl) {
+        const moreBtn = itemEl.querySelector('button.ContentItem-more, button.QuestionRichText-more');
+        if (moreBtn && !moreBtn.hasAttribute('data-zh-hide-expand-btn')) {
+            return moreBtn;
+        }
+        const buttons = itemEl.querySelectorAll('button');
+        for (const btn of buttons) {
+            if (btn.hasAttribute('data-zh-hide-expand-btn') || btn.classList.contains('zh-q-action-btn')) continue;
+            const text = btn.textContent.replace(/\s+/g, '');
+            if (text === '阅读全文' || text === '展开阅读全文' || text === '展开全文' || text === '显示全部') {
                 return btn;
             }
         }
@@ -6628,18 +6696,21 @@
                 return;
             }
 
-            // 收集当前页面中所有处于“已展开”状态的回答或问题详情（存在“收起”按钮）
+            // 收集当前页面中可折叠或可展开的回答或问题详情
             const items = document.querySelectorAll(
                 '.AnswerItem, .ContentItem, .TopstoryItem, ' +
                 '[data-za-detail-view-path-module="QuestionDescription"], .QuestionHeader'
             );
             let targetItem = null;
             let targetBtn = null;
+            let isCollapseAction = false;
             let bestDist = Infinity;
             const vh = window.innerHeight || document.documentElement.clientHeight;
 
             for (const item of items) {
-                const btn = findCollapseButton(item);
+                const collapseBtn = findCollapseButton(item);
+                const expandBtn = collapseBtn ? null : findExpandButton(item);
+                const btn = collapseBtn || expandBtn;
                 if (!btn) continue;
 
                 const rect = item.getBoundingClientRect();
@@ -6651,16 +6722,18 @@
                 if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
                     targetItem = item;
                     targetBtn = btn;
+                    isCollapseAction = Boolean(collapseBtn);
                     break;
                 }
 
-                // 否则匹配视口内距离点击 Y 坐标最近的已展开回答
+                // 否则匹配视口内距离点击 Y 坐标最近的回答
                 if (rect.bottom > 0 && rect.top < vh) {
                     const dist = Math.min(Math.abs(e.clientY - rect.top), Math.abs(e.clientY - rect.bottom));
                     if (dist < bestDist) {
                         bestDist = dist;
                         targetItem = item;
                         targetBtn = btn;
+                        isCollapseAction = Boolean(collapseBtn);
                     }
                 }
             }
@@ -6669,7 +6742,7 @@
                 const rectBefore = targetItem.getBoundingClientRect();
                 targetBtn.click();
                 // 若折叠前回答顶部已滚出视口上方，则平滑回到该回答顶部，避免迷失位置
-                if (rectBefore.top < 60) {
+                if (isCollapseAction && rectBefore.top < 60) {
                     requestAnimationFrame(() => {
                         const rectAfter = targetItem.getBoundingClientRect();
                         if (rectAfter.top < 60) {
@@ -6826,7 +6899,7 @@
             { key: 'showBlockBtn', label: '作者/评论 ID 旁显示「屏蔽用户」按钮', desc: '在回答、文章作者及评论区用户名右侧添加屏蔽用户按钮' },
             { key: 'showFollowBtn', label: '作者/评论 ID 旁显示「+ 关注」按钮', desc: '在作者及评论区用户名右侧额外添加关注/取消关注按钮' },
             { key: 'showAnswerTime', label: '赞同数旁显示回答/修改时间', desc: '在「xx 人赞同了该回答/文章/想法」右侧显示发布与修改时间' },
-            { key: 'enableBlankCollapse', label: '点击左右空白区域折叠回答/问题', desc: '回答或问题详情展开后，单击左右两侧空白处即可快速收起' },
+            { key: 'enableBlankCollapse', label: '点击左右空白区域展开/折叠回答或问题', desc: '单击回答或问题详情左右两侧空白处，可快速展开或收起内容' },
             { key: 'showViewTag', label: '问题顶部显示「浏览 · 关注」标签', desc: '将问题浏览数与关注数以标签形式前置显示在话题标签最前面' },
             { key: 'blueViewTag', label: '问题顶部「浏览 · 关注」标签改为蓝底白字', desc: '开启后该标签将使用知乎主题蓝底白字高亮显示' },
             { key: 'defaultCloseAiAssistant', label: '默认不展开创作助手', desc: '打开写回答时默认关闭右侧创作助手面板（点击顶栏「助手」可随时展开）' },
@@ -7863,7 +7936,7 @@
         const publishBtn = Array.from(portal.querySelectorAll('button')).find((b) => {
             if (b.classList.contains('zh-toggle-publish-settings-btn')) return false;
             const t = (b.textContent || '').replace(/\s+/g, '');
-            return t === '发布回答' || t === '提交回答' || t === '更新回答';
+            return t === '发布回答' || t === '提交回答' || t === '更新回答' || t === '提交修改' || t === '保存修改';
         });
         if (!publishBtn) return;
 
@@ -8137,6 +8210,8 @@
                 input.type = 'search';
                 input.className = 'zh-profile-search-input';
                 input.placeholder = placeholder;
+                const initKw = new URLSearchParams(location.search).get('keyword');
+                if (initKw) input.value = initKw;
                 const btn = document.createElement('button');
                 btn.type = 'submit';
                 btn.className = 'zh-profile-search-btn';
@@ -8149,7 +8224,8 @@
                     e.preventDefault();
                     const q = input.value.trim();
                     if (!q) return;
-                    location.href = `${basePath}/search?q=${encodeURIComponent(q)}`;
+                    const pathBefore = location.pathname.startsWith(`${basePath}/search`) ? basePath : location.pathname;
+                    location.href = `${basePath}/search?keyword=${encodeURIComponent(q)}&pathBefore=${encodeURIComponent(pathBefore)}`;
                 });
 
                 const optionsEl = lh.querySelector('.List-headerOptions');
