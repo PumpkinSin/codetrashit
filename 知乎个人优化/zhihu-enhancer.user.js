@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         知乎样式与功能增强
 // @namespace    https://www.zhihu.com/
-// @version      2.0.22
+// @version      2.0.26
 // @description  全面优化知乎阅读与创作体验：1) 阅读排版：适度放大正文/标题/评论/顶栏字号且不裁切正文行，支持5行摘要预览，点击左右空白区域快速折叠回答或问题详情；2) 侧栏与界面净化：左侧栏放大且窄屏不折叠，支持在偏好设置页拖拽排序、显隐及自定义分隔线，隐藏右栏冗余卡片与刘看山角标；3) 互动与信息增强：作者及评论区ID旁支持一键「屏蔽用户」与可选「+ 关注」，去除赞同数前「航海家」等前缀并在其旁直接显示发布与修改时间；4) 问题页与个人主页优化：问题顶部集中展示「浏览 · 关注」标签与操作按钮（写回答/关注问题/问题日志/评论）并隐藏邀请回答；个人主页展开完整简介、放大头像、Tab栏改用紧凑胶囊分段框并将「搜索动态」框与精简「个人成就」移至列表顶栏（保留按时间排序），他人主页隐藏右侧冗余卡片并将「屏蔽用户」移至关注/发私信旁；5) 创作体验升级：写回答工具栏双排紧凑对齐、展开「更多」菜单中的帮助/设置/MD开关、创作助手与发布设置合并为右侧紧凑悬浮窗（支持定时「选择时间」按钮与默认不展开设置）；专栏写文章标题栏支持直接粘贴图片设为封面；6) 所有功能均可在知乎「偏好设置」页内开关与自定义。
 // @author       AI
 // @match        *://*.zhihu.com/*
@@ -1410,7 +1410,8 @@
             min-height: 200px !important;
             height: auto !important;
         }
-        #AnswerFormPortalContainer .AnswerAdd > div:first-child {
+        #AnswerFormPortalContainer .AnswerAdd > div:first-child,
+        #AnswerFormPortalContainer [data-zh-editor-topbar="true"] {
             display: flex !important;
             align-items: center !important;
             justify-content: space-between !important;
@@ -1421,10 +1422,13 @@
             margin: 0 !important;
             box-sizing: border-box !important;
         }
-        #AnswerFormPortalContainer .AnswerAdd > div:first-child > ul.Tabs {
+        #AnswerFormPortalContainer .AnswerAdd > div:first-child > ul.Tabs,
+        #AnswerFormPortalContainer [data-zh-editor-topbar="true"] > ul.Tabs,
+        #AnswerFormPortalContainer [data-zh-editor-topbar="true"] [data-zh-hide-editor-hint="true"] {
             display: none !important;
         }
-        #AnswerFormPortalContainer .AnswerAdd > div:first-child > .zh-top-undo-group {
+        #AnswerFormPortalContainer .AnswerAdd > div:first-child > .zh-top-undo-group,
+        #AnswerFormPortalContainer [data-zh-editor-topbar="true"] > .zh-top-undo-group {
             display: inline-flex !important;
             align-items: center !important;
             gap: 8px !important;
@@ -1436,7 +1440,8 @@
         #AnswerFormPortalContainer .ToolbarButton .togglerIcon {
             display: none !important;
         }
-        #AnswerFormPortalContainer .AnswerAdd > div:first-child > .zh-top-toolbar-slot {
+        #AnswerFormPortalContainer .AnswerAdd > div:first-child > .zh-top-toolbar-slot,
+        #AnswerFormPortalContainer [data-zh-editor-topbar="true"] > .zh-top-toolbar-slot {
             display: flex !important;
             align-items: center !important;
             justify-content: space-between !important;
@@ -1456,10 +1461,12 @@
         html[data-theme="dark"] #AnswerFormPortalContainer button[aria-label="创作助手"] img {
             filter: grayscale(100%) contrast(1.1) brightness(1.1) !important;
         }
-        #AnswerFormPortalContainer .AnswerAdd > div:first-child > .zh-top-toolbar-slot::-webkit-scrollbar {
+        #AnswerFormPortalContainer .AnswerAdd > div:first-child > .zh-top-toolbar-slot::-webkit-scrollbar,
+        #AnswerFormPortalContainer [data-zh-editor-topbar="true"] > .zh-top-toolbar-slot::-webkit-scrollbar {
             display: none !important;
         }
-        #AnswerFormPortalContainer .AnswerAdd > div:first-child > div:last-child:not(.zh-top-toolbar-slot):not(.zh-top-undo-group) {
+        #AnswerFormPortalContainer .AnswerAdd > div:first-child > div:last-child:not(.zh-top-toolbar-slot):not(.zh-top-undo-group),
+        #AnswerFormPortalContainer [data-zh-editor-topbar="true"] > div:last-child:not(.zh-top-toolbar-slot):not(.zh-top-undo-group) {
             flex-shrink: 0 !important;
             margin-left: 4px !important;
             white-space: nowrap !important;
@@ -1820,6 +1827,47 @@
         }
         #AnswerFormPortalContainer .toolbarV3 .ToolbarDivider:last-child {
             display: none !important;
+        }
+        /* 窄窗下的编辑器工具栏自适应：第1行留左“撤销/重做”+右“全屏编辑”，红框工具组独立占第2行，原第2行(.toolbarV3)自然下移到第3行 */
+        body.zh-sidebar-hamburger #AnswerFormPortalContainer .AnswerAdd > div:first-child,
+        body.zh-sidebar-hamburger #AnswerFormPortalContainer [data-zh-editor-topbar="true"] {
+            flex-wrap: wrap !important;
+            justify-content: space-between !important;
+            gap: 4px !important;
+            padding: 6px 8px !important;
+        }
+        body.zh-sidebar-hamburger #AnswerFormPortalContainer .AnswerAdd > div:first-child > .zh-top-undo-group,
+        body.zh-sidebar-hamburger #AnswerFormPortalContainer [data-zh-editor-topbar="true"] > .zh-top-undo-group {
+            order: 1 !important;
+            margin-right: 4px !important;
+            gap: 4px !important;
+        }
+        body.zh-sidebar-hamburger #AnswerFormPortalContainer .AnswerAdd > div:first-child > div:last-child:not(.zh-top-toolbar-slot):not(.zh-top-undo-group),
+        body.zh-sidebar-hamburger #AnswerFormPortalContainer [data-zh-editor-topbar="true"] > div:last-child:not(.zh-top-toolbar-slot):not(.zh-top-undo-group) {
+            order: 2 !important;
+            margin-left: auto !important;
+        }
+        body.zh-sidebar-hamburger #AnswerFormPortalContainer .AnswerAdd > div:first-child > .zh-top-toolbar-slot,
+        body.zh-sidebar-hamburger #AnswerFormPortalContainer [data-zh-editor-topbar="true"] > .zh-top-toolbar-slot {
+            order: 3 !important;
+            flex: 1 0 100% !important;
+            width: 100% !important;
+            flex-wrap: wrap !important;
+            justify-content: space-between !important;
+            overflow-x: visible !important;
+            margin: 4px 0 0 0 !important;
+            padding-top: 6px !important;
+            border-top: 1px solid #f0f2f7 !important;
+            gap: 2px 4px !important;
+        }
+        html[data-theme="dark"] body.zh-sidebar-hamburger #AnswerFormPortalContainer .AnswerAdd > div:first-child > .zh-top-toolbar-slot,
+        html[data-theme="dark"] body.zh-sidebar-hamburger #AnswerFormPortalContainer [data-zh-editor-topbar="true"] > .zh-top-toolbar-slot {
+            border-top-color: #2e3035 !important;
+        }
+        body.zh-sidebar-hamburger #AnswerFormPortalContainer .toolbarV3 {
+            justify-content: flex-start !important;
+            gap: 4px 6px !important;
+            padding: 6px 8px !important;
         }
         #AnswerFormPortalContainer .toolbarV3 .moreArea[data-zh-more-unpacked="true"] .Popover > button,
         #AnswerFormPortalContainer .toolbarV3 .ToolbarButton.zh-more-hidden-trigger,
@@ -7580,9 +7628,27 @@
     function moveSecondaryToolsToTopBar() {
         const portal = document.getElementById('AnswerFormPortalContainer');
         if (!portal) return;
-        const headerBar = portal.querySelector('.AnswerAdd > div:first-child');
+        let headerBar = portal.querySelector('.AnswerAdd > div:first-child, .AnswerForm > div:first-child');
         const toolbar = portal.querySelector('.toolbarV3');
-        if (!headerBar || !toolbar) return;
+        if (!toolbar) return;
+        if (!headerBar || headerBar.contains(toolbar)) {
+            const fsEl = Array.from(portal.querySelectorAll('button, span, div')).find((el) => el.textContent.trim() === '全屏编辑');
+            let cur = fsEl ? fsEl.parentElement : null;
+            while (cur && cur !== portal) {
+                if (!cur.contains(toolbar) && cur.clientWidth > 300 && cur.clientHeight >= 28 && cur.clientHeight <= 80) {
+                    headerBar = cur;
+                    break;
+                }
+                cur = cur.parentElement;
+            }
+        }
+        if (!headerBar || headerBar.contains(toolbar)) return;
+        headerBar.setAttribute('data-zh-editor-topbar', 'true');
+        Array.from(headerBar.children).forEach((ch) => {
+            if (ch.textContent.trim() === '本回答为图文回答') {
+                ch.setAttribute('data-zh-hide-editor-hint', 'true');
+            }
+        });
 
         let undoGroup = headerBar.querySelector('.zh-top-undo-group');
         if (!undoGroup) {
