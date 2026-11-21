@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         知乎样式与功能增强
 // @namespace    https://www.zhihu.com/
-// @version      2.0.9
+// @version      2.0.11
 // @description  全面优化知乎阅读与创作体验：1) 阅读排版：适度放大正文/标题/评论/顶栏字号且不裁切正文行，支持5行摘要预览，点击左右空白区域快速折叠回答或问题详情；2) 侧栏与界面净化：左侧栏放大且窄屏不折叠，支持在偏好设置页拖拽排序、显隐及自定义分隔线，隐藏右栏冗余卡片与刘看山角标；3) 互动与信息增强：作者及评论区ID旁支持一键「屏蔽用户」与可选「+ 关注」，去除赞同数前「航海家」等前缀并在其旁直接显示发布与修改时间；4) 问题页与个人主页优化：问题顶部集中展示「浏览 · 关注」标签与操作按钮（写回答/关注问题/问题日志/评论）并隐藏邀请回答；个人主页展开完整简介、放大头像、Tab栏改用紧凑胶囊分段框并将「搜索动态」框与精简「个人成就」移至列表顶栏（保留按时间排序），他人主页隐藏右侧冗余卡片并将「屏蔽用户」移至关注/发私信旁；5) 创作体验升级：写回答工具栏双排紧凑对齐、展开「更多」菜单中的帮助/设置/MD开关、创作助手与发布设置合并为右侧紧凑悬浮窗（支持定时「选择时间」按钮与默认不展开设置）；专栏写文章标题栏支持直接粘贴图片设为封面；6) 所有功能均可在知乎「偏好设置」页内开关与自定义。
 // @author       AI
 // @match        *://*.zhihu.com/*
@@ -56,6 +56,9 @@
         disableEntityAiLink: true,
         scaleProfileAvatar: false,
         profileAvatarBg: 'mosaic',
+        profileAvatarMosaicSize: 16,
+        profileAvatarMosaicColor: '#e5e7eb',
+        profileAvatarMosaicBg: '#ffffff',
         fullProfileCover: false,
         hideSearchHotHint: false,
         sidebarCollapsed: false,
@@ -900,14 +903,14 @@
         }
         body.zh-scale-profile-avatar.zh-avatar-bg-mosaic .ProfileHeader-avatar,
         body.zh-scale-profile-avatar.zh-avatar-bg-mosaic [data-zh-profile-avatar="true"] {
-            background-color: #ffffff !important;
+            background-color: var(--zh-mosaic-base, #ffffff) !important;
             background-image:
-                linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
-                linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
-                linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
-                linear-gradient(-45deg, transparent 75%, #e5e7eb 75%) !important;
-            background-size: 16px 16px !important;
-            background-position: 0 0, 0 8px, 8px -8px, -8px 0 !important;
+                linear-gradient(45deg, var(--zh-mosaic-color, #e5e7eb) 25%, transparent 25%),
+                linear-gradient(-45deg, var(--zh-mosaic-color, #e5e7eb) 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, var(--zh-mosaic-color, #e5e7eb) 75%),
+                linear-gradient(-45deg, transparent 75%, var(--zh-mosaic-color, #e5e7eb) 75%) !important;
+            background-size: var(--zh-mosaic-size, 16px) var(--zh-mosaic-size, 16px) !important;
+            background-position: 0 0, 0 var(--zh-mosaic-half, 8px), var(--zh-mosaic-half, 8px) var(--zh-mosaic-neg-half, -8px), var(--zh-mosaic-neg-half, -8px) 0 !important;
         }
         body.zh-scale-profile-avatar .ProfileHeader-avatar img,
         body.zh-scale-profile-avatar [data-zh-profile-avatar="true"] img {
@@ -6517,6 +6520,13 @@
         } else {
             document.body.style.removeProperty('--zh-avatar-bg');
         }
+        const mSize = Math.max(4, Math.min(64, Number(settings.profileAvatarMosaicSize) || 16));
+        const mHalf = mSize / 2;
+        document.body.style.setProperty('--zh-mosaic-size', `${mSize}px`);
+        document.body.style.setProperty('--zh-mosaic-half', `${mHalf}px`);
+        document.body.style.setProperty('--zh-mosaic-neg-half', `${-mHalf}px`);
+        document.body.style.setProperty('--zh-mosaic-color', settings.profileAvatarMosaicColor || '#e5e7eb');
+        document.body.style.setProperty('--zh-mosaic-base', settings.profileAvatarMosaicBg || '#ffffff');
     }
 
     function openScriptSettingsPage() {
@@ -6562,7 +6572,7 @@
             { key: 'blueViewTag', label: '问题顶部「浏览 · 关注」标签改为蓝底白字', desc: '开启后该标签将使用知乎主题蓝底白字高亮显示' },
             { key: 'defaultCloseAiAssistant', label: '默认不展开创作助手', desc: '打开写回答时默认关闭右侧创作助手面板（点击顶栏「助手」可随时展开）' },
             { key: 'disableEntityAiLink', label: '关闭正文 AI 词条（直答/看山）高亮链接', desc: '隐藏正文词语旁的四角星图标并取消蓝色高亮与点击跳转，恢复为普通文本' },
-            { key: 'scaleProfileAvatar', label: '放大并完整缩放个人主页头像', desc: '开启后将个人主页头像框放大至 200px 并居中完整显示小图（默认关闭保持原生尺寸）' },
+            { key: 'scaleProfileAvatar', label: '完整显示个人主页头像（不裁切）', desc: '开启后按原图比例完整居中显示个人主页头像，不再裁剪边缘（默认关闭保持原生样式）' },
             { key: 'fullProfileCover', label: '完整显示个人主页顶部海报（封面图）', desc: '开启后不再裁剪个人主页顶部自定义海报图片，按原图比例完整显示（头像会轻微遮挡左下角）' },
             { key: 'hideSearchHotHint', label: '隐藏搜索框预设热点提示', desc: '开启后清空顶部搜索框的默认热搜词提示，并隐藏下拉弹窗中的知乎热搜/猜你想搜推荐（默认关闭）' }
         ];
@@ -6609,64 +6619,151 @@
             if (def.key === 'scaleProfileAvatar') {
                 avatarBgRow = document.createElement('div');
                 avatarBgRow.className = 'zh-pref-row';
-                avatarBgRow.style.cssText = `padding-left: 16px; display: ${settings.scaleProfileAvatar ? 'flex' : 'none'}; align-items: center; justify-content: space-between; gap: 12px;`;
+                avatarBgRow.style.cssText = `padding-left: 16px; display: ${settings.scaleProfileAvatar ? 'flex' : 'none'}; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap;`;
 
                 const bgInfo = document.createElement('div');
                 bgInfo.className = 'zh-pref-info';
-                bgInfo.innerHTML = '<div class="zh-pref-title">头像缩放背景样式</div><div class="zh-pref-desc">开启头像缩放时小图四周的填充背景，默认马赛克透明网格</div>';
+                bgInfo.innerHTML = '<div class="zh-pref-title">头像留白背景样式</div><div class="zh-pref-desc">当头像非正方形或需要留白填充时，可选「马赛克」（自定义格子大小与双色）或「纯色」</div>';
 
                 const bgControls = document.createElement('div');
-                bgControls.style.cssText = 'display: flex; align-items: center; gap: 6px; flex-wrap: wrap;';
+                bgControls.style.cssText = 'display: flex; flex-direction: column; align-items: flex-end; gap: 8px;';
 
-                const presets = [
-                    { val: 'mosaic', label: '马赛克' },
-                    { val: '#ffffff', label: '纯白' },
-                    { val: '#f4f6f9', label: '浅灰' },
-                    { val: '#191b1f', label: '深黑' }
-                ];
-                const presetBtns = [];
-                const colorInput = document.createElement('input');
-                colorInput.type = 'color';
-                colorInput.title = '自定义背景色';
-                colorInput.value = (settings.profileAvatarBg && settings.profileAvatarBg !== 'mosaic') ? settings.profileAvatarBg : '#ffffff';
-                colorInput.style.cssText = 'width: 28px; height: 26px; padding: 0; border: 1px solid #d0d7de; border-radius: 4px; cursor: pointer; background: transparent;';
+                const typeRow = document.createElement('div');
+                typeRow.style.cssText = 'display: flex; align-items: center; gap: 6px;';
+                const mosaicSubRow = document.createElement('div');
+                mosaicSubRow.style.cssText = 'display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end;';
+                const solidSubRow = document.createElement('div');
+                solidSubRow.style.cssText = 'display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end;';
 
-                const syncPresetStyles = () => {
-                    const cur = settings.profileAvatarBg || 'mosaic';
-                    presetBtns.forEach(({ btn, val }) => {
-                        const active = cur.toLowerCase() === val.toLowerCase();
-                        btn.style.borderColor = active ? '#1772f6' : '#d0d7de';
-                        btn.style.color = active ? '#1772f6' : 'inherit';
-                        btn.style.fontWeight = active ? '600' : '400';
-                    });
-                    if (cur !== 'mosaic' && /^#[0-9a-f]{6}$/i.test(cur)) {
-                        colorInput.value = cur;
-                    }
-                };
-
-                presets.forEach(({ val, label }) => {
+                const makeChipBtn = (label) => {
                     const b = document.createElement('button');
                     b.type = 'button';
                     b.textContent = label;
                     b.style.cssText = 'height: 26px; padding: 0 10px; font-size: 12px; border: 1px solid #d0d7de; border-radius: 4px; background: transparent; cursor: pointer;';
+                    return b;
+                };
+                const setChipActive = (btn, active) => {
+                    btn.style.borderColor = active ? '#1772f6' : '#d0d7de';
+                    btn.style.color = active ? '#1772f6' : 'inherit';
+                    btn.style.fontWeight = active ? '600' : '400';
+                };
+
+                const mosaicModeBtn = makeChipBtn('1. 马赛克');
+                const solidModeBtn = makeChipBtn('2. 纯色');
+                typeRow.appendChild(mosaicModeBtn);
+                typeRow.appendChild(solidModeBtn);
+
+                // 马赛克子类：大小 + 格子色 + 底色
+                const sizePresets = [
+                    { size: 8, label: '小' },
+                    { size: 16, label: '中' },
+                    { size: 24, label: '大' },
+                    { size: 32, label: '超大' }
+                ];
+                const sizeBtns = sizePresets.map(({ size, label }) => {
+                    const b = makeChipBtn(label);
+                    b.addEventListener('click', () => {
+                        settings.profileAvatarBg = 'mosaic';
+                        settings.profileAvatarMosaicSize = size;
+                        saveSettings(settings);
+                        applySettingsClasses();
+                        syncBgControls();
+                    });
+                    mosaicSubRow.appendChild(b);
+                    return { btn: b, size };
+                });
+
+                const makeColorPicker = (titleText, initialVal, onChange) => {
+                    const wrap = document.createElement('label');
+                    wrap.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #646973; cursor: pointer;';
+                    wrap.title = titleText;
+                    const txt = document.createElement('span');
+                    txt.textContent = titleText;
+                    const inp = document.createElement('input');
+                    inp.type = 'color';
+                    inp.value = /^#[0-9a-f]{6}$/i.test(initialVal || '') ? initialVal : '#ffffff';
+                    inp.style.cssText = 'width: 24px; height: 24px; padding: 0; border: 1px solid #d0d7de; border-radius: 4px; cursor: pointer; background: transparent;';
+                    inp.addEventListener('input', () => onChange(inp.value));
+                    wrap.appendChild(txt);
+                    wrap.appendChild(inp);
+                    return { wrap, inp };
+                };
+
+                const mosaicColorPicker = makeColorPicker('格子色', settings.profileAvatarMosaicColor || '#e5e7eb', (v) => {
+                    settings.profileAvatarBg = 'mosaic';
+                    settings.profileAvatarMosaicColor = v;
+                    saveSettings(settings);
+                    applySettingsClasses();
+                });
+                const mosaicBasePicker = makeColorPicker('底色', settings.profileAvatarMosaicBg || '#ffffff', (v) => {
+                    settings.profileAvatarBg = 'mosaic';
+                    settings.profileAvatarMosaicBg = v;
+                    saveSettings(settings);
+                    applySettingsClasses();
+                });
+                mosaicSubRow.appendChild(mosaicColorPicker.wrap);
+                mosaicSubRow.appendChild(mosaicBasePicker.wrap);
+
+                // 纯色子类：预设 + 颜色选择器
+                const solidPresets = [
+                    { val: '#ffffff', label: '纯白' },
+                    { val: '#f4f6f9', label: '浅灰' },
+                    { val: '#191b1f', label: '深黑' }
+                ];
+                const solidBtns = solidPresets.map(({ val, label }) => {
+                    const b = makeChipBtn(label);
                     b.addEventListener('click', () => {
                         settings.profileAvatarBg = val;
                         saveSettings(settings);
                         applySettingsClasses();
-                        syncPresetStyles();
+                        syncBgControls();
                     });
-                    presetBtns.push({ btn: b, val });
-                    bgControls.appendChild(b);
+                    solidSubRow.appendChild(b);
+                    return { btn: b, val };
                 });
-
-                colorInput.addEventListener('input', () => {
-                    settings.profileAvatarBg = colorInput.value;
+                const solidColorPicker = makeColorPicker('自定义', (settings.profileAvatarBg && settings.profileAvatarBg !== 'mosaic') ? settings.profileAvatarBg : '#ffffff', (v) => {
+                    settings.profileAvatarBg = v;
                     saveSettings(settings);
                     applySettingsClasses();
-                    syncPresetStyles();
+                    syncBgControls();
                 });
-                bgControls.appendChild(colorInput);
-                syncPresetStyles();
+                solidSubRow.appendChild(solidColorPicker.wrap);
+
+                function syncBgControls() {
+                    const cur = settings.profileAvatarBg || 'mosaic';
+                    const isMosaic = cur === 'mosaic';
+                    setChipActive(mosaicModeBtn, isMosaic);
+                    setChipActive(solidModeBtn, !isMosaic);
+                    mosaicSubRow.style.display = isMosaic ? 'flex' : 'none';
+                    solidSubRow.style.display = isMosaic ? 'none' : 'flex';
+
+                    const curSize = Number(settings.profileAvatarMosaicSize) || 16;
+                    sizeBtns.forEach(({ btn, size }) => setChipActive(btn, curSize === size));
+                    solidBtns.forEach(({ btn, val }) => setChipActive(btn, !isMosaic && cur.toLowerCase() === val.toLowerCase()));
+                    if (!isMosaic && /^#[0-9a-f]{6}$/i.test(cur)) {
+                        solidColorPicker.inp.value = cur;
+                    }
+                }
+
+                mosaicModeBtn.addEventListener('click', () => {
+                    settings.profileAvatarBg = 'mosaic';
+                    saveSettings(settings);
+                    applySettingsClasses();
+                    syncBgControls();
+                });
+                solidModeBtn.addEventListener('click', () => {
+                    if (!settings.profileAvatarBg || settings.profileAvatarBg === 'mosaic') {
+                        settings.profileAvatarBg = solidColorPicker.inp.value || '#ffffff';
+                    }
+                    saveSettings(settings);
+                    applySettingsClasses();
+                    syncBgControls();
+                });
+
+                bgControls.appendChild(typeRow);
+                bgControls.appendChild(mosaicSubRow);
+                bgControls.appendChild(solidSubRow);
+                syncBgControls();
 
                 avatarBgRow.appendChild(bgInfo);
                 avatarBgRow.appendChild(bgControls);
@@ -6980,9 +7077,116 @@
         renderQuickRepliesPref();
         quickBox.appendChild(quickListEl);
 
+        // 配置导入与导出
+        const backupBox = document.createElement('div');
+        backupBox.className = 'zh-pref-row';
+        backupBox.style.cssText = 'margin-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;';
+        const backupInfo = document.createElement('div');
+        backupInfo.className = 'zh-pref-info';
+        backupInfo.innerHTML = '<div class="zh-pref-title">配置导入与导出</div><div class="zh-pref-desc">将当前所有脚本开关、侧栏排序、私信分类与常用回复等设置导出为 JSON 文件备份，或从备份文件恢复</div>';
+
+        const backupControls = document.createElement('div');
+        backupControls.style.cssText = 'display: flex; align-items: center; gap: 8px; flex-wrap: wrap;';
+        const backupMsg = document.createElement('span');
+        backupMsg.style.cssText = 'font-size: 12px; color: #1772f6;';
+
+        const makeBackupBtn = (text) => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'zh-sort-btn';
+            b.style.cssText = 'padding: 5px 12px; font-size: 12.5px;';
+            b.textContent = text;
+            return b;
+        };
+
+        const exportFileBtn = makeBackupBtn('导出配置 (JSON)');
+        exportFileBtn.addEventListener('click', () => {
+            const payload = {
+                app: 'zhihu-enhancer',
+                exportedAt: new Date().toISOString(),
+                settings
+            };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `zhihu-enhancer-settings-${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            backupMsg.textContent = '已导出配置文件';
+            setTimeout(() => { backupMsg.textContent = ''; }, 2500);
+        });
+
+        const copyJsonBtn = makeBackupBtn('复制 JSON');
+        copyJsonBtn.addEventListener('click', async () => {
+            const payload = {
+                app: 'zhihu-enhancer',
+                exportedAt: new Date().toISOString(),
+                settings
+            };
+            try {
+                await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+                backupMsg.textContent = '已复制到剪贴板';
+            } catch {
+                backupMsg.textContent = '复制失败，请使用导出文件';
+            }
+            setTimeout(() => { backupMsg.textContent = ''; }, 2500);
+        });
+
+        const importInput = document.createElement('input');
+        importInput.type = 'file';
+        importInput.accept = '.json,application/json';
+        importInput.style.display = 'none';
+        const applyImportedObject = (rawObj) => {
+            const imported = (rawObj && typeof rawObj === 'object' && rawObj.settings && typeof rawObj.settings === 'object')
+                ? rawObj.settings
+                : rawObj;
+            if (!imported || typeof imported !== 'object' || Array.isArray(imported)) {
+                throw new Error('无效的配置格式');
+            }
+            const next = Object.assign({}, DEFAULT_SETTINGS, imported);
+            saveSettings(next);
+            settings = loadSettings();
+            applySettingsClasses();
+            applySidebarOrderAndVisibility();
+            section.remove();
+            openScriptSettingsPage();
+        };
+        importInput.addEventListener('change', () => {
+            const file = importInput.files && importInput.files[0];
+            importInput.value = '';
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const parsed = JSON.parse(String(reader.result || ''));
+                    applyImportedObject(parsed);
+                } catch {
+                    backupMsg.style.color = '#e64545';
+                    backupMsg.textContent = '导入失败：JSON 格式无效';
+                    setTimeout(() => { backupMsg.textContent = ''; backupMsg.style.color = '#1772f6'; }, 3000);
+                }
+            };
+            reader.readAsText(file, 'utf-8');
+        });
+
+        const importFileBtn = makeBackupBtn('导入配置 (JSON)');
+        importFileBtn.addEventListener('click', () => importInput.click());
+
+        backupControls.appendChild(backupMsg);
+        backupControls.appendChild(exportFileBtn);
+        backupControls.appendChild(copyJsonBtn);
+        backupControls.appendChild(importFileBtn);
+        backupControls.appendChild(importInput);
+        backupBox.appendChild(backupInfo);
+        backupBox.appendChild(backupControls);
+
         section.appendChild(sidebarBox);
         section.appendChild(chatBox);
         section.appendChild(quickBox);
+        section.appendChild(backupBox);
         anchorItem.insertAdjacentElement('afterend', section);
     }
 
