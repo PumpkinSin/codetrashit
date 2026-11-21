@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         知乎样式与功能增强
 // @namespace    https://www.zhihu.com/
-// @version      1.8.2
-// @description  全面优化知乎阅读与创作体验：1) 阅读排版：适度放大正文/标题/评论/顶栏字号且不裁切正文行，支持5行摘要预览，点击左右空白区域快速折叠回答或问题详情；2) 侧栏与界面净化：左侧栏放大且窄屏不折叠，支持在偏好设置页拖拽排序、显隐及自定义分隔线，隐藏右栏冗余卡片与刘看山角标并在宽屏右侧展示可点击复制的纯颜文字面板；3) 互动与信息增强：作者及评论区ID旁支持一键「屏蔽用户」与可选「+ 关注」，去除赞同数前「航海家」等前缀并在其旁直接显示发布与修改时间；4) 问题页与个人主页优化：问题顶部集中展示「浏览 · 关注」标签与操作按钮（写回答/关注问题/问题日志/评论）并隐藏邀请回答；个人主页展开完整简介、放大头像、Tab栏改用紧凑胶囊分段框并将「搜索动态」框移至列表顶栏（保留按时间排序）；5) 创作体验升级：写回答工具栏双排紧凑对齐、展开「更多」菜单中的帮助/设置/MD开关、创作助手与发布设置合并为右侧紧凑悬浮窗（支持定时「选择时间」按钮与默认不展开设置）；专栏写文章标题栏支持直接粘贴图片设为封面；6) 所有功能均可在知乎「偏好设置」页内开关与自定义。
+// @version      2.0.9
+// @description  全面优化知乎阅读与创作体验：1) 阅读排版：适度放大正文/标题/评论/顶栏字号且不裁切正文行，支持5行摘要预览，点击左右空白区域快速折叠回答或问题详情；2) 侧栏与界面净化：左侧栏放大且窄屏不折叠，支持在偏好设置页拖拽排序、显隐及自定义分隔线，隐藏右栏冗余卡片与刘看山角标；3) 互动与信息增强：作者及评论区ID旁支持一键「屏蔽用户」与可选「+ 关注」，去除赞同数前「航海家」等前缀并在其旁直接显示发布与修改时间；4) 问题页与个人主页优化：问题顶部集中展示「浏览 · 关注」标签与操作按钮（写回答/关注问题/问题日志/评论）并隐藏邀请回答；个人主页展开完整简介、放大头像、Tab栏改用紧凑胶囊分段框并将「搜索动态」框与精简「个人成就」移至列表顶栏（保留按时间排序），他人主页隐藏右侧冗余卡片并将「屏蔽用户」移至关注/发私信旁；5) 创作体验升级：写回答工具栏双排紧凑对齐、展开「更多」菜单中的帮助/设置/MD开关、创作助手与发布设置合并为右侧紧凑悬浮窗（支持定时「选择时间」按钮与默认不展开设置）；专栏写文章标题栏支持直接粘贴图片设为封面；6) 所有功能均可在知乎「偏好设置」页内开关与自定义。
 // @author       AI
 // @match        *://*.zhihu.com/*
 // @grant        GM_addStyle
@@ -36,6 +36,8 @@
         { id: 'divider-2', label: '── 分割线 ──', visible: true, kind: 'divider' },
         { id: 'my-home', label: '我的主页', visible: true, kind: 'profile' },
         { id: 'my-history', label: '最近浏览', visible: true, kind: 'profile' },
+        { id: 'my-messages', label: '私信', visible: true, kind: 'profile' },
+        { id: 'creator-center', label: '创作中心', visible: true, kind: 'profile' },
         { id: 'my-theme', label: '显示模式', visible: true, kind: 'profile' },
         { id: 'my-settings', label: '设置', visible: true, kind: 'profile' },
         { id: 'divider-3', label: '── 分割线 ──', visible: true, kind: 'divider' },
@@ -44,7 +46,6 @@
     ];
 
     const DEFAULT_SETTINGS = {
-        showKaomoji: true,
         showBlockBtn: true,
         showFollowBtn: false,
         showAnswerTime: true,
@@ -53,6 +54,17 @@
         blueViewTag: false,
         defaultCloseAiAssistant: true,
         disableEntityAiLink: true,
+        scaleProfileAvatar: false,
+        profileAvatarBg: 'mosaic',
+        fullProfileCover: false,
+        hideSearchHotHint: false,
+        sidebarCollapsed: false,
+        chatCategories: [],
+        chatGroupOrder: ['__recent__', '__friends__'],
+        defaultChatGroup: '__recent__',
+        chatModalRect: null,
+        chatQuickReplies: ['人工客服'],
+        hamburgerPos: null,
         sidebarItems: DEFAULT_SIDEBAR_ITEMS
     };
 
@@ -65,6 +77,19 @@
                 saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
             }
             const merged = Object.assign({}, DEFAULT_SETTINGS, saved);
+            if (!Array.isArray(merged.chatCategories)) merged.chatCategories = [];
+            if (!Array.isArray(merged.chatQuickReplies) || merged.chatQuickReplies.length === 0) {
+                merged.chatQuickReplies = ['人工客服'];
+            }
+            if (!Array.isArray(merged.chatGroupOrder)) merged.chatGroupOrder = ['__recent__', '__friends__'];
+            for (const baseId of ['__recent__', '__friends__']) {
+                if (!merged.chatGroupOrder.includes(baseId)) merged.chatGroupOrder.push(baseId);
+            }
+            for (const cat of merged.chatCategories) {
+                if (cat && cat.id && !merged.chatGroupOrder.includes(cat.id)) {
+                    merged.chatGroupOrder.push(cat.id);
+                }
+            }
             if (!Array.isArray(merged.sidebarItems) || merged.sidebarItems.length === 0) {
                 merged.sidebarItems = DEFAULT_SIDEBAR_ITEMS.map((x) => Object.assign({}, x));
             } else {
@@ -95,6 +120,10 @@
                 localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
             }
         } catch { /* ignore */ }
+    }
+
+    if (location.pathname.startsWith('/messages') && (window.self !== window.top || location.search.includes('zh_embed=1'))) {
+        document.documentElement.classList.add('zh-messages-embed');
     }
 
     const settings = loadSettings();
@@ -286,6 +315,10 @@
             white-space: nowrap !important;
             transition: background-color 0.15s ease, color 0.15s ease !important;
         }
+        body:not(.zh-sidebar-collapsed) [data-zh-sidebar="true"] button.zh-sidebar-create-item {
+            padding-left: var(--zh-pad-left, 14px) !important;
+            gap: var(--zh-gap, 14px) !important;
+        }
         .zh-sidebar-create-item:hover {
             background-color: rgba(132, 145, 165, 0.1) !important;
             color: #056de8 !important;
@@ -323,6 +356,366 @@
         }
         html[data-theme="dark"] .zh-sidebar-divider {
             background-color: #2e3035 !important;
+        }
+        /* 无原生侧栏页面（如 /settings/preference、问题页等）的悬浮左侧栏 */
+        #zh-floating-left-sidebar {
+            position: fixed !important;
+            left: 16px !important;
+            top: 74px !important;
+            z-index: 900 !important;
+            background: #ffffff !important;
+            border: 1px solid #ebeced !important;
+            border-radius: 12px !important;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05) !important;
+            max-height: calc(100vh - 94px) !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            padding: 12px 10px !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        html[data-theme="dark"] #zh-floating-left-sidebar {
+            background: #1e1f24 !important;
+            border-color: #2f313a !important;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+        }
+        body.zh-sidebar-collapsed #zh-floating-left-sidebar {
+            left: 10px !important;
+            padding: 10px 6px !important;
+        }
+        /* 极窄窗口（< 900px）：侧栏收成右下角汉堡按钮 + 点击向上展开悬浮抽屉 + 顶栏紧凑 + 正文自适应宽度 */
+        #zh-sidebar-hamburger-btn {
+            display: none !important;
+            position: fixed !important;
+            right: 16px !important;
+            bottom: 18px !important;
+            z-index: 9999 !important;
+            width: 40px !important;
+            height: 40px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: #ffffff !important;
+            color: #373a40 !important;
+            border: 1px solid #e5e7eb !important;
+            border-radius: 10px !important;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12) !important;
+            cursor: pointer !important;
+            flex-shrink: 0 !important;
+            transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease !important;
+        }
+        #zh-sidebar-hamburger-btn:hover {
+            background: #f4f6f9 !important;
+            color: #1772f6 !important;
+            border-color: #1772f6 !important;
+        }
+        html[data-theme="dark"] #zh-sidebar-hamburger-btn {
+            background: #1e1f24 !important;
+            color: #d1d5db !important;
+            border-color: #3a3d46 !important;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35) !important;
+        }
+        body.zh-sidebar-hamburger #zh-sidebar-hamburger-btn {
+            display: inline-flex !important;
+        }
+        body.zh-sidebar-hamburger {
+            overflow-x: hidden !important;
+        }
+        /* 极窄窗口顶栏重排：三个分类更紧凑，搜索框完整自适应显示 */
+        body.zh-sidebar-hamburger header.AppHeader,
+        body.zh-sidebar-hamburger header.LeanAppHeaderBar,
+        body.zh-sidebar-hamburger header[role="banner"],
+        body.zh-sidebar-hamburger .css-7corvk {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+        }
+        body.zh-sidebar-hamburger .AppHeader-inner,
+        body.zh-sidebar-hamburger .css-rtxb0v {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            padding-left: 8px !important;
+            padding-right: 8px !important;
+            margin: 0 !important;
+            gap: 4px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+            box-sizing: border-box !important;
+        }
+        body.zh-sidebar-hamburger .css-1htn8ca,
+        body.zh-sidebar-hamburger .css-1cm220f,
+        body.zh-sidebar-hamburger .SearchBar-askContainer,
+        body.zh-sidebar-hamburger .SearchBar-askButton,
+        body.zh-sidebar-hamburger .css-x518ek {
+            display: none !important;
+        }
+        body.zh-sidebar-hamburger header a[aria-label="知乎"] {
+            flex: 0 0 auto !important;
+            margin: 0 2px 0 0 !important;
+            padding: 0 !important;
+            width: auto !important;
+        }
+        body.zh-sidebar-hamburger header a[aria-label="知乎"] svg {
+            width: 46px !important;
+            height: 22px !important;
+        }
+        body.zh-sidebar-hamburger .css-1pbgcc2,
+        body.zh-sidebar-hamburger header div:has(> nav [data-zh-top-tab="true"]) {
+            display: flex !important;
+            align-items: center !important;
+            flex: 1 1 0% !important;
+            min-width: 0 !important;
+            width: auto !important;
+            max-width: 100% !important;
+            gap: 4px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        body.zh-sidebar-hamburger .AppHeader-Tabs,
+        body.zh-sidebar-hamburger .TopstoryTabs,
+        body.zh-sidebar-hamburger .css-1ut0ei4,
+        body.zh-sidebar-hamburger header nav:has([data-zh-top-tab="true"]) {
+            margin: 0 2px 0 0 !important;
+            padding: 0 !important;
+            flex: 0 0 auto !important;
+            width: auto !important;
+            min-width: 0 !important;
+            gap: 2px !important;
+            display: flex !important;
+            align-items: center !important;
+        }
+        body.zh-sidebar-hamburger .AppHeader-Tab,
+        body.zh-sidebar-hamburger .TopstoryTabs-link,
+        body.zh-sidebar-hamburger [data-zh-top-tab="true"],
+        body.zh-sidebar-hamburger [data-zh-top-tab="true"] > div {
+            font-size: 14px !important;
+            padding-left: 4px !important;
+            padding-right: 4px !important;
+            margin: 0 !important;
+            width: auto !important;
+            min-width: 0 !important;
+            white-space: nowrap !important;
+        }
+        body.zh-sidebar-hamburger .css-c0w5vr,
+        body.zh-sidebar-hamburger header div:has(> .SearchBar),
+        body.zh-sidebar-hamburger .SearchBar,
+        body.zh-sidebar-hamburger .SearchBar-toolWrapper,
+        body.zh-sidebar-hamburger .SearchBar-tool,
+        body.zh-sidebar-hamburger .SearchBar-tool > div,
+        body.zh-sidebar-hamburger .SearchBar-tool .Popover {
+            flex: 1 1 0% !important;
+            min-width: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+        }
+        body.zh-sidebar-hamburger .SearchBar-input,
+        body.zh-sidebar-hamburger [data-zh-search-box="true"] {
+            display: flex !important;
+            align-items: center !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            height: 32px !important;
+            min-height: 32px !important;
+            padding: 0 6px 0 10px !important;
+            margin: 0 !important;
+            box-sizing: border-box !important;
+        }
+        body.zh-sidebar-hamburger .SearchBar-input input,
+        body.zh-sidebar-hamburger [data-zh-search-box="true"] input {
+            min-width: 0 !important;
+            width: 100% !important;
+            flex: 1 1 0% !important;
+            font-size: 13px !important;
+            height: 28px !important;
+            line-height: 28px !important;
+        }
+        body.zh-sidebar-hamburger .SearchBar-searchButton {
+            flex: 0 0 auto !important;
+            padding: 0 4px !important;
+            margin: 0 !important;
+        }
+        body.zh-sidebar-hamburger .AppHeader-userInfo,
+        body.zh-sidebar-hamburger .css-1ww4ngr {
+            flex: 0 0 auto !important;
+            width: auto !important;
+            min-width: 0 !important;
+            margin-left: 2px !important;
+            padding: 0 !important;
+            gap: 4px !important;
+        }
+        body.zh-sidebar-hamburger .css-ruapjk {
+            flex: 0 0 auto !important;
+            margin: 0 !important;
+        }
+        /* 隐藏搜索框预设热点提示与热搜推荐 */
+        body.zh-hide-search-hot-hint .SearchBar-input input::placeholder,
+        body.zh-hide-search-hot-hint [data-zh-search-box="true"] input::placeholder,
+        body.zh-hide-search-hot-hint header input[type="search"]::placeholder,
+        body.zh-hide-search-hot-hint header input[role="combobox"]::placeholder {
+            color: transparent !important;
+            opacity: 0 !important;
+        }
+        body.zh-hide-search-hot-hint [data-zh-hide-hot-search="true"] {
+            display: none !important;
+        }
+        body.zh-sidebar-hamburger:not(.zh-sidebar-drawer-open) [data-zh-sidebar-col="true"],
+        body.zh-sidebar-hamburger:not(.zh-sidebar-drawer-open) [data-zh-sidebar="true"],
+        body.zh-sidebar-hamburger:not(.zh-sidebar-drawer-open) #zh-floating-left-sidebar {
+            display: none !important;
+        }
+        body.zh-sidebar-hamburger.zh-sidebar-drawer-open [data-zh-sidebar-col="true"] {
+            display: block !important;
+            width: 0 !important;
+            min-width: 0 !important;
+            flex: 0 0 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        body.zh-sidebar-hamburger.zh-sidebar-drawer-open [data-zh-sidebar="true"],
+        body.zh-sidebar-hamburger.zh-sidebar-drawer-open #zh-floating-left-sidebar {
+            display: flex !important;
+            flex-direction: column !important;
+            position: fixed !important;
+            right: 16px !important;
+            bottom: 68px !important;
+            left: auto !important;
+            top: auto !important;
+            width: 220px !important;
+            min-width: 220px !important;
+            max-width: 220px !important;
+            max-height: calc(100vh - 96px) !important;
+            overflow-y: auto !important;
+            z-index: 9998 !important;
+            background: #ffffff !important;
+            border: 1px solid #e5e7eb !important;
+            border-radius: 12px !important;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18) !important;
+            padding: 10px 8px !important;
+        }
+        html[data-theme="dark"] body.zh-sidebar-hamburger.zh-sidebar-drawer-open [data-zh-sidebar="true"],
+        html[data-theme="dark"] body.zh-sidebar-hamburger.zh-sidebar-drawer-open #zh-floating-left-sidebar {
+            background: #1e1f24 !important;
+            border-color: #2f313a !important;
+        }
+        body.zh-sidebar-hamburger .GlobalSideBar,
+        body.zh-sidebar-hamburger [class*="GlobalSideBar"],
+        body.zh-sidebar-hamburger [data-zh-hide-keep-space="true"],
+        body.zh-sidebar-hamburger .css-syn8px > .css-uf7ueu,
+        body.zh-sidebar-hamburger .css-syn8px > .css-12c3wuv,
+        body.zh-sidebar-hamburger aside.css-14mwtba,
+        body.zh-sidebar-hamburger .Topstory-rightColumn,
+        body.zh-sidebar-hamburger .Question-sideColumn,
+        body.zh-sidebar-hamburger .Profile-sideColumn {
+            display: none !important;
+        }
+        body.zh-sidebar-hamburger .css-syn8px,
+        body.zh-sidebar-hamburger .css-t9zu9r,
+        body.zh-sidebar-hamburger .css-t9zu9r > div,
+        body.zh-sidebar-hamburger .App-main,
+        body.zh-sidebar-hamburger .App-main > div,
+        body.zh-sidebar-hamburger .App-main > div > div,
+        body.zh-sidebar-hamburger .Topstory,
+        body.zh-sidebar-hamburger .TopstoryPage,
+        body.zh-sidebar-hamburger .Topstory-content,
+        body.zh-sidebar-hamburger .Topstory-container,
+        body.zh-sidebar-hamburger .Topstory-mainColumn,
+        body.zh-sidebar-hamburger .Topstory-mainColumn > div,
+        body.zh-sidebar-hamburger .TopstoryMain,
+        body.zh-sidebar-hamburger .TopstoryItem,
+        body.zh-sidebar-hamburger .Question-main,
+        body.zh-sidebar-hamburger .Question-mainColumn,
+        body.zh-sidebar-hamburger .Profile-main,
+        body.zh-sidebar-hamburger .Profile-mainColumn,
+        body.zh-sidebar-hamburger .ProfileMain,
+        body.zh-sidebar-hamburger .Search-container,
+        body.zh-sidebar-hamburger .SearchMain,
+        body.zh-sidebar-hamburger .Card,
+        body.zh-sidebar-hamburger .List,
+        body.zh-sidebar-hamburger .List-item,
+        body.zh-sidebar-hamburger .ContentItem,
+        body.zh-sidebar-hamburger .RichContent,
+        body.zh-sidebar-hamburger .RichContent-inner {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            flex: 1 1 100% !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            box-sizing: border-box !important;
+        }
+        body.zh-sidebar-hamburger .Topstory-container {
+            display: block !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
+        body.zh-sidebar-hamburger .App-main {
+            padding-left: 8px !important;
+            padding-right: 8px !important;
+        }
+        body.zh-sidebar-hamburger .ProfileMain-tabs,
+        body.zh-sidebar-hamburger .Tabs {
+            max-width: 100% !important;
+            overflow-x: auto !important;
+        }
+        body.zh-sidebar-hamburger .ContentItem-title,
+        body.zh-sidebar-hamburger .RichText,
+        body.zh-sidebar-hamburger .ztext {
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+        }
+        /* 左侧栏窄屏自动收起为仅图标模式（主内容区空间不足时自动触发） */
+        body.zh-sidebar-collapsed [data-zh-sidebar-col="true"] {
+            width: 76px !important;
+            min-width: 76px !important;
+            max-width: 76px !important;
+            flex: 0 0 76px !important;
+        }
+        body.zh-sidebar-collapsed [data-zh-sidebar-card="true"],
+        body.zh-sidebar-collapsed [data-zh-sidebar="true"] {
+            width: 68px !important;
+            min-width: 68px !important;
+            max-width: 68px !important;
+            padding: 12px 6px !important;
+        }
+        body.zh-sidebar-collapsed [data-zh-sidebar="true"] a:not([data-zh-hide-sidebar-item="true"]),
+        body.zh-sidebar-collapsed [data-zh-sidebar="true"] button:not([data-zh-hide-sidebar-item="true"]),
+        body.zh-sidebar-collapsed [data-zh-sidebar="true"] [role="menuitem"]:not([data-zh-hide-sidebar-item="true"]),
+        body.zh-sidebar-collapsed [data-zh-sidebar="true"] [role="link"]:not([data-zh-hide-sidebar-item="true"]),
+        body.zh-sidebar-collapsed [data-zh-sidebar-card="true"] a:not([data-zh-hide-sidebar-item="true"]),
+        body.zh-sidebar-collapsed [data-zh-sidebar-card="true"] button:not([data-zh-hide-sidebar-item="true"]) {
+            padding: 10px 0 !important;
+            justify-content: center !important;
+            gap: 0 !important;
+        }
+        body.zh-sidebar-collapsed [data-zh-sidebar="true"] [data-zh-sidebar-id] span,
+        body.zh-sidebar-collapsed [data-zh-sidebar="true"] [data-zh-sidebar-id] div:not(:has(svg)),
+        body.zh-sidebar-collapsed [data-zh-sidebar="true"] [data-zh-create-btn="true"] span,
+        body.zh-sidebar-collapsed [data-zh-sidebar-card="true"] [data-zh-sidebar-id] span,
+        body.zh-sidebar-collapsed [data-zh-sidebar-card="true"] [data-zh-sidebar-id] div:not(:has(svg)),
+        body.zh-sidebar-collapsed [data-zh-sidebar-card="true"] [data-zh-create-btn="true"] span {
+            display: none !important;
+        }
+        body.zh-sidebar-collapsed [data-zh-sidebar="true"] [data-zh-sidebar-id] div:has(svg),
+        body.zh-sidebar-collapsed [data-zh-sidebar-card="true"] [data-zh-sidebar-id] div:has(svg) {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        body.zh-sidebar-collapsed .zh-sidebar-divider {
+            width: calc(100% - 14px) !important;
+            margin: 6px 7px !important;
         }
 
         /* ---------- 1.3 屏蔽用户按钮（仅屏蔽，不隐藏当前页面回答） ---------- */
@@ -494,34 +887,112 @@
             -webkit-line-clamp: unset !important;
             word-break: break-word !important;
         }
-        /* 红框1：个人主页头像框放大至 200px，小图居中白底填充不拉伸模糊 */
-        .ProfileHeader-avatar,
-        [data-zh-profile-avatar="true"] {
+        /* 个人主页头像缩放开关：仅开启时放大至 200px，小图居中完整显示并应用自定义/马赛克背景 */
+        body.zh-scale-profile-avatar .ProfileHeader-avatar,
+        body.zh-scale-profile-avatar [data-zh-profile-avatar="true"] {
             width: 200px !important;
             height: 200px !important;
-            background-color: #ffffff !important;
+            background-color: var(--zh-avatar-bg, #ffffff) !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
             overflow: hidden !important;
         }
-        .ProfileHeader-avatar img,
-        [data-zh-profile-avatar="true"] img {
+        body.zh-scale-profile-avatar.zh-avatar-bg-mosaic .ProfileHeader-avatar,
+        body.zh-scale-profile-avatar.zh-avatar-bg-mosaic [data-zh-profile-avatar="true"] {
+            background-color: #ffffff !important;
+            background-image:
+                linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
+                linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
+                linear-gradient(-45deg, transparent 75%, #e5e7eb 75%) !important;
+            background-size: 16px 16px !important;
+            background-position: 0 0, 0 8px, 8px -8px, -8px 0 !important;
+        }
+        body.zh-scale-profile-avatar .ProfileHeader-avatar img,
+        body.zh-scale-profile-avatar [data-zh-profile-avatar="true"] img {
             width: 100% !important;
             height: 100% !important;
             object-fit: cover !important;
         }
-        [data-zh-profile-avatar="true"] img[data-zh-small-avatar="true"] {
+        body.zh-scale-profile-avatar [data-zh-profile-avatar="true"] img[data-zh-small-avatar="true"] {
             width: auto !important;
             height: auto !important;
             max-width: 100% !important;
             max-height: 100% !important;
             object-fit: contain !important;
         }
-        .ProfileHeader-content[data-zh-profile-content="true"] {
+        .ProfileHeader-main {
+            position: relative !important;
+        }
+        body.zh-scale-profile-avatar .ProfileHeader-content[data-zh-profile-content="true"] {
             margin-left: 224px !important;
             padding-left: 0 !important;
             border-left: none !important;
+        }
+        .zh-profile-followship-box {
+            position: absolute !important;
+            left: 0 !important;
+            top: 112px;
+            width: 160px;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-around !important;
+            padding: 4px 0 !important;
+            box-sizing: border-box !important;
+            z-index: 2 !important;
+        }
+        .zh-profile-followship-item {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex: 1 1 0 !important;
+            text-decoration: none !important;
+            color: inherit !important;
+            cursor: pointer !important;
+            padding: 2px 4px !important;
+            border-radius: 6px !important;
+            transition: background-color 0.15s ease !important;
+        }
+        .zh-profile-followship-item:hover {
+            background-color: rgba(23, 114, 246, 0.06) !important;
+        }
+        .zh-profile-followship-item + .zh-profile-followship-item {
+            border-left: 1px solid #EBEBEB !important;
+        }
+        .zh-profile-followship-label {
+            font-size: 13.5px !important;
+            color: #8491A5 !important;
+            line-height: 1.35 !important;
+        }
+        .zh-profile-followship-num {
+            font-size: 17px !important;
+            font-weight: 600 !important;
+            color: #191B1F !important;
+            line-height: 1.4 !important;
+        }
+        html[data-theme="dark"] .zh-profile-followship-item + .zh-profile-followship-item {
+            border-left-color: #2E3038 !important;
+        }
+        html[data-theme="dark"] .zh-profile-followship-num {
+            color: #E5E7EB !important;
+        }
+        /* 个人主页顶部海报（封面图）完整显示 */
+        body.zh-full-profile-cover .ProfileHeader-userCover:has(img),
+        body.zh-full-profile-cover .UserCover:has(img) {
+            height: auto !important;
+            max-height: none !important;
+        }
+        body.zh-full-profile-cover .UserCover img,
+        body.zh-full-profile-cover .UserCover-image {
+            position: static !important;
+            display: block !important;
+            width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
+            object-fit: contain !important;
+            transform: none !important;
         }
         /* ---------- 1.7.2 个人主页 Tab 栏紧凑胶囊分段框 + List-header 内联搜索框 ---------- */
         .ProfileMain-header {
@@ -684,14 +1155,16 @@
             display: none !important;
         }
         .Profile-mainColumn .List-header .List-headerOptions {
-            margin-left: auto !important;
+            margin-left: 0 !important;
             flex-shrink: 0 !important;
         }
         .zh-profile-search-box {
             display: inline-flex !important;
             align-items: center !important;
-            flex: 1 1 auto !important;
-            max-width: 320px !important;
+            flex: 0 1 250px !important;
+            width: 240px !important;
+            max-width: 280px !important;
+            margin-left: auto !important;
             height: 30px !important;
             padding: 0 10px !important;
             background: #F4F6F9 !important;
@@ -739,6 +1212,110 @@
         }
         html[data-theme="dark"] .zh-profile-search-input {
             color: #E5E7EB !important;
+        }
+        /* 个人主页：精简右侧栏并把个人成就纯文字置左、搜索框置右，屏蔽与付费咨询按钮对齐关注/发私信 */
+        .Profile-sideColumn .Profile-lightList,
+        .Profile-sideColumn .Profile-footerOperations,
+        .Profile-sideColumn footer[role="contentinfo"],
+        [data-zh-hide-achievement-card="true"],
+        [data-zh-hide-followship-card="true"],
+        [data-zh-hide-consult-card="true"] {
+            display: none !important;
+        }
+        .zh-profile-achievement-text {
+            display: inline-flex !important;
+            align-items: center !important;
+            flex-wrap: wrap !important;
+            gap: 6px !important;
+            font-size: 13px !important;
+            line-height: 1.5 !important;
+            color: #647084 !important;
+            min-width: 0 !important;
+            flex: 1 1 auto !important;
+        }
+        .zh-profile-achievement-text b {
+            color: #191B1F !important;
+            font-weight: 600 !important;
+        }
+        .zh-profile-achievement-sep {
+            color: #C2C8D1 !important;
+            user-select: none !important;
+        }
+        .zh-profile-agree-link {
+            color: #1772F6 !important;
+            text-decoration: none !important;
+            cursor: pointer !important;
+            white-space: nowrap !important;
+        }
+        .zh-profile-agree-link:hover {
+            text-decoration: underline !important;
+        }
+        html[data-theme="dark"] .zh-profile-achievement-text {
+            color: #9CA3AF !important;
+        }
+        html[data-theme="dark"] .zh-profile-achievement-text b {
+            color: #E5E7EB !important;
+        }
+        html[data-theme="dark"] .zh-profile-achievement-sep {
+            color: #4A4D57 !important;
+        }
+        html[data-theme="dark"] .zh-profile-agree-link {
+            color: #4D9CFF !important;
+        }
+        .zh-profile-block-btn,
+        .zh-profile-consult-btn {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 4px !important;
+            height: 34px !important;
+            padding: 0 14px !important;
+            font-size: 14px !important;
+            line-height: 1 !important;
+            border-radius: 4px !important;
+            color: #8491A5 !important;
+            background: transparent !important;
+            border: 1px solid #8491A5 !important;
+            cursor: pointer !important;
+            white-space: nowrap !important;
+            box-sizing: border-box !important;
+            transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease !important;
+        }
+        .zh-profile-block-btn:hover {
+            background-color: rgba(132, 145, 165, 0.08) !important;
+            color: #5C6676 !important;
+            border-color: #5C6676 !important;
+        }
+        .zh-profile-consult-btn {
+            color: #1772F6 !important;
+            border-color: #1772F6 !important;
+        }
+        .zh-profile-consult-btn:hover {
+            background-color: rgba(23, 114, 246, 0.08) !important;
+        }
+        .zh-profile-block-btn.is-blocked {
+            color: #F1403C !important;
+            border-color: rgba(241, 64, 60, 0.45) !important;
+        }
+        .zh-profile-block-btn.is-blocked:hover {
+            background-color: rgba(241, 64, 60, 0.08) !important;
+            border-color: #F1403C !important;
+        }
+        html[data-theme="dark"] .zh-profile-block-btn {
+            color: #9CA3AF !important;
+            border-color: #4B5563 !important;
+        }
+        html[data-theme="dark"] .zh-profile-block-btn:hover {
+            color: #E5E7EB !important;
+            border-color: #6B7280 !important;
+            background-color: rgba(255, 255, 255, 0.06) !important;
+        }
+        html[data-theme="dark"] .zh-profile-consult-btn {
+            color: #4D9CFF !important;
+            border-color: #4D9CFF !important;
+        }
+        html[data-theme="dark"] .zh-profile-consult-btn:hover {
+            background-color: rgba(77, 156, 255, 0.12) !important;
         }
         /* ---------- 1.4.3 问题页头部宽度与下方回答列保持一致 ---------- */
         .QuestionHeader-main,
@@ -850,7 +1427,7 @@
             gap: 8px !important;
             flex-shrink: 0 !important;
             padding-bottom: 2px !important;
-            margin-right: 4px !important;
+            margin-right: 10px !important;
             border-bottom: 2px solid #1772F6 !important;
         }
         #AnswerFormPortalContainer .ToolbarButton .togglerIcon {
@@ -866,7 +1443,15 @@
             flex-wrap: nowrap !important;
             overflow-x: auto !important;
             scrollbar-width: none !important;
-            margin: 0 8px 0 6px !important;
+            margin: 0 10px 0 20px !important;
+        }
+        #AnswerFormPortalContainer button[aria-label="创作助手"] svg,
+        #AnswerFormPortalContainer button[aria-label="创作助手"] img {
+            filter: grayscale(100%) contrast(1.15) brightness(0.65) !important;
+        }
+        html[data-theme="dark"] #AnswerFormPortalContainer button[aria-label="创作助手"] svg,
+        html[data-theme="dark"] #AnswerFormPortalContainer button[aria-label="创作助手"] img {
+            filter: grayscale(100%) contrast(1.1) brightness(1.1) !important;
         }
         #AnswerFormPortalContainer .AnswerAdd > div:first-child > .zh-top-toolbar-slot::-webkit-scrollbar {
             display: none !important;
@@ -907,8 +1492,13 @@
             line-height: 1.25 !important;
             white-space: nowrap !important;
         }
-        #AnswerFormPortalContainer .zh-top-toolbar-slot .zh-unpacked-more-btn[data-zh-active="true"] {
+        #AnswerFormPortalContainer .zh-top-toolbar-slot .zh-unpacked-more-btn[data-zh-active="true"],
+        #AnswerFormPortalContainer .zh-top-toolbar-slot .zh-unpacked-more-btn[data-zh-active="true"] * {
             color: #1772F6 !important;
+        }
+        #AnswerFormPortalContainer .zh-top-toolbar-slot .zh-unpacked-more-btn[data-zh-active="false"],
+        #AnswerFormPortalContainer .zh-top-toolbar-slot .zh-unpacked-more-btn[data-zh-active="false"] * {
+            color: #8491A5 !important;
         }
         #AnswerFormPortalContainer .AnswerFormEditorContainer,
         #AnswerFormPortalContainer .AnswerFormEditorContainer > div,
@@ -1241,12 +1831,1016 @@
             pointer-events: none !important;
             overflow: hidden !important;
         }
-        .toolbarV3 .zh-unpacked-more-btn[data-zh-active="true"] {
+        .toolbarV3 .zh-unpacked-more-btn[data-zh-active="true"],
+        .toolbarV3 .zh-unpacked-more-btn[data-zh-active="true"] * {
             color: #1772F6 !important;
         }
         body.zh-silent-popover .Popover-content {
             opacity: 0 !important;
+            visibility: hidden !important;
             pointer-events: none !important;
+        }
+
+        /* ---------- 1.9 QQ 式双栏私信弹窗 ---------- */
+        #zh-qq-chat-backdrop {
+            position: fixed !important;
+            inset: 0 !important;
+            background: rgba(0, 0, 0, 0.45) !important;
+            z-index: 10000 !important;
+            display: none !important;
+        }
+        body.zh-qq-chat-open #zh-qq-chat-backdrop {
+            display: block !important;
+        }
+        body.zh-qq-chat-open.zh-qq-chat-pinned #zh-qq-chat-backdrop {
+            display: none !important;
+        }
+        .zh-qq-pin-btn {
+            border: 1px solid #d0d7de !important;
+            background: transparent !important;
+            color: #5c6676 !important;
+            border-radius: 5px !important;
+            font-size: 12px !important;
+            padding: 2px 8px !important;
+            cursor: pointer !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            line-height: 1.5 !important;
+        }
+        .zh-qq-pin-btn:hover {
+            color: #1772f6 !important;
+            border-color: #1772f6 !important;
+        }
+        .zh-qq-pin-btn.is-pinned {
+            background: #eef4ff !important;
+            color: #1772f6 !important;
+            border-color: #1772f6 !important;
+        }
+        html[data-theme="dark"] .zh-qq-pin-btn {
+            border-color: #3a3d46 !important;
+            color: #9ca3af !important;
+        }
+        html[data-theme="dark"] .zh-qq-pin-btn.is-pinned {
+            background: rgba(23, 114, 246, 0.2) !important;
+            color: #4d9cff !important;
+            border-color: #4d9cff !important;
+        }
+        #zh-qq-chat-shell {
+            position: fixed !important;
+            left: 50% !important;
+            top: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            width: min(1060px, 94vw) !important;
+            height: min(680px, 86vh) !important;
+            max-width: calc(100vw - 16px) !important;
+            max-height: calc(100vh - 16px) !important;
+            min-width: 280px !important;
+            min-height: 360px !important;
+            background: #ffffff !important;
+            border-radius: 12px !important;
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28) !important;
+            z-index: 10001 !important;
+            display: none !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+            border: 1px solid #e5e7eb !important;
+        }
+        #zh-qq-chat-shell.zh-has-rect {
+            transform: none !important;
+        }
+        #zh-qq-chat-shell.zh-dragging #zh-qq-chat-iframe {
+            pointer-events: none !important;
+        }
+        .zh-qq-resize-handle {
+            position: absolute !important;
+            z-index: 10 !important;
+        }
+        .zh-qq-resize-r { top: 10px; right: 0; width: 7px; bottom: 10px; cursor: ew-resize; }
+        .zh-qq-resize-l { top: 10px; left: 0; width: 7px; bottom: 10px; cursor: ew-resize; }
+        .zh-qq-resize-t { left: 12px; right: 12px; top: 0; height: 6px; cursor: ns-resize; }
+        .zh-qq-resize-b { left: 12px; right: 12px; bottom: 0; height: 8px; cursor: ns-resize; }
+        .zh-qq-resize-br { right: 0; bottom: 0; width: 14px; height: 14px; cursor: nwse-resize; }
+        .zh-qq-resize-bl { left: 0; bottom: 0; width: 14px; height: 14px; cursor: nesw-resize; }
+        .zh-qq-resize-tr { right: 0; top: 0; width: 14px; height: 14px; cursor: nesw-resize; }
+        .zh-qq-resize-tl { left: 0; top: 0; width: 14px; height: 14px; cursor: nwse-resize; }
+        body.zh-qq-chat-open #zh-qq-chat-shell {
+            display: flex !important;
+        }
+        html[data-theme="dark"] #zh-qq-chat-shell {
+            background: #1e1f24 !important;
+            border-color: #2f313a !important;
+            color: #e5e7eb !important;
+        }
+        .zh-qq-shell-topbar {
+            height: 40px !important;
+            flex-shrink: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            padding: 0 14px !important;
+            background: #f5f6f8 !important;
+            border-bottom: 1px solid #e5e7eb !important;
+            font-size: 13.5px !important;
+            font-weight: 600 !important;
+            color: #191b1f !important;
+            cursor: move !important;
+            user-select: none !important;
+        }
+        html[data-theme="dark"] .zh-qq-shell-topbar {
+            background: #18191d !important;
+            border-bottom-color: #2f313a !important;
+            color: #f3f4f6 !important;
+        }
+        .zh-qq-shell-topbar-actions {
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            flex-shrink: 0 !important;
+        }
+        .zh-qq-top-search {
+            flex: 1 1 0% !important;
+            max-width: 280px !important;
+            min-width: 64px !important;
+            height: 28px !important;
+            margin: 0 8px !important;
+            padding: 0 12px !important;
+            border-radius: 14px !important;
+            border: 1px solid #dcdfe6 !important;
+            background: #ffffff !important;
+            font-size: 12.5px !important;
+            font-weight: 400 !important;
+            color: #191b1f !important;
+            outline: none !important;
+            box-sizing: border-box !important;
+        }
+        .zh-qq-top-search:focus {
+            border-color: #1772f6 !important;
+        }
+        html[data-theme="dark"] .zh-qq-top-search {
+            background: #25272d !important;
+            border-color: #3a3d46 !important;
+            color: #e5e7eb !important;
+        }
+        .zh-qq-mini-btn {
+            border: 1px solid #d0d7de !important;
+            background: transparent !important;
+            color: #5c6676 !important;
+            border-radius: 5px !important;
+            font-size: 12px !important;
+            padding: 2px 8px !important;
+            cursor: pointer !important;
+            text-decoration: none !important;
+            line-height: 1.5 !important;
+        }
+        .zh-qq-mini-btn:hover {
+            color: #1772f6 !important;
+            border-color: #1772f6 !important;
+        }
+        html[data-theme="dark"] .zh-qq-mini-btn {
+            border-color: #3a3d46 !important;
+            color: #9ca3af !important;
+        }
+        .zh-qq-shell-close {
+            border: none !important;
+            background: transparent !important;
+            color: #8491a5 !important;
+            font-size: 20px !important;
+            line-height: 1 !important;
+            cursor: pointer !important;
+            padding: 2px 6px !important;
+            border-radius: 4px !important;
+        }
+        .zh-qq-shell-close:hover {
+            color: #191b1f !important;
+            background: rgba(0, 0, 0, 0.06) !important;
+        }
+        html[data-theme="dark"] .zh-qq-shell-close:hover {
+            color: #f3f4f6 !important;
+            background: rgba(255, 255, 255, 0.08) !important;
+        }
+        .zh-qq-iframe-wrap {
+            position: relative !important;
+            flex: 1 1 auto !important;
+            width: 100% !important;
+            height: 100% !important;
+            min-height: 0 !important;
+            background: #ffffff !important;
+        }
+        html[data-theme="dark"] .zh-qq-iframe-wrap {
+            background: #1e1f24 !important;
+        }
+        #zh-qq-chat-iframe {
+            width: 100% !important;
+            height: 100% !important;
+            border: none !important;
+            background: #ffffff !important;
+            opacity: 1 !important;
+            transition: opacity 0.18s ease !important;
+        }
+        .zh-qq-iframe-wrap.is-loading #zh-qq-chat-iframe {
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+        .zh-qq-loading {
+            position: absolute !important;
+            inset: 0 !important;
+            display: none !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 12px !important;
+            color: #8491a5 !important;
+            font-size: 13.5px !important;
+            z-index: 2 !important;
+        }
+        .zh-qq-iframe-wrap.is-loading .zh-qq-loading {
+            display: flex !important;
+        }
+        .zh-qq-spinner {
+            width: 28px !important;
+            height: 28px !important;
+            border: 3px solid rgba(23, 114, 246, 0.18) !important;
+            border-top-color: #1772f6 !important;
+            border-radius: 50% !important;
+            animation: zh-qq-spin 0.75s linear infinite !important;
+        }
+        @keyframes zh-qq-spin {
+            to { transform: rotate(360deg); }
+        }
+        html[data-theme="dark"] #zh-qq-chat-iframe {
+            background: #1e1f24 !important;
+        }
+        /* 嵌入模式下的 /messages 独立私信页面：隐藏顶栏/侧栏/页脚，全屏铺满 ChatWrapper */
+        html.zh-messages-embed header,
+        html.zh-messages-embed header[role="banner"],
+        html.zh-messages-embed .AppHeader,
+        html.zh-messages-embed .LeanAppHeaderBar,
+        html.zh-messages-embed aside,
+        html.zh-messages-embed [data-zh-sidebar-col="true"],
+        html.zh-messages-embed [data-zh-sidebar="true"],
+        html.zh-messages-embed [data-zh-sidebar-card="true"],
+        html.zh-messages-embed footer.Footer,
+        html.zh-messages-embed .CornerButtonsGroup,
+        html.zh-messages-embed .CornerButtons,
+        html.zh-messages-embed .AdblockBanner,
+        body.zh-messages-embed header,
+        body.zh-messages-embed header[role="banner"],
+        body.zh-messages-embed .AppHeader,
+        body.zh-messages-embed .LeanAppHeaderBar,
+        body.zh-messages-embed aside,
+        body.zh-messages-embed [data-zh-sidebar-col="true"],
+        body.zh-messages-embed [data-zh-sidebar="true"],
+        body.zh-messages-embed [data-zh-sidebar-card="true"],
+        body.zh-messages-embed footer.Footer,
+        body.zh-messages-embed .CornerButtonsGroup,
+        body.zh-messages-embed .CornerButtons,
+        body.zh-messages-embed .AdblockBanner {
+            display: none !important;
+        }
+        html.zh-messages-embed,
+        html.zh-messages-embed body,
+        html.zh-messages-embed #root,
+        html.zh-messages-embed .App-main,
+        body.zh-messages-embed,
+        body.zh-messages-embed #root,
+        body.zh-messages-embed .App-main {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            height: 100vh !important;
+            overflow: hidden !important;
+        }
+        html.zh-messages-embed .ChatWrapper,
+        body.zh-messages-embed .ChatWrapper {
+            position: fixed !important;
+            inset: 0 !important;
+            z-index: 9999 !important;
+            width: 100vw !important;
+            max-width: 100vw !important;
+            height: 100vh !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            background: #ffffff !important;
+        }
+        html[data-theme="dark"].zh-messages-embed .ChatWrapper,
+        html[data-theme="dark"] body.zh-messages-embed .ChatWrapper {
+            background: #1e1f24 !important;
+        }
+        html.zh-messages-embed .ChatWrapper > div,
+        body.zh-messages-embed .ChatWrapper > div {
+            width: 100% !important;
+            max-width: 100% !important;
+            height: 100vh !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+        }
+        body.zh-messages-embed .ChatSideBar {
+            height: 100vh !important;
+        }
+        body.zh-messages-embed .Chat-ChatBox {
+            height: 100vh !important;
+        }
+        /* /messages 自定义对话分类与屏蔽隐藏样式 */
+        .zh-blocked-dm-hidden {
+            display: none !important;
+        }
+        .zh-hide-dm-badge .Messages-count,
+        .zh-hide-dm-badge [class*="count"],
+        .zh-hide-dm-badge [class*="Badge"],
+        .zh-hide-dm-badge [class*="badge"] {
+            display: none !important;
+        }
+        /* 知乎风格网页内输入/确认弹窗 */
+        .zh-dialog-backdrop {
+            position: fixed !important;
+            inset: 0 !important;
+            background: rgba(18, 18, 18, 0.45) !important;
+            z-index: 10050 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        .zh-dialog-card {
+            width: min(360px, 88vw) !important;
+            background: #ffffff !important;
+            border-radius: 10px !important;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.2) !important;
+            padding: 20px 22px 18px !important;
+            box-sizing: border-box !important;
+            border: 1px solid #ebeced !important;
+        }
+        html[data-theme="dark"] .zh-dialog-card {
+            background: #232429 !important;
+            border-color: #34363e !important;
+            color: #e5e7eb !important;
+        }
+        .zh-dialog-title {
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            color: #191b1f !important;
+            margin: 0 0 12px !important;
+        }
+        html[data-theme="dark"] .zh-dialog-title {
+            color: #f3f4f6 !important;
+        }
+        .zh-dialog-msg {
+            font-size: 14px !important;
+            color: #5c6676 !important;
+            margin: 0 0 16px !important;
+            line-height: 1.5 !important;
+        }
+        html[data-theme="dark"] .zh-dialog-msg {
+            color: #9ca3af !important;
+        }
+        .zh-dialog-input {
+            width: 100% !important;
+            height: 36px !important;
+            padding: 0 12px !important;
+            border: 1px solid #dcdfe6 !important;
+            border-radius: 6px !important;
+            font-size: 14px !important;
+            color: #191b1f !important;
+            background: #ffffff !important;
+            box-sizing: border-box !important;
+            outline: none !important;
+            margin-bottom: 16px !important;
+        }
+        .zh-dialog-input:focus {
+            border-color: #1772f6 !important;
+            box-shadow: 0 0 0 2px rgba(23, 114, 246, 0.14) !important;
+        }
+        html[data-theme="dark"] .zh-dialog-input {
+            background: #1a1b20 !important;
+            border-color: #3a3d46 !important;
+            color: #f3f4f6 !important;
+        }
+        .zh-dialog-actions {
+            display: flex !important;
+            justify-content: flex-end !important;
+            gap: 10px !important;
+        }
+        .zh-dialog-btn {
+            height: 32px !important;
+            padding: 0 16px !important;
+            border-radius: 6px !important;
+            font-size: 13.5px !important;
+            cursor: pointer !important;
+            border: 1px solid transparent !important;
+        }
+        .zh-dialog-btn-cancel {
+            background: transparent !important;
+            border-color: #dcdfe6 !important;
+            color: #646464 !important;
+        }
+        .zh-dialog-btn-cancel:hover {
+            background: rgba(0, 0, 0, 0.04) !important;
+        }
+        html[data-theme="dark"] .zh-dialog-btn-cancel {
+            border-color: #3a3d46 !important;
+            color: #9ca3af !important;
+        }
+        .zh-dialog-btn-primary {
+            background: #1772f6 !important;
+            color: #ffffff !important;
+            font-weight: 500 !important;
+        }
+        .zh-dialog-btn-primary:hover {
+            background: #056de8 !important;
+        }
+        /* 三栏私信分类导航 & 窄窗口三层钻取模式 */
+        .ChatWrapper > div {
+            display: flex !important;
+            flex-direction: row !important;
+            width: 100% !important;
+        }
+        #zh-chat-cat-nav {
+            width: 168px !important;
+            flex: 0 0 168px !important;
+            border-right: 1px solid #f0f2f7 !important;
+            background: #fafbfc !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow-y: auto !important;
+            padding: 8px 0 !important;
+            box-sizing: border-box !important;
+        }
+        html[data-theme="dark"] #zh-chat-cat-nav {
+            background: #18191d !important;
+            border-right-color: #2e3035 !important;
+        }
+        .zh-chat-nav-item {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            padding: 12px 14px !important;
+            font-size: 14px !important;
+            color: #191b1f !important;
+            cursor: pointer !important;
+            user-select: none !important;
+            border-left: 3px solid transparent !important;
+            transition: background-color 0.12s ease !important;
+        }
+        .zh-chat-nav-item:hover {
+            background: rgba(0, 0, 0, 0.04) !important;
+        }
+        .zh-chat-nav-item.is-active {
+            background: #eef4ff !important;
+            color: #1772f6 !important;
+            font-weight: 600 !important;
+            border-left-color: #1772f6 !important;
+        }
+        html[data-theme="dark"] .zh-chat-nav-item {
+            color: #d1d5db !important;
+        }
+        html[data-theme="dark"] .zh-chat-nav-item:hover {
+            background: rgba(255, 255, 255, 0.05) !important;
+        }
+        html[data-theme="dark"] .zh-chat-nav-item.is-active {
+            background: rgba(23, 114, 246, 0.2) !important;
+            color: #4d9cff !important;
+        }
+        .zh-chat-nav-label {
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+        }
+        .zh-chat-nav-right {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 2px !important;
+            flex-shrink: 0 !important;
+        }
+        .zh-chat-nav-item:hover .zh-chat-cat-op-btn {
+            opacity: 1 !important;
+        }
+        .zh-chat-nav-arrow {
+            width: 18px !important;
+            height: 18px !important;
+            color: #8491a5 !important;
+            display: none !important;
+        }
+        .ChatSideBar {
+            width: 268px !important;
+            min-width: 268px !important;
+            max-width: 268px !important;
+            flex: 0 0 268px !important;
+        }
+        html.zh-messages-embed .ChatSideBar,
+        body.zh-messages-embed .ChatSideBar,
+        html.zh-messages-embed .ChatSideBar .ChatListGroup,
+        body.zh-messages-embed .ChatSideBar .ChatListGroup {
+            padding-top: 0 !important;
+            margin-top: 0 !important;
+        }
+        .Chat-ChatBox,
+        .ChatBox-empty {
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+        }
+        .ChatBox-empty {
+            background-color: #ffffff !important;
+            background-image: none !important;
+        }
+        html[data-theme="dark"] .ChatBox-empty {
+            background-color: #1e1f24 !important;
+        }
+        .ChatBox-empty svg,
+        .ChatBox-empty img {
+            display: none !important;
+        }
+        .Chat-ChatBox > div {
+            min-width: 0 !important;
+        }
+        .zh-chat-toolbar {
+            padding: 8px 16px 4px !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 16px !important;
+            box-sizing: border-box !important;
+        }
+        .zh-chat-robot-btn {
+            border: none !important;
+            background: transparent !important;
+            color: inherit !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 24px !important;
+            height: 24px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            cursor: pointer !important;
+            transition: color 0.15s ease !important;
+        }
+        .zh-chat-robot-btn:hover {
+            color: #1772f6 !important;
+        }
+        #zh-chat-quick-menu {
+            position: fixed !important;
+            z-index: 10030 !important;
+            min-width: 170px !important;
+            max-width: 260px !important;
+            background: #ffffff !important;
+            border: 1px solid #e5e7eb !important;
+            border-radius: 8px !important;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14) !important;
+            padding: 6px 0 !important;
+            font-size: 13px !important;
+        }
+        html[data-theme="dark"] #zh-chat-quick-menu {
+            background: #25272d !important;
+            border-color: #3a3d46 !important;
+            color: #e5e7eb !important;
+        }
+        .zh-chat-quick-item {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            gap: 8px !important;
+            padding: 7px 12px !important;
+            cursor: pointer !important;
+        }
+        .zh-chat-quick-item:hover {
+            background: rgba(23, 114, 246, 0.08) !important;
+            color: #1772f6 !important;
+        }
+        .zh-chat-quick-del {
+            border: none !important;
+            background: transparent !important;
+            color: #8491a5 !important;
+            cursor: pointer !important;
+            font-size: 13px !important;
+            padding: 0 4px !important;
+        }
+        .zh-chat-quick-del:hover {
+            color: #f1403c !important;
+        }
+        .zh-chat-quick-add {
+            border-top: 1px solid #f0f2f7 !important;
+            margin-top: 4px !important;
+            padding: 7px 12px 4px !important;
+            color: #1772f6 !important;
+            cursor: pointer !important;
+        }
+        html[data-theme="dark"] .zh-chat-quick-add {
+            border-top-color: #3a3d46 !important;
+        }
+        /* 非搜索模式下隐藏中栏原生分组标题，只显示当前选中分类 */
+        .ChatSideBar .ChatListGroup-SectionTitle {
+            display: none !important;
+        }
+        .ChatSideBar:not(.zh-searching) .ChatListGroup-Section.zh-group-hidden {
+            display: none !important;
+        }
+        .ChatSideBar:not(.zh-searching) .ChatListGroup-Section:not(.zh-group-hidden) .ChatListGroup-SectionContent {
+            height: auto !important;
+        }
+        .ChatSideBar.zh-searching #zh-chat-custom-users,
+        .ChatSideBar.zh-searching .ChatListGroup-Section {
+            display: none !important;
+        }
+        #zh-chat-search-results {
+            display: none !important;
+            flex-direction: column !important;
+            width: 100% !important;
+            overflow-y: auto !important;
+            flex: 1 1 auto !important;
+        }
+        .ChatSideBar.zh-searching #zh-chat-search-results {
+            display: flex !important;
+        }
+        .zh-chat-search-group-title {
+            padding: 8px 16px 4px !important;
+            font-size: 12px !important;
+            font-weight: 600 !important;
+            color: #8491a5 !important;
+        }
+        .zh-chat-search-item {
+            display: flex !important;
+            align-items: center !important;
+            gap: 10px !important;
+            padding: 10px 16px !important;
+            cursor: pointer !important;
+            transition: background-color 0.15s ease !important;
+        }
+        .zh-chat-search-item:hover {
+            background: #f4f6f9 !important;
+        }
+        html[data-theme="dark"] .zh-chat-search-item:hover {
+            background: rgba(255, 255, 255, 0.06) !important;
+        }
+        .zh-chat-search-avatar {
+            width: 38px !important;
+            height: 38px !important;
+            border-radius: 50% !important;
+            object-fit: cover !important;
+            flex-shrink: 0 !important;
+            background: #eef1f6 !important;
+        }
+        .zh-chat-search-meta {
+            flex: 1 1 0% !important;
+            min-width: 0 !important;
+        }
+        .zh-chat-search-name {
+            font-size: 14px !important;
+            font-weight: 500 !important;
+            color: #191b1f !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+        html[data-theme="dark"] .zh-chat-search-name {
+            color: #e5e7eb !important;
+        }
+        .zh-chat-search-sub {
+            font-size: 12px !important;
+            color: #8491a5 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            margin-top: 2px !important;
+        }
+        .zh-chat-search-empty {
+            padding: 24px 16px !important;
+            text-align: center !important;
+            font-size: 13px !important;
+            color: #8491a5 !important;
+        }
+        .zh-chat-narrow-backbar {
+            display: none !important;
+            align-items: center !important;
+            gap: 8px !important;
+            height: 42px !important;
+            padding: 0 12px !important;
+            border-bottom: 1px solid #f0f2f7 !important;
+            background: #fafbfc !important;
+            flex-shrink: 0 !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+        }
+        html[data-theme="dark"] .zh-chat-narrow-backbar {
+            background: #18191d !important;
+            border-bottom-color: #2e3035 !important;
+            color: #e5e7eb !important;
+        }
+        .zh-chat-narrow-backbtn {
+            border: none !important;
+            background: transparent !important;
+            color: #1772f6 !important;
+            font-size: 13.5px !important;
+            cursor: pointer !important;
+            padding: 4px 6px !important;
+            border-radius: 4px !important;
+        }
+        .zh-chat-narrow-backbtn:hover {
+            background: rgba(23, 114, 246, 0.08) !important;
+        }
+        html.zh-messages-embed .ChatSideBar-Search,
+        body.zh-messages-embed .ChatSideBar-Search {
+            position: relative !important;
+            height: auto !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            overflow: visible !important;
+            flex-shrink: 0 !important;
+        }
+        html.zh-messages-embed .ChatSideBar-Search-Input,
+        body.zh-messages-embed .ChatSideBar-Search-Input {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            overflow: hidden !important;
+        }
+        html.zh-messages-embed .ChatSideBar,
+        body.zh-messages-embed .ChatSideBar {
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+            padding: 0 !important;
+            padding-top: 0 !important;
+            padding-block-start: 0 !important;
+        }
+        html.zh-messages-embed .ChatSideBar > .zh-chat-narrow-backbar,
+        body.zh-messages-embed .ChatSideBar > .zh-chat-narrow-backbar {
+            position: relative !important;
+            z-index: 5 !important;
+            flex: 0 0 42px !important;
+            height: 42px !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        html.zh-messages-embed .ChatSideBar > *:not(.zh-chat-narrow-backbar):not(.ChatSideBar-Search),
+        body.zh-messages-embed .ChatSideBar > *:not(.zh-chat-narrow-backbar):not(.ChatSideBar-Search),
+        html.zh-messages-embed .ChatSideBar > .ChatListGroup,
+        body.zh-messages-embed .ChatSideBar > .ChatListGroup {
+            position: relative !important;
+            top: auto !important;
+            left: auto !important;
+            right: auto !important;
+            bottom: auto !important;
+            margin: 0 !important;
+            padding-top: 0 !important;
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
+            height: auto !important;
+        }
+        /* 中等宽度两栏模式（560px ~ 819px）：左侧在“分类列表”与“联系人列表”间切换，右侧聊天框始终保留 */
+        html.zh-chat-medium[data-zh-medium-left="users"] #zh-chat-cat-nav {
+            display: none !important;
+        }
+        html.zh-chat-medium[data-zh-medium-left="users"] .zh-chat-narrow-backbar[data-step="users"] {
+            display: flex !important;
+        }
+        html.zh-chat-medium[data-zh-medium-left="cats"] .ChatSideBar {
+            display: none !important;
+        }
+        html.zh-chat-medium[data-zh-medium-left="cats"] #zh-chat-cat-nav {
+            width: 268px !important;
+            min-width: 268px !important;
+            max-width: 268px !important;
+            flex: 0 0 268px !important;
+        }
+        html.zh-chat-medium[data-zh-medium-left="cats"] .zh-chat-nav-arrow {
+            display: inline-block !important;
+        }
+        /* 窄窗口三层钻取模式（width < 560px） */
+        html.zh-chat-narrow .zh-chat-nav-arrow {
+            display: inline-block !important;
+        }
+        html.zh-chat-narrow .ChatWrapper > div {
+            flex-direction: column !important;
+        }
+        html.zh-chat-narrow[data-zh-narrow-step="cats"] #zh-chat-cat-nav {
+            width: 100% !important;
+            flex: 1 1 auto !important;
+            border-right: none !important;
+            background: #ffffff !important;
+        }
+        html[data-theme="dark"].zh-chat-narrow[data-zh-narrow-step="cats"] #zh-chat-cat-nav {
+            background: #1e1f24 !important;
+        }
+        html.zh-chat-narrow[data-zh-narrow-step="cats"] .ChatSideBar,
+        html.zh-chat-narrow[data-zh-narrow-step="cats"] .Chat-ChatBox,
+        html.zh-chat-narrow[data-zh-narrow-step="cats"] .ChatBox-empty {
+            display: none !important;
+        }
+        html.zh-chat-narrow[data-zh-narrow-step="users"] #zh-chat-cat-nav,
+        html.zh-chat-narrow[data-zh-narrow-step="users"] .Chat-ChatBox,
+        html.zh-chat-narrow[data-zh-narrow-step="users"] .ChatBox-empty {
+            display: none !important;
+        }
+        html.zh-chat-narrow[data-zh-narrow-step="users"] .ChatSideBar {
+            width: 100% !important;
+            flex: 1 1 auto !important;
+            border-right: none !important;
+        }
+        html.zh-chat-narrow[data-zh-narrow-step="users"] .zh-chat-narrow-backbar[data-step="users"],
+        html.zh-chat-narrow[data-zh-narrow-step="chat"] .zh-chat-narrow-backbar[data-step="chat"] {
+            display: flex !important;
+        }
+        html.zh-chat-narrow[data-zh-narrow-step="chat"] #zh-chat-cat-nav,
+        html.zh-chat-narrow[data-zh-narrow-step="chat"] .ChatSideBar {
+            display: none !important;
+        }
+        html.zh-chat-narrow[data-zh-narrow-step="chat"] .Chat-ChatBox,
+        html.zh-chat-narrow[data-zh-narrow-step="chat"] .ChatBox-empty {
+            width: 100% !important;
+            flex: 1 1 auto !important;
+            display: flex !important;
+        }
+        .ChatSideBar .ChatListGroup {
+            display: flex !important;
+            flex-direction: column !important;
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            overflow-y: auto !important;
+        }
+        .ChatSideBar .ChatListGroup-Section {
+            flex: 0 0 auto !important;
+            min-height: 0 !important;
+        }
+        #zh-chat-custom-cats {
+            display: contents !important;
+        }
+        .zh-chat-cat-section {
+            flex: 0 0 auto !important;
+        }
+        .zh-chat-cat-section-header {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            padding: 14px var(--zh-chat-pad-right, 20px) 14px var(--zh-chat-pad-left, 20px) !important;
+            font-size: 15px !important;
+            font-weight: 400 !important;
+            color: #191b1f !important;
+            cursor: pointer !important;
+            user-select: none !important;
+            box-sizing: border-box !important;
+        }
+        .zh-chat-cat-section-header:hover {
+            background: rgba(0, 0, 0, 0.03) !important;
+        }
+        html[data-theme="dark"] .zh-chat-cat-section-header {
+            color: #e5e7eb !important;
+        }
+        .zh-chat-cat-ops {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            color: #8491a5 !important;
+        }
+        .zh-chat-cat-op-btn {
+            opacity: 0 !important;
+            border: none !important;
+            background: transparent !important;
+            color: #8491a5 !important;
+            font-size: 13px !important;
+            cursor: pointer !important;
+            padding: 1px 4px !important;
+            border-radius: 3px !important;
+            transition: opacity 0.12s ease !important;
+        }
+        .zh-chat-cat-section-header:hover .zh-chat-cat-op-btn {
+            opacity: 1 !important;
+        }
+        .zh-chat-cat-op-btn:hover {
+            color: #1772f6 !important;
+            background: rgba(23, 114, 246, 0.08) !important;
+        }
+        .zh-chat-cat-chevron {
+            width: 16px !important;
+            height: 16px !important;
+            color: #8491a5 !important;
+            transition: transform 0.15s ease !important;
+            flex-shrink: 0 !important;
+        }
+        .zh-chat-cat-chevron.is-expanded {
+            transform: rotate(90deg) !important;
+        }
+        .zh-chat-cat-user-row {
+            display: flex !important;
+            align-items: center !important;
+            gap: 12px !important;
+            padding: 11px var(--zh-chat-pad-right, 20px) 11px var(--zh-chat-user-pad-left, var(--zh-chat-pad-left, 20px)) !important;
+            border-bottom: 1px solid #f0f2f7 !important;
+            cursor: pointer !important;
+            box-sizing: border-box !important;
+            transition: background-color 0.12s ease !important;
+        }
+        html[data-theme="dark"] .zh-chat-cat-user-row {
+            border-bottom-color: #2e3035 !important;
+        }
+        .zh-chat-cat-user-row:hover {
+            background: #f6f6f6 !important;
+        }
+        html[data-theme="dark"] .zh-chat-cat-user-row:hover {
+            background: rgba(255, 255, 255, 0.06) !important;
+        }
+        .zh-chat-cat-user-avatar {
+            width: 40px !important;
+            height: 40px !important;
+            border-radius: 50% !important;
+            object-fit: cover !important;
+            flex-shrink: 0 !important;
+            background: #e5e7eb !important;
+        }
+        .zh-chat-cat-user-name {
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+            font-size: 14px !important;
+            color: #191b1f !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+        html[data-theme="dark"] .zh-chat-cat-user-name {
+            color: #e5e7eb !important;
+        }
+        .zh-chat-cat-user-del {
+            opacity: 0 !important;
+            border: none !important;
+            background: transparent !important;
+            color: #8491a5 !important;
+            cursor: pointer !important;
+            font-size: 14px !important;
+            padding: 2px 5px !important;
+        }
+        .zh-chat-cat-user-row:hover .zh-chat-cat-user-del {
+            opacity: 1 !important;
+        }
+        .zh-chat-cat-user-del:hover {
+            color: #f1403c !important;
+        }
+        .ChatUserListItem {
+            position: relative !important;
+        }
+        .zh-chat-add-to-cat-btn {
+            position: absolute !important;
+            right: 8px !important;
+            top: 8px !important;
+            opacity: 0 !important;
+            border: 1px solid #d0d7de !important;
+            background: #ffffff !important;
+            color: #5c6676 !important;
+            border-radius: 4px !important;
+            font-size: 11px !important;
+            padding: 1px 6px !important;
+            cursor: pointer !important;
+            z-index: 3 !important;
+        }
+        .ChatUserListItem:hover .zh-chat-add-to-cat-btn {
+            opacity: 1 !important;
+        }
+        .zh-chat-add-to-cat-btn:hover {
+            color: #1772f6 !important;
+            border-color: #1772f6 !important;
+        }
+        html[data-theme="dark"] .zh-chat-add-to-cat-btn {
+            background: #25272d !important;
+            border-color: #3a3d46 !important;
+            color: #d1d5db !important;
+        }
+        #zh-chat-cat-picker {
+            position: fixed !important;
+            z-index: 10020 !important;
+            min-width: 150px !important;
+            background: #ffffff !important;
+            border: 1px solid #e5e7eb !important;
+            border-radius: 8px !important;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14) !important;
+            padding: 4px 0 !important;
+            font-size: 13px !important;
+        }
+        html[data-theme="dark"] #zh-chat-cat-picker {
+            background: #25272d !important;
+            border-color: #3a3d46 !important;
+            color: #e5e7eb !important;
+        }
+        .zh-chat-cat-picker-item {
+            padding: 7px 14px !important;
+            cursor: pointer !important;
+            white-space: nowrap !important;
+        }
+        .zh-chat-cat-picker-item:hover {
+            background: rgba(23, 114, 246, 0.08) !important;
+            color: #1772f6 !important;
         }
 
         /* 右侧栏完全隐藏（含所有子元素）但保留空白不缩进，右下角颜文字矩形面板例外显示 */
@@ -1256,62 +2850,6 @@
         [data-zh-hide-keep-space="true"] * {
             visibility: hidden !important;
             pointer-events: none !important;
-        }
-        #zh-kaomoji-panel,
-        #zh-kaomoji-panel * {
-            visibility: visible !important;
-            pointer-events: auto !important;
-        }
-        #zh-kaomoji-panel {
-            position: fixed !important;
-            right: 24px !important;
-            top: 76px !important;
-            bottom: 20px !important;
-            width: 320px !important;
-            z-index: 50 !important;
-            display: flex !important;
-            flex-wrap: wrap !important;
-            align-content: flex-start !important;
-            justify-content: center !important;
-            gap: 8px 10px !important;
-            overflow-y: auto !important;
-            scrollbar-width: none !important;
-            background: transparent !important;
-            border: none !important;
-            user-select: none !important;
-        }
-        #zh-kaomoji-panel::-webkit-scrollbar {
-            display: none !important;
-        }
-        .zh-kaomoji-chip {
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            padding: 5px 8px !important;
-            font-size: 14.5px !important;
-            line-height: 1.4 !important;
-            color: rgba(132, 145, 165, 0.88) !important;
-            background: transparent !important;
-            border: none !important;
-            border-radius: 8px !important;
-            cursor: pointer !important;
-            transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease !important;
-        }
-        .zh-kaomoji-chip:hover {
-            color: #056de8 !important;
-            background: rgba(5, 109, 232, 0.08) !important;
-            transform: translateY(-2px) scale(1.12) !important;
-            box-shadow: 0 4px 12px rgba(5, 109, 232, 0.12) !important;
-        }
-        .zh-kaomoji-chip:active {
-            transform: translateY(0) scale(0.96) !important;
-        }
-        html[data-theme="dark"] .zh-kaomoji-chip {
-            color: rgba(160, 170, 185, 0.78) !important;
-        }
-        html[data-theme="dark"] .zh-kaomoji-chip:hover {
-            color: #4d9cff !important;
-            background: rgba(77, 156, 255, 0.14) !important;
         }
         /* 屏蔽右下角 Hi 刘看山浮动按钮 */
         [data-zh-hide-kanshan="true"] {
@@ -1377,9 +2915,6 @@
         }
 
         /* ---------- 1.8 菜单开关实时控制类 ---------- */
-        body.zh-off-kaomoji #zh-kaomoji-panel {
-            display: none !important;
-        }
         body.zh-off-block .zh-block-user-btn {
             display: none !important;
         }
@@ -1873,6 +3408,20 @@
             svg: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
         },
         {
+            id: 'my-messages',
+            label: '私信',
+            menuText: '私信',
+            fallbackUrl: 'https://www.zhihu.com/messages',
+            svg: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/>'
+        },
+        {
+            id: 'creator-center',
+            label: '创作中心',
+            menuText: '创作中心',
+            fallbackUrl: 'https://www.zhihu.com/creator',
+            svg: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M8 10h8"/><path d="M8 14h5"/>'
+        },
+        {
             id: 'my-theme',
             label: '显示模式',
             menuText: '显示模式',
@@ -1934,7 +3483,1384 @@
         if (act.fallbackUrl) callback(act.fallbackUrl);
     }
 
+    // =========================================================================
+    // 3.5 独立私信弹窗（内嵌 /messages?zh_embed=1）+ 自定义对话分类与排序
+    // =========================================================================
+    const autoReadThreadSet = new Set();
+    let cachedMsgInitialEntities = null;
+    let lastDmCheckTime = 0;
+
+    function isMutedByCategory(user) {
+        if (!user) return false;
+        const cats = Array.isArray(settings.chatCategories) ? settings.chatCategories : [];
+        const token = user.url_token || user.urlToken || '';
+        const id = user.id ? String(user.id) : '';
+        const name = (user.name || '').trim();
+        for (const cat of cats) {
+            if (cat.acceptMessages !== false) continue;
+            const users = Array.isArray(cat.users) ? cat.users : [];
+            if (users.some((u) => (id && u.id === id) || (token && u.urlToken === token) || (name && u.name === name))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    async function markThreadAsRead(threadId) {
+        if (!threadId || autoReadThreadSet.has(String(threadId))) return false;
+        autoReadThreadSet.add(String(threadId));
+        try {
+            const xsrf = getCookie('_xsrf');
+            const headers = { 'content-type': 'application/json' };
+            if (xsrf) headers['x-xsrftoken'] = xsrf;
+            const res = await fetch(`https://www.zhihu.com/api/v4/inbox/threads/${encodeURIComponent(threadId)}/read`, {
+                method: 'POST',
+                credentials: 'include',
+                headers
+            });
+            return res.ok;
+        } catch {
+            return false;
+        }
+    }
+
+    async function checkAndAutoReadMutedCategoryDms(force = false) {
+        const cats = Array.isArray(settings.chatCategories) ? settings.chatCategories : [];
+        const hasMutedCat = cats.some((c) => c.acceptMessages === false && Array.isArray(c.users) && c.users.length > 0);
+        if (!hasMutedCat) return;
+        const now = Date.now();
+        if (!force && now - lastDmCheckTime < 15000) return;
+        lastDmCheckTime = now;
+        try {
+            const res = await fetch('https://www.zhihu.com/api/v4/inbox/threads?limit=20&offset=0', {
+                credentials: 'include'
+            });
+            if (!res.ok) return;
+            const json = await res.json();
+            const threads = Array.isArray(json?.data) ? json.data : [];
+            let activeUnread = 0;
+            let markedAny = false;
+            for (const th of threads) {
+                const unread = Number(th.unread_count || 0);
+                const part = th.participant || {};
+                if (isMutedByCategory(part)) {
+                    if (unread > 0 && th.id) {
+                        const ok = await markThreadAsRead(th.id);
+                        if (ok) markedAny = true;
+                    }
+                } else if (unread > 0) {
+                    activeUnread += unread;
+                }
+            }
+            const msgBtns = document.querySelectorAll('button[aria-label="私信"], [data-zh-sidebar-id="messages"]');
+            msgBtns.forEach((btn) => {
+                btn.classList.toggle('zh-hide-dm-badge', activeUnread === 0 && markedAny);
+            });
+        } catch { /* ignore */ }
+    }
+
+    function getMessagesInitialEntities() {
+        if (cachedMsgInitialEntities) return cachedMsgInitialEntities;
+        const script = document.getElementById('js-initialData');
+        if (!script || !script.textContent) return null;
+        try {
+            const parsed = JSON.parse(script.textContent);
+            const entities = parsed?.initialState?.entities || {};
+            cachedMsgInitialEntities = {
+                users: entities.users || {},
+                chats: entities.chats || {}
+            };
+            return cachedMsgInitialEntities;
+        } catch {
+            return null;
+        }
+    }
+
+    function findChatEntityByName(name) {
+        const entities = getMessagesInitialEntities();
+        if (!entities || !name) return null;
+        const target = name.trim();
+        for (const chatId of Object.keys(entities.chats)) {
+            const chat = entities.chats[chatId];
+            const partId = chat?.participant;
+            const user = partId ? entities.users[partId] : null;
+            if (user && (user.name || '').trim() === target) {
+                return { chatId, chat, user };
+            }
+        }
+        for (const uid of Object.keys(entities.users)) {
+            const user = entities.users[uid];
+            if (user && (user.name || '').trim() === target) {
+                return { chatId: null, chat: null, user };
+            }
+        }
+        return null;
+    }
+
+    function closeChatCatPicker() {
+        const old = document.getElementById('zh-chat-cat-picker');
+        if (old) old.remove();
+    }
+
+    function addUserToCategory(catId, userInfo) {
+        if (!Array.isArray(settings.chatCategories)) settings.chatCategories = [];
+        if (!Array.isArray(settings.chatGroupOrder)) settings.chatGroupOrder = ['__recent__', '__friends__'];
+        const cat = settings.chatCategories.find((c) => c.id === catId);
+        if (!cat) return;
+        if (typeof cat.acceptMessages === 'undefined') cat.acceptMessages = true;
+        if (!settings.chatGroupOrder.includes(cat.id)) {
+            settings.chatGroupOrder.unshift(cat.id);
+        }
+        if (!Array.isArray(cat.users)) cat.users = [];
+        const exists = cat.users.some((u) =>
+            (userInfo.id && u.id === userInfo.id) ||
+            (userInfo.urlToken && u.urlToken === userInfo.urlToken) ||
+            (u.name === userInfo.name)
+        );
+        if (!exists) {
+            const entry = {
+                id: userInfo.id || '',
+                urlToken: userInfo.urlToken || '',
+                name: userInfo.name,
+                avatar: userInfo.avatar || ''
+            };
+            cat.users.push(entry);
+            saveSettings(settings);
+            renderCustomChatCategories(true);
+            showToast(`已将 ${userInfo.name} 复制到「${cat.name}」`);
+            if (!entry.id) {
+                fetch('https://www.zhihu.com/api/v4/inbox/threads?limit=30&offset=0', { credentials: 'include' })
+                    .then((r) => (r.ok ? r.json() : null))
+                    .then((json) => {
+                        const th = (json?.data || []).find((t) => (t?.participant?.name || '').trim() === entry.name);
+                        if (th?.participant) {
+                            if (th.participant.id) entry.id = String(th.participant.id);
+                            if (th.participant.url_token) entry.urlToken = th.participant.url_token;
+                            saveSettings(settings);
+                        }
+                    })
+                    .catch(() => { /* ignore */ });
+            }
+        } else {
+            showToast(`${userInfo.name} 已在「${cat.name}」中`);
+        }
+    }
+
+    function showZhDialog({ title, message = '', placeholder = '', defaultValue = '', confirmText = '确定', isConfirmOnly = false, onConfirm }) {
+        const old = document.getElementById('zh-inpage-dialog');
+        if (old) old.remove();
+
+        const backdrop = document.createElement('div');
+        backdrop.id = 'zh-inpage-dialog';
+        backdrop.className = 'zh-dialog-backdrop';
+
+        const card = document.createElement('div');
+        card.className = 'zh-dialog-card';
+        card.innerHTML = `
+            <div class="zh-dialog-title"></div>
+            ${message ? '<div class="zh-dialog-msg"></div>' : ''}
+            ${isConfirmOnly ? '' : '<input type="text" class="zh-dialog-input">'}
+            <div class="zh-dialog-actions">
+                <button type="button" class="zh-dialog-btn zh-dialog-btn-cancel">取消</button>
+                <button type="button" class="zh-dialog-btn zh-dialog-btn-primary"></button>
+            </div>
+        `;
+        card.querySelector('.zh-dialog-title').textContent = title;
+        if (message) card.querySelector('.zh-dialog-msg').textContent = message;
+        const primaryBtn = card.querySelector('.zh-dialog-btn-primary');
+        primaryBtn.textContent = confirmText;
+
+        const input = card.querySelector('.zh-dialog-input');
+        if (input) {
+            input.placeholder = placeholder;
+            input.value = defaultValue;
+        }
+
+        const close = () => backdrop.remove();
+        const submit = () => {
+            if (isConfirmOnly) {
+                close();
+                if (onConfirm) onConfirm(true);
+                return;
+            }
+            const val = (input?.value || '').trim();
+            if (!val) {
+                if (input) input.focus();
+                return;
+            }
+            close();
+            if (onConfirm) onConfirm(val);
+        };
+
+        card.querySelector('.zh-dialog-btn-cancel').addEventListener('click', close);
+        primaryBtn.addEventListener('click', submit);
+        backdrop.addEventListener('click', (e) => {
+            if (e.target === backdrop) close();
+        });
+        if (input) {
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submit();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    close();
+                }
+            });
+        }
+
+        backdrop.appendChild(card);
+        document.body.appendChild(backdrop);
+        if (input) {
+            input.focus();
+            input.select();
+        }
+    }
+
+    function openChatCatPicker(anchorBtn, userInfo) {
+        closeChatCatPicker();
+        const picker = document.createElement('div');
+        picker.id = 'zh-chat-cat-picker';
+
+        const cats = Array.isArray(settings.chatCategories) ? settings.chatCategories : [];
+        for (const cat of cats) {
+            const item = document.createElement('div');
+            item.className = 'zh-chat-cat-picker-item';
+            item.textContent = `复制到：${cat.name}`;
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                addUserToCategory(cat.id, userInfo);
+                closeChatCatPicker();
+            });
+            picker.appendChild(item);
+        }
+
+        const newItem = document.createElement('div');
+        newItem.className = 'zh-chat-cat-picker-item';
+        newItem.style.color = '#1772f6';
+        newItem.textContent = '+ 新建分类并加入';
+        newItem.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeChatCatPicker();
+            showZhDialog({
+                title: '新建分类并加入',
+                placeholder: '请输入分类名称',
+                confirmText: '创建并加入',
+                onConfirm: (catName) => {
+                    if (!Array.isArray(settings.chatCategories)) settings.chatCategories = [];
+                    if (!Array.isArray(settings.chatGroupOrder)) settings.chatGroupOrder = ['__recent__', '__friends__'];
+                    const newCat = { id: 'cat_' + Date.now(), name: catName, collapsed: false, acceptMessages: true, users: [] };
+                    settings.chatCategories.push(newCat);
+                    settings.chatGroupOrder.unshift(newCat.id);
+                    addUserToCategory(newCat.id, userInfo);
+                }
+            });
+        });
+        picker.appendChild(newItem);
+
+        document.body.appendChild(picker);
+        const rect = anchorBtn.getBoundingClientRect();
+        picker.style.left = Math.min(rect.left, window.innerWidth - 180) + 'px';
+        picker.style.top = Math.min(rect.bottom + 4, window.innerHeight - picker.offsetHeight - 10) + 'px';
+
+        setTimeout(() => {
+            document.addEventListener('click', closeChatCatPicker, { once: true });
+        }, 0);
+    }
+
+    function findSidebarChatUserItem(name) {
+        const items = Array.from(document.querySelectorAll('.ChatUserListItem'));
+        return items.find((item) => {
+            const nameEl = item.querySelector('.userName-nameArea, [class*="nameArea"]');
+            const itemName = (nameEl?.textContent || '').trim();
+            return itemName && itemName === name;
+        }) || null;
+    }
+
+    function openChatForCategoryUser(user) {
+        if (!user) return;
+        const triggerMatchedClick = (item) => {
+            if (!item) return;
+            const sec = item.closest('.ChatListGroup-Section');
+            const content = sec?.querySelector('.ChatListGroup-SectionContent');
+            if (sec && content && (content.style.height === '0px' || item.getBoundingClientRect().height === 0)) {
+                const title = sec.querySelector('.ChatListGroup-SectionTitle');
+                if (title) title.click();
+                setTimeout(() => {
+                    item.click();
+                    item.scrollIntoView({ block: 'nearest' });
+                }, 120);
+                return;
+            }
+            item.click();
+            item.scrollIntoView({ block: 'nearest' });
+        };
+
+        const matched = findSidebarChatUserItem(user.name);
+        if (matched) {
+            triggerMatchedClick(matched);
+            return;
+        }
+
+        // 若不在当前已渲染列表中，利用原生搜索框搜索联系人并点击
+        const searchInput = document.querySelector('.ChatSideBar-Search-Input input[type="search"], .ChatSideBar input[type="search"]');
+        if (searchInput) {
+            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            if (setter) setter.call(searchInput, user.name);
+            else searchInput.value = user.name;
+            searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+            let tries = 0;
+            const poll = () => {
+                tries += 1;
+                const found = findSidebarChatUserItem(user.name);
+                if (found) {
+                    found.click();
+                    return;
+                }
+                if (tries < 12) setTimeout(poll, 100);
+                else showToast(`未找到 ${user.name} 的对话`);
+            };
+            setTimeout(poll, 150);
+            return;
+        }
+        showToast(`未找到 ${user.name} 的对话，可使用上方搜索联系人`);
+    }
+
+    let activeChatGroupId = settings.defaultChatGroup || '__recent__';
+    let narrowChatStep = 'cats';
+    let mediumLeftPane = 'users';
+
+    function getChatGroupLabel(gid) {
+        if (gid === '__recent__') return '最近联系';
+        if (gid === '__friends__') return '互相关注';
+        const cat = (settings.chatCategories || []).find((c) => c.id === gid);
+        return cat ? cat.name : '私信';
+    }
+
+    function updateChatNarrowState() {
+        const w = window.innerWidth;
+        const isNarrow = w < 640;
+        const isMedium = !isNarrow && w < 880;
+        document.documentElement.classList.toggle('zh-chat-narrow', isNarrow);
+        document.documentElement.classList.toggle('zh-chat-medium', isMedium);
+        if (isNarrow) {
+            document.documentElement.setAttribute('data-zh-narrow-step', narrowChatStep);
+            document.documentElement.removeAttribute('data-zh-medium-left');
+        } else if (isMedium) {
+            document.documentElement.setAttribute('data-zh-medium-left', mediumLeftPane);
+            document.documentElement.removeAttribute('data-zh-narrow-step');
+        } else {
+            document.documentElement.removeAttribute('data-zh-narrow-step');
+            document.documentElement.removeAttribute('data-zh-medium-left');
+        }
+        const userBackTitle = document.querySelector('.zh-chat-narrow-backbar[data-step="users"] .zh-chat-narrow-title');
+        if (userBackTitle) userBackTitle.textContent = getChatGroupLabel(activeChatGroupId);
+        const chatBackTitle = document.querySelector('.zh-chat-narrow-backbar[data-step="chat"] .zh-chat-narrow-title');
+        if (chatBackTitle) {
+            const peer = (document.querySelector('.Chat-ChatBox header')?.textContent || '').trim();
+            chatBackTitle.textContent = peer || '对话';
+        }
+    }
+
+    let chatSearchTimer = null;
+    let chatSearchSeq = 0;
+
+    function runChatContactSearch(rawQuery) {
+        const sidebar = document.querySelector('.ChatSideBar');
+        const listGroup = document.querySelector('.ChatSideBar .ChatListGroup');
+        if (!sidebar || !listGroup) return;
+
+        const q = String(rawQuery || '').trim();
+        const hasVal = q.length > 0;
+        sidebar.classList.toggle('zh-searching', hasVal);
+        clearTimeout(chatSearchTimer);
+        const seq = ++chatSearchSeq;
+
+        if (!hasVal) {
+            const box = document.getElementById('zh-chat-search-results');
+            if (box) box.innerHTML = '';
+            applyActiveChatGroupView();
+            return;
+        }
+
+        if (window.innerWidth < 640 && narrowChatStep === 'cats') {
+            narrowChatStep = 'users';
+            updateChatNarrowState();
+        } else if (window.innerWidth >= 640 && window.innerWidth < 880 && mediumLeftPane === 'cats') {
+            mediumLeftPane = 'users';
+            updateChatNarrowState();
+        }
+
+        let box = document.getElementById('zh-chat-search-results');
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'zh-chat-search-results';
+            listGroup.insertBefore(box, listGroup.firstChild);
+        }
+
+        const qLower = q.toLowerCase();
+        const localMatches = [];
+        const seenNames = new Set();
+        document.querySelectorAll('.ChatListGroup-Section .ChatUserListItem').forEach((item) => {
+            const name = (item.querySelector('.userName-nameArea, .userName')?.textContent || '').trim();
+            if (!name || seenNames.has(name)) return;
+            const snippet = (item.querySelector('.ChatUserListItem-Snippet')?.textContent || '').trim();
+            if (name.toLowerCase().includes(qLower) || snippet.toLowerCase().includes(qLower)) {
+                seenNames.add(name);
+                const img = item.querySelector('img');
+                localMatches.push({
+                    name,
+                    sub: snippet,
+                    avatar: img ? img.src : '',
+                    el: item
+                });
+            }
+        });
+
+        const renderResults = (remoteUsers, isLoading) => {
+            if (seq !== chatSearchSeq) return;
+            box.innerHTML = '';
+
+            if (localMatches.length > 0) {
+                const title = document.createElement('div');
+                title.className = 'zh-chat-search-group-title';
+                title.textContent = '已有对话';
+                box.appendChild(title);
+                for (const m of localMatches) {
+                    const row = document.createElement('div');
+                    row.className = 'zh-chat-search-item';
+                    const img = document.createElement('img');
+                    img.className = 'zh-chat-search-avatar';
+                    if (m.avatar) img.src = m.avatar;
+                    const meta = document.createElement('div');
+                    meta.className = 'zh-chat-search-meta';
+                    const nEl = document.createElement('div');
+                    nEl.className = 'zh-chat-search-name';
+                    nEl.textContent = m.name;
+                    const sEl = document.createElement('div');
+                    sEl.className = 'zh-chat-search-sub';
+                    sEl.textContent = m.sub;
+                    meta.appendChild(nEl);
+                    if (m.sub) meta.appendChild(sEl);
+                    row.appendChild(img);
+                    row.appendChild(meta);
+                    row.addEventListener('click', () => {
+                        m.el.click();
+                        if (window.innerWidth < 640) {
+                            narrowChatStep = 'chat';
+                            setTimeout(updateChatNarrowState, 60);
+                        }
+                    });
+                    box.appendChild(row);
+                }
+            }
+
+            if (remoteUsers.length > 0) {
+                const title = document.createElement('div');
+                title.className = 'zh-chat-search-group-title';
+                title.textContent = '知乎用户';
+                box.appendChild(title);
+                for (const u of remoteUsers) {
+                    const row = document.createElement('div');
+                    row.className = 'zh-chat-search-item';
+                    const img = document.createElement('img');
+                    img.className = 'zh-chat-search-avatar';
+                    if (u.avatar) img.src = u.avatar;
+                    const meta = document.createElement('div');
+                    meta.className = 'zh-chat-search-meta';
+                    const nEl = document.createElement('div');
+                    nEl.className = 'zh-chat-search-name';
+                    nEl.textContent = u.name;
+                    const sEl = document.createElement('div');
+                    sEl.className = 'zh-chat-search-sub';
+                    sEl.textContent = u.headline;
+                    meta.appendChild(nEl);
+                    if (u.headline) meta.appendChild(sEl);
+                    row.appendChild(img);
+                    row.appendChild(meta);
+                    row.addEventListener('click', () => {
+                        const existing = Array.from(document.querySelectorAll('.ChatListGroup-Section .ChatUserListItem')).find(
+                            (it) => (it.querySelector('.userName-nameArea, .userName')?.textContent || '').trim() === u.name
+                        );
+                        if (existing) {
+                            existing.click();
+                        } else if (u.urlToken || u.id) {
+                            location.href = `https://www.zhihu.com/messages/${encodeURIComponent(u.urlToken || u.id)}?zh_embed=1`;
+                        }
+                        if (window.innerWidth < 640) {
+                            narrowChatStep = 'chat';
+                            setTimeout(updateChatNarrowState, 60);
+                        }
+                    });
+                    box.appendChild(row);
+                }
+            }
+
+            if (localMatches.length === 0 && remoteUsers.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'zh-chat-search-empty';
+                empty.textContent = isLoading ? '正在搜索知乎用户...' : '未找到匹配联系人';
+                box.appendChild(empty);
+            }
+        };
+
+        renderResults([], true);
+
+        chatSearchTimer = setTimeout(async () => {
+            try {
+                const resp = await fetch(
+                    `https://www.zhihu.com/api/v4/search_v3?t=people&q=${encodeURIComponent(q)}&offset=0&limit=15`,
+                    { credentials: 'include' }
+                );
+                if (!resp.ok || seq !== chatSearchSeq) {
+                    if (seq === chatSearchSeq) renderResults([], false);
+                    return;
+                }
+                const json = await resp.json();
+                if (seq !== chatSearchSeq) return;
+                const remoteUsers = [];
+                const stripHtml = (s) => String(s || '').replace(/<[^>]+>/g, '').trim();
+                for (const entry of (json?.data || [])) {
+                    const obj = entry?.object || entry;
+                    if (!obj || !obj.name) continue;
+                    const cleanName = stripHtml(obj.name);
+                    if (!cleanName || seenNames.has(cleanName)) continue;
+                    seenNames.add(cleanName);
+                    remoteUsers.push({
+                        id: obj.id || '',
+                        urlToken: obj.url_token || '',
+                        name: cleanName,
+                        avatar: obj.avatar_url || '',
+                        headline: stripHtml(obj.headline || '')
+                    });
+                }
+                renderResults(remoteUsers, false);
+            } catch {
+                if (seq === chatSearchSeq) renderResults([], false);
+            }
+        }, 220);
+    }
+
+    function ensureChatThreeColChrome() {
+        const wrapperInner = document.querySelector('.ChatWrapper > div');
+        const sidebar = document.querySelector('.ChatSideBar');
+        if (!wrapperInner || !sidebar) return false;
+
+        if (!document.getElementById('zh-chat-cat-nav')) {
+            const nav = document.createElement('div');
+            nav.id = 'zh-chat-cat-nav';
+            wrapperInner.insertBefore(nav, sidebar);
+        }
+
+        if (!sidebar.querySelector('.zh-chat-narrow-backbar[data-step="users"]')) {
+            const bar = document.createElement('div');
+            bar.className = 'zh-chat-narrow-backbar';
+            bar.setAttribute('data-step', 'users');
+            bar.innerHTML = '<button type="button" class="zh-chat-narrow-backbtn">← 返回分类</button><span class="zh-chat-narrow-title"></span>';
+            bar.querySelector('.zh-chat-narrow-backbtn').addEventListener('click', () => {
+                if (window.innerWidth < 640) {
+                    narrowChatStep = 'cats';
+                } else {
+                    mediumLeftPane = 'cats';
+                }
+                updateChatNarrowState();
+            });
+            sidebar.insertBefore(bar, sidebar.firstChild);
+        }
+
+        if (!wrapperInner.querySelector('.zh-chat-narrow-backbar[data-step="chat"]')) {
+            const bar = document.createElement('div');
+            bar.className = 'zh-chat-narrow-backbar';
+            bar.setAttribute('data-step', 'chat');
+            bar.innerHTML = '<button type="button" class="zh-chat-narrow-backbtn">← 返回列表</button><span class="zh-chat-narrow-title"></span>';
+            bar.querySelector('.zh-chat-narrow-backbtn').addEventListener('click', () => {
+                narrowChatStep = 'users';
+                updateChatNarrowState();
+            });
+            wrapperInner.insertBefore(bar, sidebar.nextSibling);
+        }
+
+        if (!window.__zhChatNarrowResizeHook) {
+            window.__zhChatNarrowResizeHook = true;
+            window.addEventListener('resize', updateChatNarrowState, { passive: true });
+            window.addEventListener('message', (e) => {
+                if (e.data && e.data.type === 'zh-chat-search') {
+                    const q = String(e.data.query || '');
+                    runChatContactSearch(q);
+                }
+            });
+            document.addEventListener('click', (e) => {
+                if (window.innerWidth < 640 && e.target.closest('.ChatUserListItem, .zh-chat-search-item')) {
+                    narrowChatStep = 'chat';
+                    setTimeout(updateChatNarrowState, 60);
+                }
+            }, true);
+        }
+
+        const searchInput = sidebar.querySelector('.ChatSideBar-Search-Input input[type="search"], input[type="search"]');
+        if (searchInput && !searchInput.dataset.zhBoundSearch) {
+            searchInput.dataset.zhBoundSearch = '1';
+            searchInput.addEventListener('input', () => {
+                runChatContactSearch(searchInput.value);
+            });
+        }
+        return true;
+    }
+
+    function applyActiveChatGroupView() {
+        const listGroup = document.querySelector('.ChatSideBar .ChatListGroup');
+        const sidebar = document.querySelector('.ChatSideBar');
+        if (!listGroup || !sidebar) return;
+        if (sidebar.classList.contains('zh-searching')) return;
+
+        const validIds = new Set(['__recent__', '__friends__', ...(settings.chatCategories || []).map((c) => c.id)]);
+        if (!validIds.has(activeChatGroupId)) {
+            activeChatGroupId = validIds.has(settings.defaultChatGroup) ? settings.defaultChatGroup : '__recent__';
+        }
+
+        const nativeSections = Array.from(listGroup.querySelectorAll('.ChatListGroup-Section'));
+        nativeSections.forEach((sec) => {
+            const titleTxt = (sec.querySelector('.ChatListGroup-SectionTitle')?.textContent || '').trim();
+            const isRecent = titleTxt.includes('最近联系');
+            const isFriends = titleTxt.includes('互相关注');
+            const match = (isRecent && activeChatGroupId === '__recent__') || (isFriends && activeChatGroupId === '__friends__');
+            sec.classList.toggle('zh-group-hidden', !match);
+            if (match) {
+                const content = sec.querySelector('.ChatListGroup-SectionContent');
+                if (content && content.style.height === '0px') {
+                    const titleBtn = sec.querySelector('.ChatListGroup-SectionTitle');
+                    if (titleBtn) titleBtn.click();
+                }
+            }
+        });
+
+        const customUsersWrap = document.getElementById('zh-chat-custom-users');
+        if (customUsersWrap) {
+            const isCustom = activeChatGroupId !== '__recent__' && activeChatGroupId !== '__friends__';
+            customUsersWrap.style.display = isCustom ? 'block' : 'none';
+        }
+
+        document.querySelectorAll('#zh-chat-cat-nav .zh-chat-nav-item').forEach((el) => {
+            el.classList.toggle('is-active', el.getAttribute('data-zh-group-id') === activeChatGroupId);
+        });
+        updateChatNarrowState();
+    }
+
+    function selectChatGroup(groupId, fromUserClick = false) {
+        activeChatGroupId = groupId;
+        renderCustomChatCategories(true);
+        if (fromUserClick) {
+            if (window.innerWidth < 560) {
+                narrowChatStep = 'users';
+                updateChatNarrowState();
+            } else if (window.innerWidth < 820) {
+                mediumLeftPane = 'users';
+                updateChatNarrowState();
+            }
+        }
+    }
+
+    function syncChatSidebarPaddingVars(listGroup) {
+        if (!listGroup) return;
+        const listRect = listGroup.getBoundingClientRect();
+        if (listRect.width <= 0) return;
+        const avatarImg = listGroup.querySelector('.ChatUserListItem img.css-8ohw3e, .ChatUserListItem img');
+        if (avatarImg) {
+            const aRect = avatarImg.getBoundingClientRect();
+            if (aRect.width > 0) {
+                const userPad = Math.max(12, Math.round(aRect.left - listRect.left));
+                listGroup.style.setProperty('--zh-chat-user-pad-left', `${userPad}px`);
+                listGroup.style.setProperty('--zh-chat-pad-right', `${userPad}px`);
+            }
+        }
+    }
+
+    function renderCustomChatCategories(force = true) {
+        if (!ensureChatThreeColChrome()) return;
+        const nav = document.getElementById('zh-chat-cat-nav');
+        const listGroup = document.querySelector('.ChatSideBar .ChatListGroup');
+        if (!nav || !listGroup) return;
+
+        syncChatSidebarPaddingVars(listGroup);
+
+        let usersWrap = listGroup.querySelector('#zh-chat-custom-users');
+        if (!usersWrap) {
+            usersWrap = document.createElement('div');
+            usersWrap.id = 'zh-chat-custom-users';
+            listGroup.insertBefore(usersWrap, listGroup.firstChild);
+            force = true;
+        }
+        if (!force && nav.children.length > 0) {
+            applyActiveChatGroupView();
+            return;
+        }
+
+        const order = Array.isArray(settings.chatGroupOrder) ? [...settings.chatGroupOrder] : ['__recent__', '__friends__'];
+        const cats = Array.isArray(settings.chatCategories) ? settings.chatCategories : [];
+        const catMap = new Map(cats.map((c) => [c.id, c]));
+        for (const baseId of ['__recent__', '__friends__', ...cats.map((c) => c.id)]) {
+            if (!order.includes(baseId)) order.push(baseId);
+        }
+
+        const nativeArrowSvg = '<svg width="24" height="24" viewBox="0 0 24 24" class="Zi Zi--ArrowRight zh-chat-nav-arrow" fill="currentColor"><path fill-rule="evenodd" d="M10.518 6.224a.875.875 0 0 1 1.212.248l3.335 5.05a.875.875 0 0 1 0 .964l-3.334 5.043a.875.875 0 0 1-1.46-.965l3.015-4.56-3.016-4.568a.875.875 0 0 1 .248-1.212Z" clip-rule="evenodd"></path></svg>';
+
+        nav.innerHTML = '';
+        for (const gid of order) {
+            const isNative = gid === '__recent__' || gid === '__friends__';
+            const cat = isNative ? null : catMap.get(gid);
+            if (!isNative && !cat) continue;
+
+            const item = document.createElement('div');
+            item.className = 'zh-chat-nav-item' + (gid === activeChatGroupId ? ' is-active' : '');
+            item.setAttribute('data-zh-group-id', gid);
+            const label = isNative ? (gid === '__recent__' ? '最近联系' : '互相关注') : `${cat.name}${cat.acceptMessages === false ? ' (免打扰)' : ''}`;
+            item.innerHTML = `
+                <span class="zh-chat-nav-label"></span>
+                <span class="zh-chat-nav-right">
+                    ${isNative ? '' : '<button type="button" class="zh-chat-cat-op-btn" title="重命名">✎</button><button type="button" class="zh-chat-cat-op-btn" title="删除分类">×</button>'}
+                    ${nativeArrowSvg}
+                </span>
+            `;
+            item.querySelector('.zh-chat-nav-label').textContent = label;
+            item.addEventListener('click', (e) => {
+                if (e.target.closest('.zh-chat-cat-op-btn')) return;
+                selectChatGroup(gid, true);
+            });
+            if (!isNative && cat) {
+                const opBtns = item.querySelectorAll('.zh-chat-cat-op-btn');
+                opBtns[0].addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showZhDialog({
+                        title: '重命名分类',
+                        placeholder: '请输入分类名称',
+                        defaultValue: cat.name,
+                        confirmText: '保存',
+                        onConfirm: (nextName) => {
+                            cat.name = nextName;
+                            saveSettings(settings);
+                            renderCustomChatCategories(true);
+                        }
+                    });
+                });
+                opBtns[1].addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showZhDialog({
+                        title: '删除分类',
+                        message: `确定删除分类「${cat.name}」吗？`,
+                        confirmText: '删除',
+                        isConfirmOnly: true,
+                        onConfirm: () => {
+                            settings.chatCategories = settings.chatCategories.filter((c) => c.id !== cat.id);
+                            if (Array.isArray(settings.chatGroupOrder)) {
+                                settings.chatGroupOrder = settings.chatGroupOrder.filter((id) => id !== cat.id);
+                            }
+                            if (settings.defaultChatGroup === cat.id) settings.defaultChatGroup = '__recent__';
+                            if (activeChatGroupId === cat.id) activeChatGroupId = '__recent__';
+                            saveSettings(settings);
+                            renderCustomChatCategories(true);
+                        }
+                    });
+                });
+            }
+            nav.appendChild(item);
+        }
+
+        // 渲染当前选中自定义分类的用户列表到中栏 #zh-chat-custom-users
+        usersWrap.innerHTML = '';
+        const activeCat = catMap.get(activeChatGroupId);
+        if (activeCat) {
+            const users = Array.isArray(activeCat.users) ? activeCat.users : [];
+            if (users.length === 0) {
+                const empty = document.createElement('div');
+                empty.style.cssText = 'padding: 28px 16px; text-align: center; font-size: 13px; color: #8491a5;';
+                empty.textContent = '该分类暂无联系人';
+                usersWrap.appendChild(empty);
+            } else {
+                for (const u of users) {
+                    const row = document.createElement('div');
+                    row.className = 'zh-chat-cat-user-row';
+                    const avatarHtml = u.avatar
+                        ? `<img class="zh-chat-cat-user-avatar" src="${u.avatar}" alt="">`
+                        : '<div class="zh-chat-cat-user-avatar"></div>';
+                    row.innerHTML = `${avatarHtml}<span class="zh-chat-cat-user-name"></span><button type="button" class="zh-chat-cat-user-del" title="从分类移除">×</button>`;
+                    row.querySelector('.zh-chat-cat-user-name').textContent = u.name;
+                    row.addEventListener('click', (e) => {
+                        if (e.target.closest('.zh-chat-cat-user-del')) return;
+                        openChatForCategoryUser(u);
+                        if (window.innerWidth < 620) {
+                            narrowChatStep = 'chat';
+                            setTimeout(updateChatNarrowState, 60);
+                        }
+                    });
+                    row.querySelector('.zh-chat-cat-user-del').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        activeCat.users = (activeCat.users || []).filter((x) => x.name !== u.name);
+                        saveSettings(settings);
+                        renderCustomChatCategories(true);
+                    });
+                    usersWrap.appendChild(row);
+                }
+            }
+        }
+        applyActiveChatGroupView();
+    }
+
+    function isMessagesEmbedMode() {
+        return location.pathname.startsWith('/messages') && (window.self !== window.top || location.search.includes('zh_embed=1'));
+    }
+
+    function insertTextIntoChatInput(text) {
+        const chatBox = document.querySelector('.Chat-ChatBox');
+        if (!chatBox || !text) return;
+        const textarea = chatBox.querySelector('textarea');
+        if (textarea) {
+            const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+            const cur = textarea.value || '';
+            const nextVal = cur ? `${cur}${text}` : text;
+            if (setter) setter.call(textarea, nextVal);
+            else textarea.value = nextVal;
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            textarea.focus();
+            return;
+        }
+        const editable = chatBox.querySelector('[contenteditable="true"]');
+        if (editable) {
+            editable.focus();
+            document.execCommand('insertText', false, text);
+            editable.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+
+    function closeQuickReplyMenu() {
+        const old = document.getElementById('zh-chat-quick-menu');
+        if (old) old.remove();
+    }
+
+    function openQuickReplyMenu(anchorBtn) {
+        closeQuickReplyMenu();
+        const menu = document.createElement('div');
+        menu.id = 'zh-chat-quick-menu';
+
+        const list = Array.isArray(settings.chatQuickReplies) && settings.chatQuickReplies.length > 0
+            ? settings.chatQuickReplies
+            : ['人工客服'];
+
+        list.forEach((txt, idx) => {
+            const item = document.createElement('div');
+            item.className = 'zh-chat-quick-item';
+            const label = document.createElement('span');
+            label.style.cssText = 'flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+            label.textContent = txt;
+            item.appendChild(label);
+
+            if (list.length > 1) {
+                const del = document.createElement('button');
+                del.type = 'button';
+                del.className = 'zh-chat-quick-del';
+                del.textContent = '×';
+                del.title = '删除此条预设';
+                del.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    settings.chatQuickReplies.splice(idx, 1);
+                    saveSettings(settings);
+                    openQuickReplyMenu(anchorBtn);
+                });
+                item.appendChild(del);
+            }
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                insertTextIntoChatInput(txt);
+                closeQuickReplyMenu();
+            });
+            menu.appendChild(item);
+        });
+
+        const addRow = document.createElement('div');
+        addRow.className = 'zh-chat-quick-add';
+        addRow.textContent = '+ 添加常用内容';
+        addRow.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeQuickReplyMenu();
+            showZhDialog({
+                title: '添加常用回复',
+                placeholder: '请输入常用内容（如：人工客服）',
+                confirmText: '添加',
+                onConfirm: (val) => {
+                    if (!Array.isArray(settings.chatQuickReplies)) settings.chatQuickReplies = ['人工客服'];
+                    if (!settings.chatQuickReplies.includes(val)) {
+                        settings.chatQuickReplies.push(val);
+                        saveSettings(settings);
+                    }
+                    showToast(`已添加常用回复：${val}`);
+                }
+            });
+        });
+        menu.appendChild(addRow);
+
+        document.body.appendChild(menu);
+        const rect = anchorBtn.getBoundingClientRect();
+        const menuW = menu.offsetWidth || 180;
+        const menuH = menu.offsetHeight || 100;
+        menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - menuW - 8)) + 'px';
+        menu.style.top = Math.max(8, rect.top - menuH - 6) + 'px';
+
+        setTimeout(() => {
+            document.addEventListener('click', closeQuickReplyMenu, { once: true });
+        }, 0);
+    }
+
+    function fixEmojiPopoverPosition(emojiBtn) {
+        if (!emojiBtn) return;
+        const applyPos = () => {
+            const pop = Array.from(document.querySelectorAll('.Popover-content')).find((p) => {
+                const r = p.getBoundingClientRect();
+                return r.width > 180 && r.height > 150 && (p.querySelector('img') || p.querySelector('[class*="emoji"], [class*="Sticker"], [class*="Emoticon"]'));
+            });
+            if (!pop) return;
+            const btnRect = emojiBtn.getBoundingClientRect();
+            const popRect = pop.getBoundingClientRect();
+            const targetLeft = Math.max(8, Math.min(btnRect.left, window.innerWidth - popRect.width - 8));
+            const targetTop = Math.max(8, btnRect.top - popRect.height - 8);
+            pop.style.setProperty('position', 'fixed', 'important');
+            pop.style.setProperty('left', `${Math.round(targetLeft)}px`, 'important');
+            pop.style.setProperty('top', `${Math.round(targetTop)}px`, 'important');
+            pop.style.setProperty('right', 'auto', 'important');
+            pop.style.setProperty('bottom', 'auto', 'important');
+            pop.style.setProperty('transform', 'none', 'important');
+        };
+        requestAnimationFrame(applyPos);
+        setTimeout(applyPos, 40);
+        setTimeout(applyPos, 120);
+    }
+
+    function enhanceChatInputBox() {
+        const chatBox = document.querySelector('.Chat-ChatBox');
+        if (!chatBox) return;
+
+        // 1. 精准定位原生 ToolBar、表情按钮(.EmoticonTool)与图片按钮(.UploadPicture-wrapper)
+        const toolbar = chatBox.querySelector('ul.ToolBar') || chatBox.querySelector('.InputBox ul');
+        const emojiBtn = chatBox.querySelector('.EmoticonTool');
+        const imgBtn = chatBox.querySelector('.UploadPicture-wrapper') || chatBox.querySelector('input[type="file"]')?.closest('label, button');
+
+        if (toolbar && !toolbar.classList.contains('zh-chat-toolbar')) {
+            toolbar.classList.add('zh-chat-toolbar');
+        }
+
+        // 2. 修复表情弹窗默认在按钮上方往右展开
+        if (emojiBtn && !emojiBtn.dataset.zhEmojiPosBound) {
+            emojiBtn.dataset.zhEmojiPosBound = '1';
+            emojiBtn.addEventListener('click', () => fixEmojiPopoverPosition(emojiBtn));
+        }
+
+        // 3. 在 ul.ToolBar 末尾添加与原生同色同尺寸的机器人常用回复按钮（<li class="ToolBar-item">）
+        if (toolbar && !toolbar.querySelector('.zh-chat-robot-btn')) {
+            const li = document.createElement('li');
+            li.className = 'ToolBar-item';
+            const robotBtn = document.createElement('button');
+            robotBtn.type = 'button';
+            robotBtn.className = 'zh-chat-robot-btn';
+            robotBtn.title = '常用回复（右键可添加/管理预设）';
+            const emojiSvg = emojiBtn?.querySelector('svg');
+            if (emojiSvg) {
+                robotBtn.style.color = window.getComputedStyle(emojiSvg).color || '#535861';
+            }
+            robotBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" style="fill:none !important;stroke:currentColor;" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4"/><circle cx="12" cy="3" r="1" style="fill:currentColor;stroke:none;"/><circle cx="9.2" cy="13.5" r="1.15" style="fill:currentColor;stroke:none;"/><circle cx="14.8" cy="13.5" r="1.15" style="fill:currentColor;stroke:none;"/><path d="M9.5 17h5"/></svg>';
+            robotBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const replies = Array.isArray(settings.chatQuickReplies) && settings.chatQuickReplies.length > 0
+                    ? settings.chatQuickReplies
+                    : ['人工客服'];
+                if (replies.length === 1) {
+                    insertTextIntoChatInput(replies[0]);
+                } else {
+                    openQuickReplyMenu(robotBtn);
+                }
+            });
+            robotBtn.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openQuickReplyMenu(robotBtn);
+            });
+            li.appendChild(robotBtn);
+            toolbar.appendChild(li);
+        }
+
+        // 4. 支持直接 Ctrl+V 粘贴剪贴板图片到聊天框上传
+        if (!chatBox.dataset.zhPasteImgBound) {
+            chatBox.dataset.zhPasteImgBound = '1';
+            chatBox.addEventListener('paste', (e) => {
+                const dt = e.clipboardData;
+                if (!dt) return;
+                let imageFile = null;
+                if (dt.items) {
+                    for (const item of dt.items) {
+                        if (item.kind === 'file' && item.type.startsWith('image/')) {
+                            imageFile = item.getAsFile();
+                            break;
+                        }
+                    }
+                }
+                if (!imageFile && dt.files && dt.files.length > 0) {
+                    for (const f of dt.files) {
+                        if (f.type && f.type.startsWith('image/')) {
+                            imageFile = f;
+                            break;
+                        }
+                    }
+                }
+                if (!imageFile) return;
+
+                e.preventDefault();
+                e.stopPropagation();
+
+                const applyFileToInput = (inp) => {
+                    if (!inp) return false;
+                    const transfer = new DataTransfer();
+                    transfer.items.add(imageFile);
+                    inp.files = transfer.files;
+                    inp.dispatchEvent(new Event('change', { bubbles: true }));
+                    return true;
+                };
+
+                const existingInput = chatBox.querySelector('input[type="file"]');
+                if (existingInput && applyFileToInput(existingInput)) return;
+
+                if (imgBtn) {
+                    const origClick = HTMLInputElement.prototype.click;
+                    let captured = false;
+                    HTMLInputElement.prototype.click = function () {
+                        if (this.type === 'file' && !captured) {
+                            captured = true;
+                            applyFileToInput(this);
+                            return;
+                        }
+                        return origClick.apply(this, arguments);
+                    };
+                    imgBtn.click();
+                    setTimeout(() => {
+                        HTMLInputElement.prototype.click = origClick;
+                        if (!captured) {
+                            const lazyInp = chatBox.querySelector('input[type="file"]');
+                            if (!applyFileToInput(lazyInp)) {
+                                showToast('未能触发图片上传框，请手动点击图片按钮');
+                            }
+                        }
+                    }, 150);
+                }
+            }, true);
+        }
+    }
+
+    function enhanceMessagesPage() {
+        if (!location.pathname.startsWith('/messages')) return;
+        const embed = isMessagesEmbedMode();
+        document.documentElement.classList.toggle('zh-messages-embed', embed);
+        if (document.body) {
+            document.body.classList.toggle('zh-messages-embed', embed);
+        }
+        if (embed) {
+            const sb = document.querySelector('.ChatSideBar');
+            const lg = document.querySelector('.ChatSideBar .ChatListGroup');
+            const se = document.querySelector('.ChatSideBar-Search');
+            if (se) se.style.setProperty('display', 'none', 'important');
+            if (sb) sb.style.setProperty('padding-top', '0px', 'important');
+            if (lg) {
+                lg.style.setProperty('margin-top', '0px', 'important');
+                lg.style.setProperty('padding-top', '0px', 'important');
+                lg.style.setProperty('top', '0px', 'important');
+            }
+        }
+        if (embed && !window.__zhEmbedReadySent && document.querySelector('.ChatWrapper .ChatSideBar')) {
+            window.__zhEmbedReadySent = true;
+            try {
+                window.parent.postMessage({ type: 'zh-messages-embed-ready' }, '*');
+            } catch { /* ignore */ }
+        }
+
+        renderCustomChatCategories(false);
+        enhanceChatInputBox();
+
+        const items = document.querySelectorAll('.ChatSideBar .ChatUserListItem');
+        items.forEach((item) => {
+            const nameEl = item.querySelector('.userName-nameArea, [class*="nameArea"]');
+            const name = (nameEl?.textContent || '').trim();
+            if (!name) return;
+
+            const matched = findChatEntityByName(name);
+            const userObj = matched?.user || { name };
+            if (isMutedByCategory(userObj)) {
+                item.classList.add('zh-blocked-dm-hidden');
+                const chatId = matched?.chatId;
+                const hasUnreadDom = !!item.querySelector('[class*="unread"], [class*="Badge"], [class*="dot"]');
+                if (chatId && ((matched?.chat?.unreadCount || 0) > 0 || hasUnreadDom)) {
+                    markThreadAsRead(chatId);
+                }
+                return;
+            }
+            item.classList.remove('zh-blocked-dm-hidden');
+
+            if (!item.querySelector('.zh-chat-add-to-cat-btn')) {
+                const avatarEl = item.querySelector('img');
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'zh-chat-add-to-cat-btn';
+                btn.textContent = '+ 分类';
+                btn.title = '复制到自定义分类';
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openChatCatPicker(btn, {
+                        id: userObj.id ? String(userObj.id) : '',
+                        urlToken: userObj.urlToken || '',
+                        name,
+                        avatar: avatarEl?.getAttribute('src') || userObj.avatarUrl || ''
+                    });
+                });
+                item.appendChild(btn);
+            }
+        });
+    }
+
+    function closeQqChatShell() {
+        document.body.classList.remove('zh-qq-chat-open');
+    }
+
+    function ensureQqChatShell() {
+        if (!document.getElementById('zh-qq-chat-backdrop')) {
+            const backdrop = document.createElement('div');
+            backdrop.id = 'zh-qq-chat-backdrop';
+            backdrop.addEventListener('click', closeQqChatShell);
+            document.body.appendChild(backdrop);
+        }
+        let shell = document.getElementById('zh-qq-chat-shell');
+        if (!shell) {
+            shell = document.createElement('div');
+            shell.id = 'zh-qq-chat-shell';
+            shell.innerHTML = `
+                <div class="zh-qq-shell-topbar">
+                    <span>私信</span>
+                    <input type="search" class="zh-qq-top-search" placeholder="搜索联系人">
+                    <div class="zh-qq-shell-topbar-actions">
+                        <button type="button" class="zh-qq-pin-btn" title="钉住窗口（点击外部不关闭，可操作后方页面）">钉住</button>
+                        <a class="zh-qq-mini-btn" href="https://www.zhihu.com/messages" target="_blank" rel="noopener">新标签页打开</a>
+                        <button type="button" class="zh-qq-shell-close" aria-label="关闭">×</button>
+                    </div>
+                </div>
+                <div class="zh-qq-iframe-wrap is-loading">
+                    <div class="zh-qq-loading">
+                        <div class="zh-qq-spinner"></div>
+                        <span>正在加载私信窗口...</span>
+                    </div>
+                    <iframe id="zh-qq-chat-iframe" src="about:blank" title="知乎私信"></iframe>
+                </div>
+                <div class="zh-qq-resize-handle zh-qq-resize-r" data-dir="r"></div>
+                <div class="zh-qq-resize-handle zh-qq-resize-l" data-dir="l"></div>
+                <div class="zh-qq-resize-handle zh-qq-resize-t" data-dir="t"></div>
+                <div class="zh-qq-resize-handle zh-qq-resize-b" data-dir="b"></div>
+                <div class="zh-qq-resize-handle zh-qq-resize-br" data-dir="br"></div>
+                <div class="zh-qq-resize-handle zh-qq-resize-bl" data-dir="bl"></div>
+                <div class="zh-qq-resize-handle zh-qq-resize-tr" data-dir="tr"></div>
+                <div class="zh-qq-resize-handle zh-qq-resize-tl" data-dir="tl"></div>
+            `;
+            document.body.appendChild(shell);
+
+            if (settings.chatModalRect && typeof settings.chatModalRect === 'object') {
+                const r = settings.chatModalRect;
+                const w = Math.max(280, Math.min(window.innerWidth - 20, Number(r.width) || 980));
+                const h = Math.max(360, Math.min(window.innerHeight - 20, Number(r.height) || 680));
+                const l = Math.max(0, Math.min(window.innerWidth - w, Number(r.left) || 0));
+                const t = Math.max(0, Math.min(window.innerHeight - h, Number(r.top) || 0));
+                shell.classList.add('zh-has-rect');
+                shell.style.setProperty('width', `${w}px`, 'important');
+                shell.style.setProperty('height', `${h}px`, 'important');
+                shell.style.setProperty('left', `${l}px`, 'important');
+                shell.style.setProperty('top', `${t}px`, 'important');
+            }
+
+            const saveRect = () => {
+                const rc = shell.getBoundingClientRect();
+                settings.chatModalRect = {
+                    left: Math.round(rc.left),
+                    top: Math.round(rc.top),
+                    width: Math.round(rc.width),
+                    height: Math.round(rc.height)
+                };
+                saveSettings(settings);
+            };
+
+            const clampShellToViewport = () => {
+                if (!shell.classList.contains('zh-has-rect')) return;
+                const maxW = Math.max(280, window.innerWidth - 16);
+                const maxH = Math.max(360, window.innerHeight - 16);
+                const curW = parseFloat(shell.style.width) || shell.offsetWidth || maxW;
+                const curH = parseFloat(shell.style.height) || shell.offsetHeight || maxH;
+                const w = Math.max(280, Math.min(maxW, curW));
+                const h = Math.max(360, Math.min(maxH, curH));
+                const curL = parseFloat(shell.style.left) || 8;
+                const curT = parseFloat(shell.style.top) || 8;
+                const l = Math.max(8, Math.min(Math.max(8, window.innerWidth - w - 8), curL));
+                const t = Math.max(8, Math.min(Math.max(8, window.innerHeight - h - 8), curT));
+                shell.style.setProperty('width', `${w}px`, 'important');
+                shell.style.setProperty('height', `${h}px`, 'important');
+                shell.style.setProperty('left', `${l}px`, 'important');
+                shell.style.setProperty('top', `${t}px`, 'important');
+            };
+            if (!window.__zhChatShellResizeHook) {
+                window.__zhChatShellResizeHook = true;
+                window.addEventListener('resize', clampShellToViewport, { passive: true });
+            }
+
+            const topbar = shell.querySelector('.zh-qq-shell-topbar');
+            const topSearch = shell.querySelector('.zh-qq-top-search');
+            if (topSearch) {
+                topSearch.addEventListener('input', () => {
+                    try {
+                        iframe.contentWindow.postMessage({ type: 'zh-chat-search', query: topSearch.value }, '*');
+                    } catch { /* ignore */ }
+                });
+            }
+            topbar.addEventListener('mousedown', (e) => {
+                if (e.button !== 0 || e.target.closest('.zh-qq-shell-topbar-actions, .zh-qq-top-search')) return;
+                e.preventDefault();
+                const rc = shell.getBoundingClientRect();
+                shell.classList.add('zh-has-rect', 'zh-dragging');
+                shell.style.setProperty('left', `${rc.left}px`, 'important');
+                shell.style.setProperty('top', `${rc.top}px`, 'important');
+                shell.style.setProperty('width', `${rc.width}px`, 'important');
+                shell.style.setProperty('height', `${rc.height}px`, 'important');
+                const startX = e.clientX;
+                const startY = e.clientY;
+                const onMove = (ev) => {
+                    const nl = Math.max(0, Math.min(window.innerWidth - rc.width, rc.left + (ev.clientX - startX)));
+                    const nt = Math.max(0, Math.min(window.innerHeight - rc.height, rc.top + (ev.clientY - startY)));
+                    shell.style.setProperty('left', `${nl}px`, 'important');
+                    shell.style.setProperty('top', `${nt}px`, 'important');
+                };
+                const onUp = () => {
+                    shell.classList.remove('zh-dragging');
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onUp);
+                    saveRect();
+                };
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+            });
+
+            shell.querySelectorAll('.zh-qq-resize-handle').forEach((handle) => {
+                handle.addEventListener('mousedown', (e) => {
+                    if (e.button !== 0) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const dir = handle.getAttribute('data-dir');
+                    const rc = shell.getBoundingClientRect();
+                    shell.classList.add('zh-has-rect', 'zh-dragging');
+                    shell.style.setProperty('left', `${rc.left}px`, 'important');
+                    shell.style.setProperty('top', `${rc.top}px`, 'important');
+                    shell.style.setProperty('width', `${rc.width}px`, 'important');
+                    shell.style.setProperty('height', `${rc.height}px`, 'important');
+                    const startX = e.clientX;
+                    const startY = e.clientY;
+                    const onMove = (ev) => {
+                        const dx = ev.clientX - startX;
+                        const dy = ev.clientY - startY;
+                        if (dir.includes('r')) {
+                            const nw = Math.max(280, Math.min(window.innerWidth - rc.left, rc.width + dx));
+                            shell.style.setProperty('width', `${nw}px`, 'important');
+                        }
+                        if (dir.includes('l')) {
+                            const nw = Math.max(280, Math.min(rc.right, rc.width - dx));
+                            const nl = rc.right - nw;
+                            shell.style.setProperty('width', `${nw}px`, 'important');
+                            shell.style.setProperty('left', `${Math.max(0, nl)}px`, 'important');
+                        }
+                        if (dir.includes('b')) {
+                            const nh = Math.max(360, Math.min(window.innerHeight - rc.top, rc.height + dy));
+                            shell.style.setProperty('height', `${nh}px`, 'important');
+                        }
+                        if (dir.includes('t')) {
+                            const nh = Math.max(360, Math.min(rc.bottom, rc.height - dy));
+                            const nt = rc.bottom - nh;
+                            shell.style.setProperty('height', `${nh}px`, 'important');
+                            shell.style.setProperty('top', `${Math.max(0, nt)}px`, 'important');
+                        }
+                    };
+                    const onUp = () => {
+                        shell.classList.remove('zh-dragging');
+                        window.removeEventListener('mousemove', onMove);
+                        window.removeEventListener('mouseup', onUp);
+                        saveRect();
+                    };
+                    window.addEventListener('mousemove', onMove);
+                    window.addEventListener('mouseup', onUp);
+                });
+            });
+            const wrap = shell.querySelector('.zh-qq-iframe-wrap');
+            const iframe = shell.querySelector('#zh-qq-chat-iframe');
+            const finishLoading = () => {
+                if (wrap) wrap.classList.remove('is-loading');
+            };
+            iframe.addEventListener('load', () => {
+                const src = iframe.getAttribute('src') || '';
+                if (src && src !== 'about:blank') {
+                    setTimeout(finishLoading, 220);
+                }
+            });
+            if (!window.__zhQqMsgHook) {
+                window.__zhQqMsgHook = true;
+                window.addEventListener('message', (e) => {
+                    if (e.data && e.data.type === 'zh-messages-embed-ready') {
+                        finishLoading();
+                    }
+                });
+            }
+            const pinBtn = shell.querySelector('.zh-qq-pin-btn');
+            if (pinBtn) {
+                pinBtn.addEventListener('click', () => {
+                    const pinned = !document.body.classList.contains('zh-qq-chat-pinned');
+                    document.body.classList.toggle('zh-qq-chat-pinned', pinned);
+                    pinBtn.classList.toggle('is-pinned', pinned);
+                    pinBtn.textContent = pinned ? '已钉住' : '钉住';
+                });
+            }
+            shell.querySelector('.zh-qq-shell-close').addEventListener('click', closeQqChatShell);
+            if (!window.__zhQqEscHook) {
+                window.__zhQqEscHook = true;
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && document.body.classList.contains('zh-qq-chat-open') && !document.body.classList.contains('zh-qq-chat-pinned')) {
+                        closeQqChatShell();
+                    }
+                });
+            }
+        }
+        return shell;
+    }
+
+    function openQqChatShell() {
+        if (location.pathname.startsWith('/messages')) {
+            window.focus();
+            return;
+        }
+        const shell = ensureQqChatShell();
+        const wrap = shell.querySelector('.zh-qq-iframe-wrap');
+        const iframe = shell.querySelector('#zh-qq-chat-iframe');
+        const targetSrc = 'https://www.zhihu.com/messages?zh_embed=1';
+        if (iframe && (!iframe.getAttribute('src') || iframe.getAttribute('src') === 'about:blank')) {
+            if (wrap) wrap.classList.add('is-loading');
+            iframe.setAttribute('src', targetSrc);
+        }
+        document.body.classList.add('zh-qq-chat-open');
+    }
+
     function triggerProfileMenuAction(act) {
+        if (act.id === 'my-messages') {
+            openQqChatShell();
+            return;
+        }
+        if (act.id === 'creator-center') {
+            window.open(act.fallbackUrl || 'https://www.zhihu.com/creator', '_blank');
+            return;
+        }
         const avatarBtn = document.querySelector('.AppHeader-profileAvatar, .AppHeader-userInfo button, .AppHeader-profile button');
         if (avatarBtn) {
             avatarBtn.click();
@@ -2074,10 +5000,172 @@
         }
     }
 
+    function ensureHamburgerButton() {
+        if (isMessagesEmbedMode() || !document.body) return null;
+        let btn = document.getElementById('zh-sidebar-hamburger-btn');
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.id = 'zh-sidebar-hamburger-btn';
+            btn.type = 'button';
+            btn.title = '展开/收起导航菜单';
+            btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>';
+
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                document.body.classList.toggle('zh-sidebar-drawer-open');
+            });
+
+            if (!window.__zhHamburgerOutsideHook) {
+                window.__zhHamburgerOutsideHook = true;
+                document.addEventListener('click', (e) => {
+                    if (!document.body.classList.contains('zh-sidebar-drawer-open')) return;
+                    if (e.target.closest('#zh-sidebar-hamburger-btn, [data-zh-sidebar="true"], #zh-floating-left-sidebar')) return;
+                    document.body.classList.remove('zh-sidebar-drawer-open');
+                });
+            }
+        }
+        if (btn.parentElement !== document.body) {
+            document.body.appendChild(btn);
+        }
+        btn.style.removeProperty('left');
+        return btn;
+    }
+
+    function updateAutoSidebarCollapse() {
+        if (!document.body) return;
+        if (isMessagesEmbedMode()) {
+            document.body.classList.remove('zh-sidebar-collapsed', 'zh-sidebar-hamburger', 'zh-sidebar-drawer-open');
+            return;
+        }
+        const sidebar = document.querySelector('[data-zh-sidebar="true"]');
+        if (!sidebar) {
+            document.body.classList.remove('zh-sidebar-collapsed', 'zh-sidebar-hamburger', 'zh-sidebar-drawer-open');
+            return;
+        }
+        const isHamburger = window.innerWidth < 900;
+        document.body.classList.toggle('zh-sidebar-hamburger', isHamburger);
+        if (isHamburger) {
+            ensureHamburgerButton();
+            document.body.classList.remove('zh-sidebar-collapsed');
+            return;
+        }
+        document.body.classList.remove('zh-sidebar-drawer-open');
+        const mainCol = document.querySelector('.Topstory-mainColumn, .Question-mainColumn, .Profile-mainColumn, .SearchMain, .ExploreHomePage-ContentSection-more');
+        const mainWidth = mainCol ? Math.min(1040, mainCol.offsetWidth || 1000) : 1000;
+        const sideSpace = (window.innerWidth - mainWidth) / 2;
+        const shouldCollapse = window.innerWidth < 1320 || sideSpace < 276;
+        document.body.classList.toggle('zh-sidebar-collapsed', shouldCollapse);
+    }
+
+    function ensureFloatingLeftSidebar() {
+        if (isMessagesEmbedMode() || !document.body) return;
+        if (document.querySelector('[data-zh-sidebar="true"]')) return;
+        // 仅在 www.zhihu.com 主站无原生侧栏的页面（如 /settings/*、/question/*、/people/*、/explore 等）显示
+        if (location.hostname !== 'www.zhihu.com') return;
+
+        const aside = document.createElement('aside');
+        aside.id = 'zh-floating-left-sidebar';
+        aside.setAttribute('data-zh-sidebar', 'true');
+        aside.setAttribute('data-zh-sidebar-card', 'true');
+
+        const nav = document.createElement('nav');
+        nav.style.cssText = 'display:flex;flex-direction:column;width:100%;';
+
+        // 首页
+        const homeLink = document.createElement('a');
+        homeLink.href = 'https://www.zhihu.com/';
+        homeLink.className = 'zh-sidebar-create-item';
+        homeLink.setAttribute('data-zh-sidebar-id', 'home');
+        homeLink.title = '首页';
+        homeLink.style.setProperty('--zh-pad-left', '14px');
+        homeLink.style.setProperty('--zh-gap', '14px');
+        homeLink.innerHTML = '<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M14.625 17a.875.875 0 0 1 0 1.75h-5.25a.875.875 0 0 1 0-1.75h5.25Z"/><path fill-rule="evenodd" d="M9.901 2.758a3.875 3.875 0 0 1 4.198 0l6 3.865a3.876 3.876 0 0 1 1.776 3.258V18A3.875 3.875 0 0 1 18 21.876H6A3.875 3.875 0 0 1 2.125 18V9.88c0-1.317.67-2.545 1.776-3.258l6-3.865Zm3.25 1.471a2.126 2.126 0 0 0-2.301 0l-6 3.865a2.126 2.126 0 0 0-.975 1.787V18c0 1.173.952 2.125 2.125 2.125h12A2.125 2.125 0 0 0 20.125 18V9.88c0-.723-.367-1.395-.975-1.787l-6-3.865Z" clip-rule="evenodd"/></svg><span>首页</span>';
+        nav.appendChild(homeLink);
+
+        const idMap = { '提问题': 'ask', '写回答': 'answer', '发想法': 'pin', '写文章': 'article' };
+        for (const act of SIDEBAR_CREATE_ACTIONS) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'zh-sidebar-create-item';
+            btn.setAttribute('data-zh-sidebar-id', idMap[act.label] || act.label);
+            btn.title = act.label;
+            btn.style.setProperty('--zh-pad-left', '14px');
+            btn.style.setProperty('--zh-gap', '14px');
+            btn.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${act.svg}</svg><span>${act.label}</span>`;
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                triggerSidebarCreateAction(act);
+            });
+            nav.appendChild(btn);
+        }
+
+        for (const pact of SIDEBAR_PROFILE_ACTIONS) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'zh-sidebar-create-item';
+            btn.setAttribute('data-zh-sidebar-id', pact.id);
+            btn.title = pact.label;
+            btn.style.setProperty('--zh-pad-left', '14px');
+            btn.style.setProperty('--zh-gap', '14px');
+            btn.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${pact.svg}</svg><span>${pact.label}</span>`;
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if ((e.ctrlKey || e.metaKey) && (pact.id === 'my-home' || pact.id === 'my-history')) {
+                    resolveProfileActionUrl(pact, openUrlInBackgroundTab);
+                    return;
+                }
+                triggerProfileMenuAction(pact);
+            });
+            if (pact.id === 'my-home' || pact.id === 'my-history' || pact.id === 'creator-center') {
+                btn.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
+                btn.addEventListener('auxclick', (e) => {
+                    if (e.button === 1) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (pact.id === 'creator-center') openUrlInBackgroundTab(pact.fallbackUrl);
+                        else resolveProfileActionUrl(pact, openUrlInBackgroundTab);
+                    }
+                });
+            }
+            nav.appendChild(btn);
+        }
+
+        const setBtn = document.createElement('button');
+        setBtn.type = 'button';
+        setBtn.className = 'zh-sidebar-create-item zh-sidebar-settings-btn';
+        setBtn.setAttribute('data-zh-sidebar-id', 'settings');
+        setBtn.title = '脚本设置';
+        setBtn.style.setProperty('--zh-pad-left', '14px');
+        setBtn.style.setProperty('--zh-gap', '14px');
+        setBtn.innerHTML = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.79 1.02 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg><span>脚本设置</span>';
+        setBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openScriptSettingsPage();
+        });
+        nav.appendChild(setBtn);
+
+        aside.appendChild(nav);
+        document.body.appendChild(aside);
+        applySidebarOrderAndVisibility();
+        updateAutoSidebarCollapse();
+    }
+
     function tagLeftSidebar() {
+        if (isMessagesEmbedMode()) return;
         const existing = document.querySelector('[data-zh-sidebar="true"]');
         if (existing) {
+            existing.querySelectorAll('[data-zh-sidebar-id]').forEach((node) => {
+                if (!node.getAttribute('title')) {
+                    const label = (node.textContent || '').trim();
+                    if (label) node.setAttribute('title', label);
+                }
+            });
             applySidebarOrderAndVisibility();
+            updateAutoSidebarCollapse();
             return;
         }
 
@@ -2134,8 +5222,8 @@
                     btn.type = 'button';
                     btn.className = 'zh-sidebar-create-item';
                     btn.setAttribute('data-zh-sidebar-id', idMap[act.label] || act.label);
-                    if (refLeftPad) btn.style.setProperty('padding-left', refLeftPad, 'important');
-                    if (refGap) btn.style.setProperty('gap', refGap, 'important');
+                    if (refLeftPad) btn.style.setProperty('--zh-pad-left', refLeftPad);
+                    if (refGap) btn.style.setProperty('--zh-gap', refGap);
                     btn.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${act.svg}</svg><span>${act.label}</span>`;
                     btn.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -2152,8 +5240,8 @@
                     btn.type = 'button';
                     btn.className = 'zh-sidebar-create-item';
                     btn.setAttribute('data-zh-sidebar-id', pact.id);
-                    if (refLeftPad) btn.style.setProperty('padding-left', refLeftPad, 'important');
-                    if (refGap) btn.style.setProperty('gap', refGap, 'important');
+                    if (refLeftPad) btn.style.setProperty('--zh-pad-left', refLeftPad);
+                    if (refGap) btn.style.setProperty('--zh-gap', refGap);
                     btn.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${pact.svg}</svg><span>${pact.label}</span>`;
                     btn.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -2164,7 +5252,7 @@
                         }
                         triggerProfileMenuAction(pact);
                     });
-                    if (pact.id === 'my-home' || pact.id === 'my-history') {
+                    if (pact.id === 'my-home' || pact.id === 'my-history' || pact.id === 'creator-center') {
                         btn.addEventListener('mousedown', (e) => {
                             if (e.button === 1) e.preventDefault();
                         });
@@ -2172,7 +5260,11 @@
                             if (e.button === 1) {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                resolveProfileActionUrl(pact, openUrlInBackgroundTab);
+                                if (pact.id === 'creator-center') {
+                                    openUrlInBackgroundTab(pact.fallbackUrl);
+                                } else {
+                                    resolveProfileActionUrl(pact, openUrlInBackgroundTab);
+                                }
                             }
                         });
                     }
@@ -2185,8 +5277,8 @@
                     setBtn.type = 'button';
                     setBtn.className = 'zh-sidebar-create-item zh-sidebar-settings-btn';
                     setBtn.setAttribute('data-zh-sidebar-id', 'settings');
-                    if (refLeftPad) setBtn.style.setProperty('padding-left', refLeftPad, 'important');
-                    if (refGap) setBtn.style.setProperty('gap', refGap, 'important');
+                    if (refLeftPad) setBtn.style.setProperty('--zh-pad-left', refLeftPad);
+                    if (refGap) setBtn.style.setProperty('--zh-gap', refGap);
                     setBtn.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.79 1.02 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg><span>脚本设置</span>`;
                     setBtn.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -2198,6 +5290,13 @@
             }
 
             applySidebarOrderAndVisibility();
+            el.querySelectorAll('[data-zh-sidebar-id]').forEach((node) => {
+                if (!node.getAttribute('title')) {
+                    const label = (node.textContent || '').trim();
+                    if (label) node.setAttribute('title', label);
+                }
+            });
+            updateAutoSidebarCollapse();
 
             // 向上查找带有白色背景/圆角/边框的卡片外框容器，以及布局列容器
             let curr = el;
@@ -2219,6 +5318,9 @@
                 curr = parent;
             }
             break;
+        }
+        if (!document.querySelector('[data-zh-sidebar="true"]')) {
+            ensureFloatingLeftSidebar();
         }
     }
 
@@ -2751,6 +5853,135 @@
             titleEl.appendChild(buttonsEl);
         }
 
+        // 3.5) 他人主页：在“关注 / 发私信”右侧添加统一的“屏蔽用户”与“付费咨询”按钮，并将“关注了 / 关注者”移至头像下方
+        const isOwnProfile = Array.from(allButtons).some((b) => b.textContent.replace(/\s+/g, '').includes('编辑个人资料'));
+        if (!isOwnProfile && buttonsEl && titleEl && titleEl.contains(buttonsEl)) {
+            const footerOps = document.querySelectorAll('.Profile-sideColumn .Profile-footerOperations button, .Profile-footerOperations button, .Profile-footerOperations a');
+            const nativeBlockBtn = Array.from(footerOps).find((el) => /屏蔽/.test((el.textContent || '').trim()));
+            if (nativeBlockBtn) {
+                let topBlockBtn = buttonsEl.querySelector('.zh-profile-block-btn');
+                if (!topBlockBtn) {
+                    topBlockBtn = document.createElement('button');
+                    topBlockBtn.type = 'button';
+                    topBlockBtn.className = 'Button Button--grey Button--withIcon Button--withLabel zh-profile-block-btn';
+                    topBlockBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12 2.25a9.75 9.75 0 1 0 0 19.5 9.75 9.75 0 0 0 0-19.5ZM3.75 12a8.25 8.25 0 0 1 13.52-6.33l-11.6 11.6A8.215 8.215 0 0 1 3.75 12Zm3.02 6.33 11.6-11.6A8.25 8.25 0 0 1 6.77 18.33Z" clip-rule="evenodd"/></svg><span class="zh-profile-block-label"></span>';
+                    topBlockBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const currentNative = Array.from(
+                            document.querySelectorAll('.Profile-sideColumn .Profile-footerOperations button, .Profile-footerOperations button, .Profile-footerOperations a')
+                        ).find((el) => /屏蔽/.test((el.textContent || '').trim()));
+                        if (currentNative) {
+                            currentNative.click();
+                            setTimeout(adjustProfileHeader, 150);
+                            setTimeout(adjustProfileHeader, 500);
+                        }
+                    });
+                    buttonsEl.appendChild(topBlockBtn);
+                }
+                const nativeTxt = (nativeBlockBtn.textContent || '').replace(/\s+/g, '');
+                const isBlocked = /已屏蔽|取消屏蔽/.test(nativeTxt);
+                const labelEl = topBlockBtn.querySelector('.zh-profile-block-label');
+                const nextLabel = isBlocked ? '已屏蔽' : '屏蔽用户';
+                if (labelEl && labelEl.textContent !== nextLabel) {
+                    labelEl.textContent = nextLabel;
+                }
+                topBlockBtn.classList.toggle('is-blocked', isBlocked);
+            }
+
+            // 付费咨询按钮：隐藏右侧付费咨询卡片，并在屏蔽用户右侧添加按钮代理点击
+            const sideCards = document.querySelectorAll('.Profile-sideColumn .Card');
+            let nativeConsultBtn = null;
+            for (const card of sideCards) {
+                const headerTxt = (card.querySelector('.Card-headerText')?.textContent || '').trim();
+                if (!headerTxt.includes('付费咨询')) continue;
+                card.setAttribute('data-zh-hide-consult-card', 'true');
+                nativeConsultBtn = Array.from(card.querySelectorAll('button, a')).find((el) => /付费咨询/.test((el.textContent || '').trim()));
+                break;
+            }
+            const existingConsultBtn = buttonsEl.querySelector('.zh-profile-consult-btn');
+            if (nativeConsultBtn) {
+                if (!existingConsultBtn) {
+                    const consultBtn = document.createElement('button');
+                    consultBtn.type = 'button';
+                    consultBtn.className = 'Button Button--blue Button--withIcon Button--withLabel zh-profile-consult-btn';
+                    consultBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.125c5.454 0 9.875 4.421 9.875 9.875v6A3.875 3.875 0 0 1 18 21.875h-6c-5.454 0-9.875-4.421-9.875-9.875S6.546 2.125 12 2.125Zm-1.523 7.253a.875.875 0 1 0-1.194 1.28l1.574 1.467H9.5a.875.875 0 0 0 0 1.75h1.625V15.5a.875.875 0 0 0 1.75 0v-1.625H14.5a.875.875 0 1 0 0-1.75h-1.354l1.573-1.467a.875.875 0 1 0-1.193-1.28L12 10.8l-1.524-1.422Z"/></svg><span>付费咨询</span>';
+                    consultBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const cards = document.querySelectorAll('.Profile-sideColumn .Card');
+                        for (const c of cards) {
+                            const h = (c.querySelector('.Card-headerText')?.textContent || '').trim();
+                            if (!h.includes('付费咨询')) continue;
+                            const btn = Array.from(c.querySelectorAll('button, a')).find((el) => /付费咨询/.test((el.textContent || '').trim()));
+                            if (btn) btn.click();
+                            break;
+                        }
+                    });
+                    buttonsEl.appendChild(consultBtn);
+                }
+            } else if (existingConsultBtn) {
+                existingConsultBtn.remove();
+            }
+        }
+
+        // 3.6) 将右侧“关注了 / 关注者”卡片内容移至头像下方，并隐藏右侧原卡片
+        const headerMain = headerRoot.querySelector('.ProfileHeader-main');
+        if (headerMain) {
+            const followshipCard = document.querySelector('.Profile-sideColumn .FollowshipCard') ||
+                Array.from(document.querySelectorAll('.Profile-sideColumn .Card')).find((c) => {
+                    const t = c.textContent || '';
+                    return t.includes('关注了') && t.includes('关注者');
+                });
+            if (followshipCard) {
+                followshipCard.setAttribute('data-zh-hide-followship-card', 'true');
+                const boardItems = Array.from(followshipCard.querySelectorAll('a.NumberBoard-item, a[href*="/following"], a[href*="/followers"]'));
+                const parsedItems = [];
+                for (const a of boardItems) {
+                    const nameEl = a.querySelector('.NumberBoard-itemName');
+                    const valEl = a.querySelector('.NumberBoard-itemValue');
+                    let label = (nameEl?.textContent || '').trim();
+                    let num = (valEl?.textContent || '').trim();
+                    if (!label || !num) {
+                        const txt = (a.textContent || '').replace(/\s+/g, ' ').trim();
+                        const m = txt.match(/(关注了|关注者)\s*([\d,]+)/);
+                        if (m) {
+                            label = m[1];
+                            num = m[2];
+                        }
+                    }
+                    if (label && num) {
+                        parsedItems.push({ label, num, href: a.getAttribute('href') || '' });
+                    }
+                }
+                if (parsedItems.length > 0) {
+                    let box = headerMain.querySelector('.zh-profile-followship-box');
+                    if (!box) {
+                        box = document.createElement('div');
+                        box.className = 'zh-profile-followship-box';
+                        headerMain.appendChild(box);
+                    }
+                    const nextHtml = parsedItems.map((it) => {
+                        const hrefAttr = it.href ? ` href="${it.href}"` : '';
+                        return `<a class="zh-profile-followship-item"${hrefAttr}><span class="zh-profile-followship-label">${it.label}</span><span class="zh-profile-followship-num">${it.num}</span></a>`;
+                    }).join('');
+                    if (box.innerHTML !== nextHtml) {
+                        box.innerHTML = nextHtml;
+                    }
+                    // 动态计算头像底部位置与宽度，避免个人介绍较短时被头像遮挡
+                    const avEl = headerMain.querySelector('[data-zh-profile-avatar="true"], .ProfileHeader-avatar, .UserAvatar');
+                    const avTop = avEl ? avEl.offsetTop : -57;
+                    const avHeight = avEl ? avEl.offsetHeight : (settings.scaleProfileAvatar ? 200 : 160);
+                    const avWidth = avEl ? avEl.offsetWidth : (settings.scaleProfileAvatar ? 200 : 160);
+                    const boxTop = Math.max(0, avTop + avHeight + 8);
+                    box.style.setProperty('top', `${boxTop}px`, 'important');
+                    box.style.setProperty('width', `${avWidth}px`, 'important');
+                    const boxHeight = box.offsetHeight || 46;
+                    headerMain.style.setProperty('min-height', `${boxTop + boxHeight + 8}px`, 'important');
+                }
+            }
+        }
+
         // 4) 若底部 footer 已空（展开按钮已隐藏且关注/私信已移走），隐藏 footer 减少留白
         const footerEl = headerRoot.querySelector('.ProfileHeader-contentFooter');
         if (footerEl && footerEl.querySelector('[data-zh-hide-expand-btn="true"]') && !footerEl.querySelector('.MemberButtonGroup, .ProfileHeader-buttons')) {
@@ -2759,64 +5990,8 @@
     }
 
     // =========================================================================
-    // 7.5 右侧栏隐藏并在右侧填充可点击复制的矩形颜文字/Emoji + 顶部栏放大
+    // 7.5 右侧栏隐藏 + 顶部栏放大
     // =========================================================================
-    const KAOMOJI_LIST = [
-        "( ˶ˆᗜˆ˵ )", "(｡•̀ᴗ-)✧", "( ˘͈ ᵕ ˘͈♡)", "( ˙꒳​˙ )", "₍˄·͈༝·͈˄*₎◞ ̑̑",
-        "(〜￣▽￣)〜", "(づ｡◕‿‿◕｡)づ", "( ´͈ ᵕ `͈ )♡", "(๑•̀ㅂ•́)و✧", "(っ˘ω˘ς )",
-        "ฅ^•ﻌ•^ฅ", "( •̀ ω •́ )✧", "(ง •̀_•́)ง", "(˘ω˘)", "( ´▽` )ﾉ",
-        "(つ✧ω✧)つ", "(o´∀`o)", "(*/ω\\*)", "( ˶°ㅁ°) !!", "(づ￣ ³￣)づ",
-        "(っ´ω`)ﾉ", "(ﾉ◕ヮ◕)ﾉ*:･ﾟ✧", "(｡･ω･｡)ﾉ♡", "( ˘ ³˘)♥", "(๑˃ᴗ˂)ﻭ",
-        "(；´∀｀)", "( ´ ▽ ` ).｡ｏ♡", "(✧ω✧)", "(≧◡≦) ♡", "(ﾉ>ω<)ﾉ ♪",
-        "(づ ◕‿◕ )づ", "(•̀ᴗ•́)و ̑̑", "(⌒▽⌒)☆", "( ◡‿◡ *)", "(っ'-')╮=͟͟͞͞💌",
-        "(ﾉ´ヮ`)ﾉ*: ･ﾟ", "(๑•́ ₃ •̀๑)", "(っ˘ڡ˘ς)", "( •̀ .̫ •́ )✧", "(｡♥‿♥｡)",
-        "(๑˃̵ᴗ˂̵)و", "(⊃｡•́‿•̀｡)⊃", "(っ˘̩╭╮˘̩)っ", "( ´_ゝ`)", "┐(´∀｀)┌",
-        "(｡•́︿•̀｡)", "( ˘ω˘ )ｽﾔｧ", "(っ´Ι`)っ", "٩(ˊᗜˋ*)و", "(๑•̀ㅁ•́๑)✧",
-        "(｡•̀ᴗ-)~☆", "(づ￣³￣)づ", "( ˘ ³˘)♡", "(o˘◡˘o)", "٩(◕‿◕｡)۶",
-        "(ﾉ´ з `)ノ", "(⌒_⌒;)", "(´• ω •`)", "( ´ ▽ ` )ﾉ", "(☆▽☆)",
-        "(｡･ω･｡)", "(っ´ω`c)♡", "( ˘ ³˘)♥", "(๑˃̵ᴗ˂̵)", "( ´∀｀ )b",
-        "(ง •̀_•́)ง✧", "(づ｡◕‿◕｡)づ", "(｡•ᴗ•｡)♡", "( ˶˘ ³˘(ᵕ ˘ ᵕ*)", "(っ˘ω˘ς)♪",
-        "(ﾉ≧ڡ≦)", "(⌒▽⌒)", "( •́ .̫ •̀ )", "(´･_･`)", "(つд⊂)",
-        "(๑>ᴗ<๑)", "( ´ ▽ ` )/", "( ˘͈ ᵕ ˘͈ )", "(っ•̀ω•́)っ", "(｡◕‿◕｡)",
-        "(・∀・)", "(´∀`)", "(つω`*)ﾃﾍ", "(๑•̀ㅂ•́)و", "(oﾟ▽ﾟ)o",
-        "( ´･ω･)ﾉ(._.`)","(ﾉﾟ▽ﾟ)ﾉ", "( ﾟ∀ﾟ)o彡ﾟ", "(´▽`ʃ♡ƪ)", "(っ'-')╮=͟͟͞͞♡",
-        "(｡•̀ᴗ-)✧", "( ˘͈ ᵕ ˘͈ )", "(っ´ω`c)", "(ﾉ◕ヮ◕)ﾉ", "(๑˃̵ᴗ˂̵)و",
-        "( ´ ▽ ` )", "(✧ω✧)", "(≧◡≦)", "(づ￣ ³￣)づ", "(ง •̀_•́)ง",
-        "ฅ^•ﻌ•^ฅ", "(˘ω˘)", "(｡･ω･｡)", "(っ˘ω˘ς )", "(〜￣▽￣)〜",
-        "(つ✧ω✧)つ", "(o´∀`o)", "(*/ω\\*)", "( ˶°ㅁ°)", "(っ´ω`)ﾉ",
-        "( ˘ ³˘)♥", "(๑˃ᴗ˂)ﻭ", "(；´∀｀)", "(ﾉ>ω<)ﾉ", "(•̀ᴗ•́)و",
-        "(⌒▽⌒)☆", "( ◡‿◡ *)", "(๑•́ ₃ •̀๑)", "(っ˘ڡ˘ς)", "(｡♥‿♥｡)",
-        "( ´_ゝ`)", "┐(´∀｀)┌", "(｡•́︿•̀｡)", "(っ´Ι`)っ", "٩(ˊᗜˋ*)و",
-        "(๑•̀ㅁ•́๑)✧", "(o˘◡˘o)", "٩(◕‿◕｡)۶", "(ﾉ´ з `)ノ", "(⌒_⌒;)",
-        "(´• ω •`)", "(☆▽☆)", "(・∀・)", "(´∀`)", "(oﾟ▽ﾟ)o",
-        "(づ｡◕‿‿◕｡)づ", "( ´͈ ᵕ `͈ )", "(๑•̀ㅂ•́)و", "( •̀ ω •́ )", "( ´▽` )ﾉ"
-    ];
-
-    function copyTextToClipboard(text) {
-        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-            navigator.clipboard.writeText(text).then(() => {
-                showToast(`已复制：${text}`);
-            }).catch(() => fallbackCopy(text));
-        } else {
-            fallbackCopy(text);
-        }
-    }
-
-    function fallbackCopy(text) {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        try {
-            document.execCommand('copy');
-            showToast(`已复制：${text}`);
-        } catch {
-            showToast('复制失败');
-        }
-        ta.remove();
-    }
 
     function syncQuestionHeaderWidth() {
         const refEl = document.querySelector('.Question-mainColumn .Card, .Question-mainColumn .List-item, .Question-mainColumn');
@@ -2870,108 +6045,10 @@
         }
     }
 
-    function trimIncompleteLastKaomojiRow(panel) {
-        const chips = Array.from(panel.querySelectorAll('.zh-kaomoji-chip'));
-        if (chips.length === 0) return;
-        // 先全部恢复显示以重新测量行布局
-        for (const c of chips) c.style.removeProperty('display');
-
-        const panelWidth = panel.clientWidth;
-        if (panelWidth <= 0) return;
-
-        // 按 offsetTop 分组每一行
-        const rows = [];
-        for (const c of chips) {
-            const top = c.offsetTop;
-            const lastRow = rows[rows.length - 1];
-            if (!lastRow || Math.abs(lastRow.top - top) > 4) {
-                rows.push({ top, items: [c] });
-            } else {
-                lastRow.items.push(c);
-            }
-        }
-        if (rows.length >= 2) {
-            const lastRow = rows[rows.length - 1];
-            const usedWidth = lastRow.items.reduce((sum, el) => sum + el.offsetWidth, 0);
-            // 若最后一行填充率不足 75%，隐藏该行碎片，让倒数第二行（满行）成为末行
-            if (usedWidth < panelWidth * 0.75) {
-                for (const c of lastRow.items) {
-                    c.style.setProperty('display', 'none', 'important');
-                }
-            }
-        }
-    }
-
-    function updateKaomojiPanelLayout() {
-        syncQuestionHeaderWidth();
-        const panel = document.getElementById('zh-kaomoji-panel');
-        if (!panel) return;
-        if (!settings.showKaomoji) {
-            panel.style.setProperty('display', 'none', 'important');
-            return;
-        }
-
-        const vw = window.innerWidth || document.documentElement.clientWidth;
-        let maxContentRight = 0;
-        const mainCols = document.querySelectorAll(
-            '.Topstory-mainColumn, .Question-mainColumn, .Profile-mainColumn, .SearchMain, .QuestionHeader-main, [data-za-detail-view-path-module="QuestionDescription"]'
-        );
-        for (const col of mainCols) {
-            const rect = col.getBoundingClientRect();
-            if (rect.width > 0 && rect.right > maxContentRight) {
-                maxContentRight = rect.right;
-            }
-        }
-
-        // 若未检测到主列，按安全阈值 1200px 判断
-        let availableSpace = maxContentRight > 0 ? (vw - 24 - maxContentRight - 16) : (vw >= 1260 ? 320 : 0);
-        // 若内联写回答的“创作助手”面板处于打开状态，优先为其预留 296px 右侧空间
-        const openAi = document.querySelector('#AnswerFormPortalContainer .AIAssistantPanelV2-container:not([data-zh-ai-closed="true"])');
-        if (openAi && openAi.getBoundingClientRect().height >= 0) {
-            availableSpace -= 296;
-        }
-        if (availableSpace < 200) {
-            panel.style.setProperty('display', 'none', 'important');
-        } else {
-            const w = Math.min(320, Math.floor(availableSpace));
-            panel.style.setProperty('display', 'flex', 'important');
-            panel.style.setProperty('width', `${w}px`, 'important');
-            trimIncompleteLastKaomojiRow(panel);
-        }
-    }
-
-    function mountKaomojiDecoration() {
-        if (!document.body || !settings.showKaomoji) return;
-        let panel = document.getElementById('zh-kaomoji-panel');
-        if (!panel) {
-            panel = document.createElement('div');
-            panel.id = 'zh-kaomoji-panel';
-            for (const text of KAOMOJI_LIST) {
-                const chip = document.createElement('span');
-                chip.className = 'zh-kaomoji-chip';
-                chip.textContent = text;
-                chip.title = '点击复制';
-                chip.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    copyTextToClipboard(text);
-                });
-                panel.appendChild(chip);
-            }
-            document.body.appendChild(panel);
-            if (!window.__zhKaomojiResizeBound) {
-                window.__zhKaomojiResizeBound = true;
-                window.addEventListener('resize', updateKaomojiPanelLayout);
-            }
-        }
-        updateKaomojiPanelLayout();
-    }
-
     function hideLiuKanshan() {
         const vw = window.innerWidth || document.documentElement.clientWidth;
         const vh = window.innerHeight || document.documentElement.clientHeight;
         document.querySelectorAll('div, button, a, aside').forEach((el) => {
-            if (el.id === 'zh-kaomoji-panel' || el.closest('#zh-kaomoji-panel')) return;
             if (el.getAttribute('data-zh-hide-kanshan') === 'true') return;
             const style = window.getComputedStyle(el);
             if (style.position !== 'fixed') return;
@@ -2991,28 +6068,36 @@
     }
 
     function hideRightSidebarCards() {
-        let hasRightSidebar = false;
-        const rightSide = document.querySelector('.GlobalSideBar, [class*="GlobalSideBar"]');
+        const rightSide = document.querySelector('.GlobalSideBar, [class*="GlobalSideBar"], .Topstory-rightColumn');
         if (rightSide) {
             rightSide.setAttribute('data-zh-hide-keep-space', 'true');
-            hasRightSidebar = true;
         }
-        const candidates = document.querySelectorAll('aside, div');
-        const vw = window.innerWidth || document.documentElement.clientWidth;
-        for (const el of candidates) {
-            if (el.getAttribute('data-zh-hide-keep-space') === 'true') continue;
-            const w = el.clientWidth;
-            if (w < 220 || w > 420) continue;
-            const rect = el.getBoundingClientRect();
-            if (rect.left < vw * 0.55) continue;
-            const txt = el.textContent || '';
-            if (txt.includes('大家都在搜') || txt.includes('盐言作者平台') || (txt.includes('创作中心') && txt.includes('草稿箱'))) {
-                el.setAttribute('data-zh-hide-keep-space', 'true');
-                hasRightSidebar = true;
+        // 首页新版结构：.Topstory-mainColumn 的右侧兄弟栏即为右侧边栏（含“分享此刻的想法 / 盐言作者平台 / 大家都在搜”等）
+        const mainCol = document.querySelector('.Topstory-mainColumn');
+        if (mainCol && mainCol.parentElement) {
+            for (const sibling of mainCol.parentElement.children) {
+                if (sibling === mainCol) continue;
+                if (sibling.getAttribute('data-zh-sidebar-col') === 'true') continue;
+                if (sibling.querySelector('[data-zh-sidebar="true"], .Topstory-mainColumn')) continue;
+                sibling.setAttribute('data-zh-hide-keep-space', 'true');
             }
         }
-        if (hasRightSidebar) {
-            mountKaomojiDecoration();
+        const candidates = document.querySelectorAll('aside, div');
+        for (const el of candidates) {
+            if (el.getAttribute('data-zh-hide-keep-space') === 'true') continue;
+            if (el.closest('[data-zh-sidebar="true"], header, .AppHeader, .Modal, .Popover')) continue;
+            if (el.querySelector('.Topstory-mainColumn, .TopstoryItem, .Feed, .ContentItem, .Question-mainColumn, .Profile-mainColumn')) continue;
+            const w = el.clientWidth;
+            if (w < 200 || w > 420) continue;
+            const txt = el.textContent || '';
+            if (
+                txt.includes('大家都在搜') ||
+                txt.includes('盐言作者平台') ||
+                (txt.includes('创作中心') && txt.includes('草稿箱')) ||
+                (txt.includes('分享此刻的想法') && txt.includes('发想法'))
+            ) {
+                el.setAttribute('data-zh-hide-keep-space', 'true');
+            }
         }
         hideLiuKanshan();
     }
@@ -3026,11 +6111,50 @@
                 a.setAttribute('data-zh-top-tab', 'true');
             }
         }
-        // 顶部搜索框加高（不左右延长）
+        // 顶部搜索框加高（不左右延长）& 可选关闭预设热点提示
         const searchInputs = document.querySelectorAll('.SearchBar-input, header input[type="search"], header input[role="combobox"]');
         for (const inp of searchInputs) {
             const box = inp.closest('.SearchBar-input') || inp.parentElement;
             if (box) box.setAttribute('data-zh-search-box', 'true');
+            const realInput = inp.tagName === 'INPUT' ? inp : inp.querySelector('input');
+            if (realInput) {
+                const curPh = realInput.getAttribute('placeholder') || '';
+                if (curPh && !realInput.dataset.zhOrigPlaceholder) {
+                    realInput.dataset.zhOrigPlaceholder = curPh;
+                }
+                if (settings.hideSearchHotHint) {
+                    if (curPh) realInput.setAttribute('placeholder', '');
+                    if (!realInput.dataset.zhPhObserverBound) {
+                        realInput.dataset.zhPhObserverBound = '1';
+                        const phObs = new MutationObserver(() => {
+                            if (!settings.hideSearchHotHint) return;
+                            const nextPh = realInput.getAttribute('placeholder') || '';
+                            if (nextPh) {
+                                realInput.dataset.zhOrigPlaceholder = nextPh;
+                                realInput.setAttribute('placeholder', '');
+                            }
+                        });
+                        phObs.observe(realInput, { attributes: true, attributeFilter: ['placeholder'] });
+                    }
+                } else if (!curPh && realInput.dataset.zhOrigPlaceholder) {
+                    realInput.setAttribute('placeholder', realInput.dataset.zhOrigPlaceholder);
+                }
+            }
+        }
+        // 关闭搜索下拉中的知乎热搜/猜你想搜等预设推荐（不影响输入后的实时搜索联想）
+        if (settings.hideSearchHotHint) {
+            const menus = document.querySelectorAll('.SearchBar-menu, .Popover-content .Menu, .Popover-content');
+            for (const menu of menus) {
+                if (menu.getAttribute('data-zh-hide-hot-search') === 'true') continue;
+                const txt = menu.textContent || '';
+                if (txt.includes('知乎热搜') || txt.includes('猜你想搜') || txt.includes('大家都在搜')) {
+                    menu.setAttribute('data-zh-hide-hot-search', 'true');
+                }
+            }
+        } else {
+            document.querySelectorAll('[data-zh-hide-hot-search="true"]').forEach((el) => {
+                el.removeAttribute('data-zh-hide-hot-search');
+            });
         }
     }
 
@@ -3375,13 +6499,24 @@
     // =========================================================================
     function applySettingsClasses() {
         if (!document.body) return;
-        document.body.classList.toggle('zh-off-kaomoji', !settings.showKaomoji);
         document.body.classList.toggle('zh-off-block', !settings.showBlockBtn);
         document.body.classList.toggle('zh-off-follow', !settings.showFollowBtn);
         document.body.classList.toggle('zh-off-time', !settings.showAnswerTime);
         document.body.classList.toggle('zh-off-view-tag', !settings.showViewTag);
         document.body.classList.toggle('zh-blue-view-tag', !!settings.blueViewTag);
         document.body.classList.toggle('zh-disable-entity-ai', !!settings.disableEntityAiLink);
+        document.body.classList.toggle('zh-scale-profile-avatar', !!settings.scaleProfileAvatar);
+        document.body.classList.toggle('zh-full-profile-cover', !!settings.fullProfileCover);
+        document.body.classList.toggle('zh-hide-search-hot-hint', !!settings.hideSearchHotHint);
+        document.body.classList.toggle('zh-messages-embed', isMessagesEmbedMode());
+        updateAutoSidebarCollapse();
+        const avatarBg = settings.profileAvatarBg || 'mosaic';
+        document.body.classList.toggle('zh-avatar-bg-mosaic', avatarBg === 'mosaic');
+        if (avatarBg !== 'mosaic') {
+            document.body.style.setProperty('--zh-avatar-bg', avatarBg);
+        } else {
+            document.body.style.removeProperty('--zh-avatar-bg');
+        }
     }
 
     function openScriptSettingsPage() {
@@ -3419,7 +6554,6 @@
         section.id = 'zh-preference-settings-section';
 
         const toggleDefs = [
-            { key: 'showKaomoji', label: '显示右侧颜文字面板', desc: '在页面右侧空白处展示可点击复制的纯颜文字面板（窄屏自动隐藏）' },
             { key: 'showBlockBtn', label: '作者/评论 ID 旁显示「屏蔽用户」按钮', desc: '在回答、文章作者及评论区用户名右侧添加屏蔽用户按钮' },
             { key: 'showFollowBtn', label: '作者/评论 ID 旁显示「+ 关注」按钮', desc: '在作者及评论区用户名右侧额外添加关注/取消关注按钮' },
             { key: 'showAnswerTime', label: '赞同数旁显示回答/修改时间', desc: '在「xx 人赞同了该回答/文章/想法」右侧显示发布与修改时间' },
@@ -3427,9 +6561,13 @@
             { key: 'showViewTag', label: '问题顶部显示「浏览 · 关注」标签', desc: '将问题浏览数与关注数以标签形式前置显示在话题标签最前面' },
             { key: 'blueViewTag', label: '问题顶部「浏览 · 关注」标签改为蓝底白字', desc: '开启后该标签将使用知乎主题蓝底白字高亮显示' },
             { key: 'defaultCloseAiAssistant', label: '默认不展开创作助手', desc: '打开写回答时默认关闭右侧创作助手面板（点击顶栏「助手」可随时展开）' },
-            { key: 'disableEntityAiLink', label: '关闭正文 AI 词条（直答/看山）高亮链接', desc: '隐藏正文词语旁的四角星图标并取消蓝色高亮与点击跳转，恢复为普通文本' }
+            { key: 'disableEntityAiLink', label: '关闭正文 AI 词条（直答/看山）高亮链接', desc: '隐藏正文词语旁的四角星图标并取消蓝色高亮与点击跳转，恢复为普通文本' },
+            { key: 'scaleProfileAvatar', label: '放大并完整缩放个人主页头像', desc: '开启后将个人主页头像框放大至 200px 并居中完整显示小图（默认关闭保持原生尺寸）' },
+            { key: 'fullProfileCover', label: '完整显示个人主页顶部海报（封面图）', desc: '开启后不再裁剪个人主页顶部自定义海报图片，按原图比例完整显示（头像会轻微遮挡左下角）' },
+            { key: 'hideSearchHotHint', label: '隐藏搜索框预设热点提示', desc: '开启后清空顶部搜索框的默认热搜词提示，并隐藏下拉弹窗中的知乎热搜/猜你想搜推荐（默认关闭）' }
         ];
 
+        let avatarBgRow = null;
         for (const def of toggleDefs) {
             const row = document.createElement('div');
             row.className = 'zh-pref-row';
@@ -3454,6 +6592,9 @@
                 settings[def.key] = cb.checked;
                 saveSettings(settings);
                 applySettingsClasses();
+                if (def.key === 'scaleProfileAvatar' && avatarBgRow) {
+                    avatarBgRow.style.display = cb.checked ? 'flex' : 'none';
+                }
                 scheduleEnhance();
             });
             const slider = document.createElement('span');
@@ -3464,6 +6605,73 @@
             row.appendChild(info);
             row.appendChild(switchLabel);
             section.appendChild(row);
+
+            if (def.key === 'scaleProfileAvatar') {
+                avatarBgRow = document.createElement('div');
+                avatarBgRow.className = 'zh-pref-row';
+                avatarBgRow.style.cssText = `padding-left: 16px; display: ${settings.scaleProfileAvatar ? 'flex' : 'none'}; align-items: center; justify-content: space-between; gap: 12px;`;
+
+                const bgInfo = document.createElement('div');
+                bgInfo.className = 'zh-pref-info';
+                bgInfo.innerHTML = '<div class="zh-pref-title">头像缩放背景样式</div><div class="zh-pref-desc">开启头像缩放时小图四周的填充背景，默认马赛克透明网格</div>';
+
+                const bgControls = document.createElement('div');
+                bgControls.style.cssText = 'display: flex; align-items: center; gap: 6px; flex-wrap: wrap;';
+
+                const presets = [
+                    { val: 'mosaic', label: '马赛克' },
+                    { val: '#ffffff', label: '纯白' },
+                    { val: '#f4f6f9', label: '浅灰' },
+                    { val: '#191b1f', label: '深黑' }
+                ];
+                const presetBtns = [];
+                const colorInput = document.createElement('input');
+                colorInput.type = 'color';
+                colorInput.title = '自定义背景色';
+                colorInput.value = (settings.profileAvatarBg && settings.profileAvatarBg !== 'mosaic') ? settings.profileAvatarBg : '#ffffff';
+                colorInput.style.cssText = 'width: 28px; height: 26px; padding: 0; border: 1px solid #d0d7de; border-radius: 4px; cursor: pointer; background: transparent;';
+
+                const syncPresetStyles = () => {
+                    const cur = settings.profileAvatarBg || 'mosaic';
+                    presetBtns.forEach(({ btn, val }) => {
+                        const active = cur.toLowerCase() === val.toLowerCase();
+                        btn.style.borderColor = active ? '#1772f6' : '#d0d7de';
+                        btn.style.color = active ? '#1772f6' : 'inherit';
+                        btn.style.fontWeight = active ? '600' : '400';
+                    });
+                    if (cur !== 'mosaic' && /^#[0-9a-f]{6}$/i.test(cur)) {
+                        colorInput.value = cur;
+                    }
+                };
+
+                presets.forEach(({ val, label }) => {
+                    const b = document.createElement('button');
+                    b.type = 'button';
+                    b.textContent = label;
+                    b.style.cssText = 'height: 26px; padding: 0 10px; font-size: 12px; border: 1px solid #d0d7de; border-radius: 4px; background: transparent; cursor: pointer;';
+                    b.addEventListener('click', () => {
+                        settings.profileAvatarBg = val;
+                        saveSettings(settings);
+                        applySettingsClasses();
+                        syncPresetStyles();
+                    });
+                    presetBtns.push({ btn: b, val });
+                    bgControls.appendChild(b);
+                });
+
+                colorInput.addEventListener('input', () => {
+                    settings.profileAvatarBg = colorInput.value;
+                    saveSettings(settings);
+                    applySettingsClasses();
+                    syncPresetStyles();
+                });
+                bgControls.appendChild(colorInput);
+                syncPresetStyles();
+
+                avatarBgRow.appendChild(bgInfo);
+                avatarBgRow.appendChild(bgControls);
+                section.appendChild(avatarBgRow);
+            }
         }
 
         // 左侧栏按钮显示与排序
@@ -3607,7 +6815,174 @@
         });
         sidebarBox.appendChild(addDividerBtn);
 
+        // 私信分组排序与消息接收设置
+        const chatBox = document.createElement('div');
+        chatBox.className = 'zh-pref-row';
+        chatBox.style.flexDirection = 'column';
+        chatBox.style.alignItems = 'stretch';
+        chatBox.style.gap = '10px';
+        chatBox.style.marginTop = '12px';
+        chatBox.innerHTML = `
+            <div class="zh-pref-info">
+                <div class="zh-pref-title">私信分组排序与消息接收</div>
+                <div class="zh-pref-desc">调整私信左侧「最近联系」「互相关注」及自定义分类的排列顺序；取消勾选「接受消息」将自动已读并隐藏该分类成员的私信提醒</div>
+            </div>
+        `;
+        const chatOrderList = document.createElement('div');
+        chatOrderList.className = 'zh-sidebar-sort-list';
+
+        function syncChatGroupOrder() {
+            if (!Array.isArray(settings.chatGroupOrder)) settings.chatGroupOrder = ['__recent__', '__friends__'];
+            const validIds = new Set(['__recent__', '__friends__', ...(settings.chatCategories || []).map((c) => c.id)]);
+            settings.chatGroupOrder = settings.chatGroupOrder.filter((id) => validIds.has(id));
+            validIds.forEach((id) => {
+                if (!settings.chatGroupOrder.includes(id)) settings.chatGroupOrder.push(id);
+            });
+        }
+
+        function renderChatGroupList() {
+            syncChatGroupOrder();
+            chatOrderList.innerHTML = '';
+            const catMap = new Map((settings.chatCategories || []).map((c) => [c.id, c]));
+            settings.chatGroupOrder.forEach((gid, idx) => {
+                const row = document.createElement('div');
+                row.className = 'zh-sidebar-sort-row';
+                const isNative = gid === '__recent__' || gid === '__friends__';
+                const cat = isNative ? null : catMap.get(gid);
+                const labelText = gid === '__recent__' ? '最近联系（原生）' : (gid === '__friends__' ? '互相关注（原生）' : `${cat?.name || gid}（自定义 · ${(cat?.users || []).length}人）`);
+
+                const left = document.createElement('label');
+                left.className = 'zh-sidebar-sort-left';
+                if (!isNative && cat) {
+                    const cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.checked = cat.acceptMessages !== false;
+                    cb.addEventListener('change', () => {
+                        cat.acceptMessages = cb.checked;
+                        saveSettings(settings);
+                    });
+                    left.appendChild(cb);
+                }
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = labelText + (!isNative && cat && cat.acceptMessages === false ? ' [不接受消息]' : (!isNative ? ' [接受消息]' : ''));
+                left.appendChild(nameSpan);
+
+                const btns = document.createElement('div');
+                btns.className = 'zh-sidebar-sort-btns';
+                const defLabel = document.createElement('label');
+                defLabel.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#646464;cursor:pointer;margin-right:6px;';
+                const defRadio = document.createElement('input');
+                defRadio.type = 'radio';
+                defRadio.name = 'zh_default_chat_group';
+                defRadio.checked = (settings.defaultChatGroup || '__recent__') === gid;
+                defRadio.addEventListener('change', () => {
+                    settings.defaultChatGroup = gid;
+                    saveSettings(settings);
+                });
+                defLabel.appendChild(defRadio);
+                defLabel.appendChild(document.createTextNode('默认展开'));
+                btns.appendChild(defLabel);
+
+                const upBtn = document.createElement('button');
+                upBtn.type = 'button';
+                upBtn.className = 'zh-sort-btn';
+                upBtn.textContent = '↑';
+                upBtn.disabled = idx === 0;
+                upBtn.addEventListener('click', () => {
+                    if (idx === 0) return;
+                    const arr = settings.chatGroupOrder;
+                    [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+                    saveSettings(settings);
+                    renderChatGroupList();
+                });
+                const downBtn = document.createElement('button');
+                downBtn.type = 'button';
+                downBtn.className = 'zh-sort-btn';
+                downBtn.textContent = '↓';
+                downBtn.disabled = idx === settings.chatGroupOrder.length - 1;
+                downBtn.addEventListener('click', () => {
+                    const arr = settings.chatGroupOrder;
+                    if (idx >= arr.length - 1) return;
+                    [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+                    saveSettings(settings);
+                    renderChatGroupList();
+                });
+                btns.appendChild(upBtn);
+                btns.appendChild(downBtn);
+
+                row.appendChild(left);
+                row.appendChild(btns);
+                chatOrderList.appendChild(row);
+            });
+        }
+        renderChatGroupList();
+        chatBox.appendChild(chatOrderList);
+
+        // 私信机器人常用回复预设
+        const quickBox = document.createElement('div');
+        quickBox.className = 'zh-pref-row';
+        quickBox.style.flexDirection = 'column';
+        quickBox.style.alignItems = 'stretch';
+        quickBox.style.gap = '8px';
+        quickBox.style.marginTop = '12px';
+        quickBox.innerHTML = `
+            <div class="zh-pref-info">
+                <div class="zh-pref-title">私信常用回复预设（机器人按钮）</div>
+                <div class="zh-pref-desc">仅有一条预设时点击聊天框机器人按钮直接填入；有多条时弹出选择菜单（也可在聊天框右键机器人按钮快捷管理）</div>
+            </div>
+        `;
+        const quickListEl = document.createElement('div');
+        quickListEl.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;';
+        function renderQuickRepliesPref() {
+            quickListEl.innerHTML = '';
+            const arr = Array.isArray(settings.chatQuickReplies) && settings.chatQuickReplies.length > 0
+                ? settings.chatQuickReplies
+                : ['人工客服'];
+            settings.chatQuickReplies = arr;
+            arr.forEach((txt, idx) => {
+                const chip = document.createElement('span');
+                chip.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #d0d7de;border-radius:14px;font-size:12.5px;';
+                chip.textContent = txt;
+                if (arr.length > 1) {
+                    const del = document.createElement('button');
+                    del.type = 'button';
+                    del.textContent = '×';
+                    del.style.cssText = 'border:none;background:transparent;color:#8491a5;cursor:pointer;padding:0;font-size:13px;';
+                    del.addEventListener('click', () => {
+                        arr.splice(idx, 1);
+                        saveSettings(settings);
+                        renderQuickRepliesPref();
+                    });
+                    chip.appendChild(del);
+                }
+                quickListEl.appendChild(chip);
+            });
+            const addBtn = document.createElement('button');
+            addBtn.type = 'button';
+            addBtn.className = 'zh-sort-btn';
+            addBtn.textContent = '+ 添加预设';
+            addBtn.addEventListener('click', () => {
+                showZhDialog({
+                    title: '添加常用回复预设',
+                    placeholder: '请输入常用内容',
+                    confirmText: '添加',
+                    onConfirm: (val) => {
+                        if (!arr.includes(val)) {
+                            arr.push(val);
+                            saveSettings(settings);
+                            renderQuickRepliesPref();
+                        }
+                    }
+                });
+            });
+            quickListEl.appendChild(addBtn);
+        }
+        renderQuickRepliesPref();
+        quickBox.appendChild(quickListEl);
+
         section.appendChild(sidebarBox);
+        section.appendChild(chatBox);
+        section.appendChild(quickBox);
         anchorItem.insertAdjacentElement('afterend', section);
     }
 
@@ -3619,7 +6994,18 @@
     }
     registerSettingsMenu();
 
-    function triggerMoreMenuAction(moreBtn, keywords, onDone) {
+    function closePopoverSilently(moreBtn) {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+        document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        setTimeout(() => {
+            if (document.querySelector('.Popover-content') && moreBtn) {
+                moreBtn.click();
+            }
+            setTimeout(() => document.body.classList.remove('zh-silent-popover'), 100);
+        }, 30);
+    }
+
+    function triggerMoreMenuAction(moreBtn, keywords, onDone, readOnly = false) {
         if (!moreBtn) return;
         document.body.classList.add('zh-silent-popover');
         moreBtn.click();
@@ -3650,17 +7036,12 @@
             }
 
             if (matchedItem) {
-                matchedItem.click();
+                if (!readOnly) {
+                    matchedItem.click();
+                }
                 setTimeout(() => {
                     if (typeof onDone === 'function') onDone(matchedContainer, matchedItem);
-                    // 如果切换开关后 Popover 仍开着，再点一次关闭
-                    if (document.body.contains(matchedItem) && matchedItem.closest('.Popover-content')) {
-                        const switchEl = matchedContainer ? matchedContainer.querySelector('input[type="checkbox"], [role="switch"]') : null;
-                        if (switchEl || keywords.some((k) => k.toLowerCase().includes('markdown'))) {
-                            moreBtn.click();
-                        }
-                    }
-                    setTimeout(() => document.body.classList.remove('zh-silent-popover'), 60);
+                    closePopoverSilently(moreBtn);
                 }, 40);
                 return;
             }
@@ -3668,8 +7049,7 @@
             if (attempts < maxAttempts) {
                 setTimeout(poll, 20);
             } else {
-                document.body.classList.remove('zh-silent-popover');
-                moreBtn.click();
+                closePopoverSilently(moreBtn);
             }
         };
         setTimeout(poll, 20);
@@ -3761,16 +7141,20 @@
                 'Markdown 开关',
                 '<path fill-rule="evenodd" d="M3.5 5.75A1.75 1.75 0 0 1 5.25 4h13.5A1.75 1.75 0 0 1 20.5 5.75v12.5A1.75 1.75 0 0 1 18.75 20H5.25a1.75 1.75 0 0 1-1.75-1.75V5.75Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h13.5a.25.25 0 0 0 .25-.25V5.75a.25.25 0 0 0-.25-.25H5.25Zm1.5 10V8.5h1.6l1.9 2.55L12.15 8.5h1.6v7h-1.5v-4.45l-2 2.65-2-2.65v4.45h-1.5Zm10.75-7v4.4h1.35L16.75 16l-2.1-3.1H16V8.5h1.5Z" clip-rule="evenodd"/>'
             );
+            const syncMdState = (container, item, isToggle) => {
+                const cb = (container && container.querySelector('input[type="checkbox"]')) || (item && item.matches('input[type="checkbox"]') ? item : null);
+                const sw = (container && container.querySelector('[role="switch"]')) || (item && item.getAttribute('role') === 'switch' ? item : null);
+                const isChecked = cb ? cb.checked : (sw ? sw.getAttribute('aria-checked') === 'true' : (isToggle ? mdBtn.getAttribute('data-zh-active') !== 'true' : false));
+                mdBtn.setAttribute('data-zh-active', isChecked ? 'true' : 'false');
+            };
             mdBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                triggerMoreMenuAction(moreBtn, ['markdown', 'md'], (container, item) => {
-                    const cb = (container && container.querySelector('input[type="checkbox"]')) || (item && item.matches('input[type="checkbox"]') ? item : null);
-                    const sw = (container && container.querySelector('[role="switch"]')) || (item && item.getAttribute('role') === 'switch' ? item : null);
-                    const isChecked = cb ? cb.checked : (sw ? sw.getAttribute('aria-checked') === 'true' : mdBtn.getAttribute('data-zh-active') !== 'true');
-                    mdBtn.setAttribute('data-zh-active', isChecked ? 'true' : 'false');
-                });
+                triggerMoreMenuAction(moreBtn, ['markdown', 'md'], (container, item) => syncMdState(container, item, true), false);
             });
+            setTimeout(() => {
+                triggerMoreMenuAction(moreBtn, ['markdown', 'md'], (container, item) => syncMdState(container, item, false), true);
+            }, 120);
 
             insertAnchor.insertAdjacentElement('afterend', mdBtn);
             insertAnchor.insertAdjacentElement('afterend', defaultSettingBtn);
@@ -3844,6 +7228,18 @@
 
         moveButtonsToContainer(['撤销', '重做'], undoGroup);
         moveButtonsToContainer(['图片', '视频', '附件', '导入', '草稿备份', '帮助文档', '默认设置', 'Markdown 开关', '创作助手'], slot);
+
+        // 将工具栏中的“清除格式”改名为“格式刷”
+        toolbar.querySelectorAll('button').forEach((btn) => {
+            const aria = cleanText(btn.getAttribute('aria-label'));
+            const txt = cleanText(btn.textContent);
+            if (aria === '清除格式' || txt === '清除格式') {
+                const labelSpan = btn.querySelector('div > span:last-child') || btn.querySelector('span:last-child');
+                if (labelSpan && labelSpan.textContent !== '格式刷') {
+                    labelSpan.textContent = '格式刷';
+                }
+            }
+        });
 
         // 隐藏末尾或无意义的多余分割线
         const dividers = Array.from(toolbar.querySelectorAll('.ToolbarDivider'));
@@ -3952,14 +7348,7 @@
 
         const vw = window.innerWidth || document.documentElement.clientWidth;
         const vh = window.innerHeight || document.documentElement.clientHeight;
-        const kaomoji = document.getElementById('zh-kaomoji-panel');
-        let kaomojiLeft = vw - 16;
-        if (kaomoji && getComputedStyle(kaomoji).display !== 'none') {
-            const kRect = kaomoji.getBoundingClientRect();
-            if (kRect.width > 0) kaomojiLeft = kRect.left;
-        }
-
-        const availableRight = kaomojiLeft - portalRect.right - 24;
+        const availableRight = (vw - 16) - portalRect.right - 24;
         const top = Math.round(Math.max(72, Math.min(portalRect.top, vh - 260)));
         const maxH = Math.max(160, vh - top - 24);
         aiPanel.setAttribute('data-zh-ai-floating', 'true');
@@ -4127,10 +7516,80 @@
         );
 
         const listHeaders = document.querySelectorAll('.Profile-mainColumn .List-header, .ProfileMain .List-header, #ProfileMain .List-header, .Profile-answers .List-header');
+        // 提取并隐藏右侧“个人成就”卡片及“赞同我 / 我赞同他(她)”链接
+        const pronoun = (() => {
+            const metaGender = document.querySelector('meta[itemprop="gender"]')?.getAttribute('content');
+            if (metaGender === 'Male') return '他';
+            if (metaGender === 'Female') return '她';
+            for (const item of document.querySelectorAll('.ProfileHeader-detailItem')) {
+                const lb = (item.querySelector('.ProfileHeader-detailLabel')?.textContent || '').trim();
+                if (lb === '性别') {
+                    const val = (item.querySelector('.ProfileHeader-detailValue')?.textContent || '').trim();
+                    if (val.includes('男')) return '他';
+                    if (val.includes('女')) return '她';
+                }
+            }
+            return 'TA';
+        })();
+
+        const achievementItems = [];
+        const agreeLinks = [];
+        const sideCards = document.querySelectorAll('.Profile-sideColumn .Card');
+        for (const card of sideCards) {
+            const headerTxt = (card.querySelector('.Card-headerText')?.textContent || '').trim();
+            if (!headerTxt.includes('个人成就')) continue;
+            card.setAttribute('data-zh-hide-achievement-card', 'true');
+            const bodyTxt = (card.textContent || '').replace(/\s+/g, ' ');
+            const upvoteMatch = bodyTxt.match(/获得\s*([\d,]+)\s*次赞同/);
+            const likeMatch = bodyTxt.match(/([\d,]+)\s*次喜欢/);
+            const favMatch = bodyTxt.match(/([\d,]+)\s*次收藏/);
+            if (upvoteMatch) achievementItems.push({ num: upvoteMatch[1], label: '赞同' });
+            if (likeMatch) achievementItems.push({ num: likeMatch[1], label: '喜欢' });
+            if (favMatch) achievementItems.push({ num: favMatch[1], label: '收藏' });
+            if (achievementItems.length === 0) {
+                const editMatch = bodyTxt.match(/参与\s*([\d,]+)\s*次公共编辑/);
+                if (editMatch) achievementItems.push({ num: editMatch[1], label: '公共编辑' });
+            }
+            break;
+        }
+
+        if (!isOwnProfile) {
+            // 提取右侧“他/她赞同我 x 次”与“我赞同他/她 x 次”链接并隐藏原行
+            const sideCol = document.querySelector('.Profile-sideColumn');
+            if (sideCol) {
+                const seenAgree = new Set();
+                const candidates = sideCol.querySelectorAll('a, div, p, li, span');
+                for (const el of candidates) {
+                    if (el.closest('[data-zh-hide-achievement-card="true"], .Profile-lightList, .Profile-footerOperations')) continue;
+                    const txt = (el.textContent || '').replace(/\s+/g, ' ').trim();
+                    const mToMe = txt.match(/^(?:他|她|TA)赞同我\s*([\d,]+)\s*次$/);
+                    const mToOther = txt.match(/^我赞同(?:他|她|TA)\s*([\d,]+)\s*次$/);
+                    if (!mToMe && !mToOther) continue;
+                    // 避免父级与子级重复匹配：只取内层包含完整文本（且若有子节点则子节点不含完整文本）的节点
+                    const hasChildMatch = Array.from(el.children).some((ch) => /^(?:(?:他|她|TA)赞同我|我赞同(?:他|她|TA))\s*[\d,]+\s*次$/.test((ch.textContent || '').replace(/\s+/g, ' ').trim()));
+                    if (hasChildMatch) continue;
+                    const type = mToMe ? 'toMe' : 'toOther';
+                    if (seenAgree.has(type)) continue;
+                    seenAgree.add(type);
+
+                    const anchor = el.tagName === 'A' ? el : el.querySelector('a');
+                    const href = anchor ? (anchor.getAttribute('href') || '') : '';
+                    const target = anchor ? (anchor.getAttribute('target') || '') : '';
+                    const text = mToMe ? `${pronoun}赞同我 ${mToMe[1]} 次` : `我赞同${pronoun} ${mToOther[1]} 次`;
+                    agreeLinks.push({ type, text, href, target, nativeEl: anchor || el });
+                    el.setAttribute('data-zh-hide-followship-card', 'true');
+                }
+            }
+        }
+
         listHeaders.forEach((lh) => {
             // 隐藏“我的视频 / 他的回答 / 我的文章”等冗余标题节点
             Array.from(lh.children).forEach((child) => {
-                if (child.classList.contains('zh-profile-search-box') || child.classList.contains('List-headerOptions')) return;
+                if (
+                    child.classList.contains('zh-profile-search-box') ||
+                    child.classList.contains('zh-profile-achievement-text') ||
+                    child.classList.contains('List-headerOptions')
+                ) return;
                 const txt = (child.textContent || '').trim();
                 if (child.classList.contains('List-headerText') || /^(我的|他的|她的|TA的)(动态|回答|视频|提问|文章|专栏|想法|收藏|划线)$/.test(txt)) {
                     child.setAttribute('data-zh-hide-header-title', 'true');
@@ -4142,6 +7601,52 @@
             const fullTxt = (lh.textContent || '').trim();
             const isMine = isOwnProfile || titleTxt.startsWith('我的') || fullTxt.includes('我关注的人');
             const placeholder = isMine ? '搜索我的动态' : '搜索他的动态';
+
+            let achEl = lh.querySelector('.zh-profile-achievement-text');
+            if (achievementItems.length > 0 || agreeLinks.length > 0) {
+                if (!achEl) {
+                    achEl = document.createElement('div');
+                    achEl.className = 'zh-profile-achievement-text';
+                    lh.insertBefore(achEl, lh.firstChild);
+                }
+                const sig = JSON.stringify({ achievementItems, agreeLinks: agreeLinks.map((a) => ({ text: a.text, href: a.href })) });
+                if (achEl.getAttribute('data-zh-ach-sig') !== sig) {
+                    achEl.setAttribute('data-zh-ach-sig', sig);
+                    achEl.innerHTML = '';
+                    const parts = [];
+                    for (const item of achievementItems) {
+                        const span = document.createElement('span');
+                        span.innerHTML = `<b>${item.num}</b> ${item.label}`;
+                        parts.push(span);
+                    }
+                    for (const ag of agreeLinks) {
+                        const a = document.createElement('a');
+                        a.className = 'zh-profile-agree-link';
+                        a.textContent = ag.text;
+                        if (ag.href) a.href = ag.href;
+                        else a.href = 'javascript:void(0)';
+                        if (ag.target) a.target = ag.target;
+                        if (!ag.href || ag.href === '#' || ag.href.startsWith('javascript:')) {
+                            a.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                ag.nativeEl?.click();
+                            });
+                        }
+                        parts.push(a);
+                    }
+                    parts.forEach((node, idx) => {
+                        if (idx > 0) {
+                            const sep = document.createElement('span');
+                            sep.className = 'zh-profile-achievement-sep';
+                            sep.textContent = '·';
+                            achEl.appendChild(sep);
+                        }
+                        achEl.appendChild(node);
+                    });
+                }
+            } else if (achEl) {
+                achEl.remove();
+            }
 
             let box = lh.querySelector('.zh-profile-search-box');
             if (!box) {
@@ -4166,7 +7671,12 @@
                     location.href = `${basePath}/search?q=${encodeURIComponent(q)}`;
                 });
 
-                lh.insertBefore(box, lh.firstChild);
+                const optionsEl = lh.querySelector('.List-headerOptions');
+                if (optionsEl) {
+                    lh.insertBefore(box, optionsEl);
+                } else {
+                    lh.appendChild(box);
+                }
             } else {
                 const input = box.querySelector('.zh-profile-search-input');
                 if (input && input.placeholder !== placeholder) {
@@ -4197,6 +7707,8 @@
         moveSecondaryToolsToTopBar();
         layoutAiAssistantPanel();
         collapseAnswerPublishSettings();
+        enhanceMessagesPage();
+        checkAndAutoReadMutedCategoryDms();
     }
 
     function scheduleEnhance() {
@@ -4217,7 +7729,6 @@
                 restorePublishSettingsFromAi(portal);
                 if (portal) portal.removeAttribute('data-zh-ai-user-opened');
                 if (panel) panel.setAttribute('data-zh-ai-closed', 'true');
-                requestAnimationFrame(updateKaomojiPanelLayout);
                 return;
             }
             const openBtn = e.target.closest('#AnswerFormPortalContainer button[aria-label="创作助手"]');
@@ -4228,12 +7739,10 @@
                     restorePublishSettingsFromAi(portal);
                     if (portal) portal.removeAttribute('data-zh-ai-user-opened');
                     panel.setAttribute('data-zh-ai-closed', 'true');
-                    requestAnimationFrame(updateKaomojiPanelLayout);
                 } else {
                     if (portal) portal.setAttribute('data-zh-ai-user-opened', 'true');
                     if (panel) panel.removeAttribute('data-zh-ai-closed');
                     const syncOpen = () => {
-                        updateKaomojiPanelLayout();
                         layoutAiAssistantPanel();
                         collapseAnswerPublishSettings();
                     };
@@ -4272,6 +7781,12 @@
         setupBlankClickCollapse();
         setupAiAssistantCloseFix();
         setupProfileTabSearchHook();
+        if (!window.__zhAutoSidebarResizeHook) {
+            window.__zhAutoSidebarResizeHook = true;
+            window.addEventListener('resize', () => {
+                requestAnimationFrame(updateAutoSidebarCollapse);
+            }, { passive: true });
+        }
         runEnhancements();
         const observer = new MutationObserver(() => {
             scheduleEnhance();
