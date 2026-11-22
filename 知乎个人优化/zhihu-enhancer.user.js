@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         知乎样式与功能增强
 // @namespace    https://www.zhihu.com/
-// @version      2.0.30
+// @version      2.0.58
 // @description  全面优化知乎阅读与创作体验：1) 阅读排版：适度放大正文/标题/评论/顶栏字号且不裁切正文行，支持5行摘要预览，点击左右空白区域快速折叠回答或问题详情；2) 侧栏与界面净化：左侧栏放大且窄屏不折叠，支持在偏好设置页拖拽排序、显隐及自定义分隔线，隐藏右栏冗余卡片与刘看山角标；3) 互动与信息增强：作者及评论区ID旁支持一键「屏蔽用户」与可选「+ 关注」，去除赞同数前「航海家」等前缀并在其旁直接显示发布与修改时间；4) 问题页与个人主页优化：问题顶部集中展示「浏览 · 关注」标签与操作按钮（写回答/关注问题/问题日志/评论）并隐藏邀请回答；个人主页展开完整简介、放大头像、Tab栏改用紧凑胶囊分段框并将「搜索动态」框与精简「个人成就」移至列表顶栏（保留按时间排序），他人主页隐藏右侧冗余卡片并将「屏蔽用户」移至关注/发私信旁；5) 创作体验升级：写回答工具栏双排紧凑对齐、展开「更多」菜单中的帮助/设置/MD开关、创作助手与发布设置合并为右侧紧凑悬浮窗（支持定时「选择时间」按钮与默认不展开设置）；专栏写文章标题栏支持直接粘贴图片设为封面；6) 所有功能均可在知乎「偏好设置」页内开关与自定义。
 // @author       AI
 // @match        *://*.zhihu.com/*
@@ -36,6 +36,7 @@
         { id: 'divider-2', label: '── 分割线 ──', visible: true, kind: 'divider' },
         { id: 'my-home', label: '我的主页', visible: true, kind: 'profile' },
         { id: 'my-history', label: '最近浏览', visible: true, kind: 'profile' },
+        { id: 'my-notifications', label: '通知', visible: true, kind: 'profile' },
         { id: 'my-messages', label: '私信', visible: true, kind: 'profile' },
         { id: 'creator-center', label: '创作中心', visible: true, kind: 'profile' },
         { id: 'my-theme', label: '显示模式', visible: true, kind: 'profile' },
@@ -47,11 +48,21 @@
 
     const DEFAULT_SETTINGS = {
         showBlockBtn: true,
+        showHoverCardBlockBtn: true,
         showFollowBtn: false,
         showAnswerTime: true,
+        showQuestionTime: true,
         enableBlankCollapse: true,
         showViewTag: true,
         blueViewTag: false,
+        viewTagCustomColor: false,
+        viewTagBgColor: '#056de8',
+        viewTagTextColor: '#ffffff',
+        showQuestionAuthorTag: true,
+        showQuestionEditorTag: true,
+        qMetaTagCustomColor: false,
+        qMetaTagBgColor: '#e1e4ea',
+        qMetaTagTextColor: '#373a40',
         defaultCloseAiAssistant: true,
         disableEntityAiLink: true,
         scaleProfileAvatar: false,
@@ -61,6 +72,10 @@
         profileAvatarMosaicBg: '#ffffff',
         fullProfileCover: false,
         hideSearchHotHint: false,
+        hijackTopBarNotif: false,
+        hijackTopBarDm: false,
+        hideTopBarRedDots: true,
+        unreadSidebarIconColor: '#ff4d94',
         sidebarCollapsed: false,
         chatCategories: [],
         chatGroupOrder: ['__recent__', '__friends__'],
@@ -1399,6 +1414,33 @@
         .QuestionButtonGroup [data-zh-btn-order="2"] { order: 2 !important; margin: 0 !important; }
         .QuestionButtonGroup .zh-q-log-btn { order: 3 !important; margin: 0 !important; }
         .QuestionButtonGroup .zh-q-comment-btn { order: 4 !important; margin: 0 !important; }
+        .QuestionButtonGroup .zh-q-meta-inline,
+        .QuestionButtonGroup .zh-q-created-time { order: 5 !important; margin: 0 2px 0 4px !important; }
+        .zh-q-meta-inline {
+            display: inline-flex !important;
+            align-items: center !important;
+            flex-wrap: nowrap !important;
+            white-space: nowrap !important;
+            gap: 10px !important;
+        }
+        .zh-q-meta-inline > * {
+            margin: 0 !important;
+            white-space: nowrap !important;
+            flex-shrink: 0 !important;
+        }
+        .zh-q-created-time {
+            display: inline-flex !important;
+            align-items: center !important;
+            font-size: 13.5px !important;
+            color: #8491a5 !important;
+            white-space: nowrap !important;
+            line-height: 1.4 !important;
+            margin-right: 4px !important;
+            user-select: text !important;
+        }
+        html[data-theme="dark"] .zh-q-created-time {
+            color: #8c93a0 !important;
+        }
         [data-za-detail-view-path-module="QuestionDescription"] button svg,
         .QuestionHeader button svg {
             visibility: visible !important;
@@ -2949,8 +2991,10 @@
             display: none !important;
         }
 
-        /* ---------- 1.7 问题页按钮与浏览量标签改造 ---------- */
-        .zh-view-count-tag {
+        /* ---------- 1.7 问题页按钮与浏览量/作者/编辑者标签改造 ---------- */
+        .zh-view-count-tag,
+        .zh-q-author-tag,
+        .zh-q-editor-tag {
             display: inline-flex !important;
             align-items: center !important;
             height: 30px !important;
@@ -2963,8 +3007,29 @@
             background-color: #e1e4ea !important;
             line-height: 30px !important;
             white-space: nowrap !important;
+            text-decoration: none !important;
         }
-        html[data-theme="dark"] .zh-view-count-tag {
+        @keyframes zhTagFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(2px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .zh-q-author-tag,
+        .zh-q-editor-tag {
+            animation: zhTagFadeIn 0.28s ease-out both;
+        }
+        a.zh-q-author-tag:hover,
+        a.zh-q-editor-tag:hover {
+            opacity: 0.88 !important;
+        }
+        html[data-theme="dark"] .zh-view-count-tag,
+        html[data-theme="dark"] .zh-q-author-tag,
+        html[data-theme="dark"] .zh-q-editor-tag {
             color: #e2e4e9 !important;
             background-color: #32353b !important;
         }
@@ -3008,7 +3073,10 @@
         }
 
         /* ---------- 1.8 菜单开关实时控制类 ---------- */
-        body.zh-off-block .zh-block-user-btn {
+        body.zh-off-block .zh-block-user-btn:not(.zh-hovercard-block-btn) {
+            display: none !important;
+        }
+        body.zh-off-hover-block .zh-hovercard-block-btn {
             display: none !important;
         }
         body.zh-off-follow .zh-follow-user-btn {
@@ -3017,7 +3085,16 @@
         body.zh-off-time .zh-answer-time-meta {
             display: none !important;
         }
+        body.zh-off-q-time .zh-q-created-time {
+            display: none !important;
+        }
         body.zh-off-view-tag .zh-view-count-tag {
+            display: none !important;
+        }
+        body.zh-off-q-author-tag .zh-q-author-tag {
+            display: none !important;
+        }
+        body.zh-off-q-editor-tag .zh-q-editor-tag {
             display: none !important;
         }
         body.zh-disable-entity-ai a.RichContent-EntityWord,
@@ -3034,9 +3111,14 @@
         body.zh-disable-entity-ai a[href*="zhida.zhihu.com/search"][href*="zhida_source=entity"] svg {
             display: none !important;
         }
-        body.zh-blue-view-tag .zh-view-count-tag {
-            color: #ffffff !important;
-            background-color: #056de8 !important;
+        body.zh-custom-view-tag .zh-view-count-tag {
+            color: var(--zh-view-tag-color, #ffffff) !important;
+            background-color: var(--zh-view-tag-bg, #056de8) !important;
+        }
+        body.zh-custom-q-meta-tag .zh-q-author-tag,
+        body.zh-custom-q-meta-tag .zh-q-editor-tag {
+            color: var(--zh-q-meta-tag-color, #373a40) !important;
+            background-color: var(--zh-q-meta-tag-bg, #e1e4ea) !important;
         }
 
         /* ---------- 1.9 偏好设置页内嵌脚本设置样式（与知乎原生偏好设置完全一致） ---------- */
@@ -3257,6 +3339,346 @@
         }
 
         /* ---------- 1.6 轻量 Toast 提示 ---------- */
+        .zh-comment-sync-pin-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-right: 12px;
+            cursor: pointer;
+            user-select: none;
+            font-size: 14px;
+            color: #8491a5;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+        .zh-comment-sync-pin-toggle:hover {
+            color: #535861;
+        }
+        .zh-comment-sync-pin-toggle.is-checked {
+            color: #056de8;
+        }
+        html[data-theme="dark"] .zh-comment-sync-pin-toggle {
+            color: #9196a1;
+        }
+        html[data-theme="dark"] .zh-comment-sync-pin-toggle:hover {
+            color: #c2c7d0;
+        }
+        html[data-theme="dark"] .zh-comment-sync-pin-toggle.is-checked {
+            color: #3a8bff;
+        }
+        /* ---------- 1.10 消息通知双栏自适应弹窗 ---------- */
+        #zh-notif-split-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(18, 18, 18, 0.55);
+            z-index: 99980;
+            display: none;
+        }
+        #zh-notif-split-backdrop.open {
+            display: block;
+        }
+        body.zh-notif-pinned-mode #zh-notif-split-backdrop.open {
+            display: none !important;
+            pointer-events: none !important;
+        }
+        /* 左侧栏未读通知/私信高亮与顶栏红点隐藏 */
+        [data-zh-sidebar-id].zh-sidebar-unread,
+        [data-zh-sidebar-id].zh-sidebar-unread svg {
+            color: var(--zh-unread-icon-color, #ff4d94) !important;
+        }
+        [data-zh-sidebar-id].zh-sidebar-unread svg {
+            stroke: var(--zh-unread-icon-color, #ff4d94) !important;
+        }
+        body.zh-hide-topbar-dots header button[href*="/notifications"] svg ~ *,
+        body.zh-hide-topbar-dots header button[aria-label*="通知"] svg ~ *,
+        body.zh-hide-topbar-dots header button[href*="/messages"] svg ~ *,
+        body.zh-hide-topbar-dots header button[aria-label*="私信"] svg ~ *,
+        body.zh-hide-topbar-dots .AppHeader-notifications button > *:not(svg):not(:has(svg)),
+        body.zh-hide-topbar-dots .AppHeader-messages button > *:not(svg):not(:has(svg)),
+        body.zh-hide-topbar-dots .AppHeader-notifications [class*="Badge"],
+        body.zh-hide-topbar-dots .AppHeader-messages [class*="Badge"],
+        body.zh-hide-topbar-dots .AppHeader-notifications [class*="dot"],
+        body.zh-hide-topbar-dots .AppHeader-messages [class*="dot"] {
+            display: none !important;
+        }
+        #zh-notif-split-shell {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: min(1040px, calc(100vw - 32px));
+            height: min(760px, calc(100vh - 48px));
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+            z-index: 99981;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid #ebeced;
+            overscroll-behavior: contain;
+        }
+        #zh-notif-split-shell.open {
+            display: flex;
+        }
+        html[data-theme="dark"] #zh-notif-split-shell {
+            background: #1f2023;
+            border-color: #2f3136;
+            color: #e5e7eb;
+        }
+        #zh-notif-split-topbar {
+            height: 44px;
+            flex: 0 0 44px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 14px 0 16px;
+            border-bottom: 1px solid #f0f2f7;
+            font-size: 15px;
+            font-weight: 600;
+            color: #191b1f;
+            user-select: none;
+        }
+        html[data-theme="dark"] #zh-notif-split-topbar {
+            border-bottom-color: #2e3035;
+            color: #e5e7eb;
+        }
+        #zh-notif-split-close {
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: #646973;
+            font-size: 20px;
+            line-height: 1;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #zh-notif-split-close:hover {
+            background: rgba(0, 0, 0, 0.06);
+            color: #191b1f;
+        }
+        html[data-theme="dark"] #zh-notif-split-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+        }
+        #zh-notif-split-body {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            position: relative;
+        }
+        #zh-notif-split-left {
+            width: 360px;
+            flex: 0 0 360px;
+            min-width: 0;
+            height: 100%;
+            border-right: 1px solid #f0f2f7;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #ffffff;
+            position: relative;
+        }
+        html[data-theme="dark"] #zh-notif-split-left {
+            background: #1f2023;
+            border-right-color: #2e3035;
+        }
+        #zh-notif-split-left-cache {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #zh-notif-split-left-cache .PushNotifications-content {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+        }
+        #zh-notif-split-left-cache .PushNotifications-content > div:nth-child(2) {
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        #zh-notif-split-left-cache .PushNotifications-list {
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            height: 100% !important;
+            overflow-y: auto !important;
+            max-height: none !important;
+            overscroll-behavior: contain !important;
+        }
+        #zh-notif-split-left-cache .PushNotifications-item.zh-notif-active {
+            background: rgba(23, 114, 246, 0.08);
+        }
+        #zh-notif-split-right {
+            flex: 1;
+            min-width: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background: #ffffff;
+            overflow: hidden;
+        }
+        html[data-theme="dark"] #zh-notif-split-right {
+            background: #191b1f;
+        }
+        #zh-notif-narrow-backbar {
+            display: none;
+            height: 40px;
+            flex: 0 0 40px;
+            align-items: center;
+            padding: 0 12px;
+            border-bottom: 1px solid #f0f2f7;
+            background: #f9fafb;
+        }
+        html[data-theme="dark"] #zh-notif-narrow-backbar {
+            background: #232529;
+            border-bottom-color: #2e3035;
+        }
+        #zh-notif-narrow-backbtn {
+            border: none;
+            background: transparent;
+            color: #1772f6;
+            font-size: 13.5px;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        #zh-notif-narrow-backbtn:hover {
+            background: rgba(23, 114, 246, 0.08);
+        }
+        #zh-notif-split-empty {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            color: #8491a5;
+            font-size: 14px;
+            padding: 24px;
+            text-align: center;
+        }
+        .PushNotifications-menuContainer[data-zh-notif-pinned="true"],
+        .PushNotifications-menuContainer[data-zh-notif-pinned="true"].Popover-content-exit,
+        .PushNotifications-menuContainer[data-zh-notif-pinned="true"].Popover-content-exit-active {
+            position: fixed !important;
+            z-index: 99985 !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            border: none !important;
+            max-width: none !important;
+            max-height: none !important;
+            display: flex !important;
+            flex-direction: column !important;
+            transition: none !important;
+            animation: none !important;
+            transform: none !important;
+        }
+        .PushNotifications-menuContainer[data-zh-notif-pinned="true"] .Popover-arrow {
+            display: none !important;
+        }
+        .PushNotifications-menuContainer[data-zh-notif-pinned="true"] .PushNotifications-menu,
+        .PushNotifications-menuContainer[data-zh-notif-pinned="true"] .PushNotifications-content {
+            width: 100% !important;
+            height: 100% !important;
+            max-width: none !important;
+            max-height: none !important;
+            display: flex !important;
+            flex-direction: column !important;
+            box-shadow: none !important;
+        }
+        .PushNotifications-menuContainer[data-zh-notif-pinned="true"] .PushNotifications-content > div:nth-child(2) {
+            flex: 1 !important;
+            min-height: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        .PushNotifications-menuContainer[data-zh-notif-pinned="true"] .PushNotifications-list {
+            flex: 1 !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            height: auto !important;
+            overflow-y: auto !important;
+            overscroll-behavior: contain !important;
+        }
+        [data-zh-notif-docked="true"] {
+            position: fixed !important;
+            inset: 0 !important;
+            pointer-events: none !important;
+            z-index: 99986 !important;
+        }
+        [data-zh-notif-docked="true"] [data-zh-notif-backdrop="true"] {
+            display: none !important;
+        }
+        [data-zh-notif-docked="true"] [data-zh-notif-modal-box="true"],
+        [data-zh-notif-docked="true"][data-zh-notif-modal-box="true"] {
+            position: fixed !important;
+            pointer-events: auto !important;
+            z-index: 99987 !important;
+            margin: 0 !important;
+            transform: none !important;
+            max-width: none !important;
+            max-height: none !important;
+            display: flex !important;
+            flex-direction: column !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            overflow: hidden !important;
+        }
+        [data-zh-notif-docked="true"] [data-zh-notif-modal-box="true"] > div,
+        [data-zh-notif-docked="true"] .Modal-content {
+            width: 100% !important;
+            height: 100% !important;
+            max-width: none !important;
+            max-height: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+            overscroll-behavior: contain !important;
+        }
+        [data-zh-notif-docked="true"] .Modal-content > div {
+            flex: 1 1 auto !important;
+            height: 100% !important;
+            min-height: 0 !important;
+            overscroll-behavior: contain !important;
+        }
+        [data-zh-notif-docked="true"] * {
+            overscroll-behavior: contain !important;
+        }
+        [data-zh-notif-docked="true"] button[aria-label="关闭"] {
+            display: none !important;
+        }
+        #zh-notif-split-shell.zh-notif-narrow {
+            width: calc(100vw - 16px) !important;
+            height: calc(100vh - 24px) !important;
+        }
+        #zh-notif-split-shell.zh-notif-narrow #zh-notif-split-left {
+            width: 100% !important;
+            flex: 1 1 100% !important;
+            border-right: none !important;
+        }
+        #zh-notif-split-shell.zh-notif-narrow:not(.zh-notif-has-detail) #zh-notif-split-right {
+            display: none !important;
+        }
+        #zh-notif-split-shell.zh-notif-narrow.zh-notif-has-detail #zh-notif-split-left {
+            display: none !important;
+        }
+        #zh-notif-split-shell.zh-notif-narrow.zh-notif-has-detail #zh-notif-narrow-backbar {
+            display: flex !important;
+        }
         #zh-enhancer-toast {
             position: fixed;
             top: 24px;
@@ -3377,12 +3799,12 @@
             for (const item of obj) collectAnswersFromObject(item, depth + 1);
             return;
         }
-        if ((obj.type === 'answer' || obj.type === 'article' || obj.type === 'pin' || obj.question) && obj.id) {
+        if ((obj.type === 'answer' || obj.type === 'article' || obj.type === 'pin' || obj.type === 'question' || obj.question) && obj.id) {
             const type = obj.type || (obj.question ? 'answer' : '');
             saveItemMeta(type, obj.id, obj);
         }
         for (const key of Object.keys(obj)) {
-            if ((key === 'answers' || key === 'articles' || key === 'pins') && obj[key] && typeof obj[key] === 'object') {
+            if ((key === 'answers' || key === 'articles' || key === 'pins' || key === 'questions') && obj[key] && typeof obj[key] === 'object') {
                 const type = key.slice(0, -1); // answer | article | pin
                 for (const itemId of Object.keys(obj[key])) {
                     const item = obj[key][itemId];
@@ -3499,6 +3921,13 @@
             menuText: '最近浏览',
             fallbackUrl: 'https://www.zhihu.com/history',
             svg: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+        },
+        {
+            id: 'my-notifications',
+            label: '通知',
+            menuText: '通知',
+            fallbackUrl: 'https://www.zhihu.com/notifications',
+            svg: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>'
         },
         {
             id: 'my-messages',
@@ -5097,6 +5526,579 @@
         return shell;
     }
 
+    function openNotificationsSplitShell() {
+        window.__zhNotifSplitActive = true;
+        const pop = document.querySelector('.PushNotifications-menuContainer');
+        if (!pop) {
+            const bell = window.__zhNotifBellBtn && document.body.contains(window.__zhNotifBellBtn)
+                ? window.__zhNotifBellBtn
+                : document.querySelector('.AppHeader-notifications button, button[aria-label*="消息"], button[aria-label*="通知"]');
+            if (bell) {
+                window.__zhNotifBellBtn = bell;
+                bell.click();
+            } else {
+                window.open('https://www.zhihu.com/notifications', '_blank');
+                return;
+            }
+        }
+        setTimeout(enhanceNotificationsSplitView, 30);
+    }
+
+    function enhanceNotificationsSplitView() {
+        const shell = document.getElementById('zh-notif-split-shell');
+        const backdrop = document.getElementById('zh-notif-split-backdrop');
+
+        if (!window.__zhTopBarHijackHook) {
+            window.__zhTopBarHijackHook = true;
+            document.addEventListener('click', (e) => {
+                const target = e.target;
+                if (!(target instanceof Element)) return;
+                const btn = target.closest('button, a');
+                if (!btn || !btn.closest('.AppHeader, header')) return;
+
+                if (settings.hijackTopBarNotif) {
+                    const isBell = btn.closest('.AppHeader-notifications') ||
+                        (btn.getAttribute('href') || '').includes('/notifications') ||
+                        /消息|通知/.test(btn.getAttribute('aria-label') || '');
+                    if (isBell) {
+                        window.__zhNotifBellBtn = btn;
+                        window.__zhNotifSplitActive = true;
+                        setTimeout(enhanceNotificationsSplitView, 30);
+                        return;
+                    }
+                }
+                if (settings.hijackTopBarDm) {
+                    const isDm = btn.closest('.AppHeader-messages') ||
+                        (btn.getAttribute('href') || '').includes('/messages') ||
+                        /私信/.test(btn.getAttribute('aria-label') || '');
+                    if (isDm) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openQqChatShell();
+                    }
+                }
+            }, true);
+        }
+
+        const lockPageScroll = (lock) => {
+            if (lock) {
+                if (window.__zhNotifPrevHtmlOverflow === undefined) {
+                    window.__zhNotifPrevHtmlOverflow = document.documentElement.style.overflow || '';
+                }
+                document.documentElement.style.setProperty('overflow', 'hidden', 'important');
+            } else if (window.__zhNotifPrevHtmlOverflow !== undefined) {
+                if (window.__zhNotifPrevHtmlOverflow) {
+                    document.documentElement.style.overflow = window.__zhNotifPrevHtmlOverflow;
+                } else {
+                    document.documentElement.style.removeProperty('overflow');
+                }
+                window.__zhNotifPrevHtmlOverflow = undefined;
+            }
+        };
+
+        const closeNotifShell = () => {
+            window.__zhNotifSplitActive = false;
+            lockPageScroll(false);
+            document.body.classList.remove('zh-notif-pinned-mode');
+            const shEl = document.getElementById('zh-notif-split-shell');
+            const bdEl = document.getElementById('zh-notif-split-backdrop');
+            if (shEl) {
+                shEl.classList.remove('open', 'zh-notif-has-detail', 'is-pinned');
+                const pBtn = shEl.querySelector('#zh-notif-pin-btn');
+                if (pBtn) {
+                    pBtn.classList.remove('is-pinned');
+                    pBtn.textContent = '钉住';
+                }
+            }
+            if (bdEl) bdEl.classList.remove('open');
+            window.__zhPendingNotifAction = null;
+            window.__zhNotifListScrollTop = 0;
+            window.__zhNotifBgLoadMore = false;
+            window.__zhNotifLoadingMore = false;
+            const docked = document.querySelector('[data-zh-notif-docked="true"]');
+            if (docked) {
+                docked.style.setProperty('display', 'none', 'important');
+                docked.style.setProperty('transition', 'none', 'important');
+                const closeBtn = docked.querySelector('button[aria-label="关闭"]');
+                if (closeBtn) closeBtn.click();
+                docked.removeAttribute('data-zh-notif-docked');
+            }
+            const pop = document.querySelector('.PushNotifications-menuContainer');
+            if (pop) {
+                pop.style.setProperty('display', 'none', 'important');
+                pop.style.setProperty('transition', 'none', 'important');
+                pop.removeAttribute('data-zh-notif-pinned');
+                if (window.__zhNotifBellBtn && document.body.contains(window.__zhNotifBellBtn)) {
+                    window.__zhNotifBellBtn.click();
+                }
+            }
+        };
+
+        if (!window.__zhNotifSplitActive) {
+            return;
+        }
+
+        const ensureShell = () => {
+            let bd = document.getElementById('zh-notif-split-backdrop');
+            let sh = document.getElementById('zh-notif-split-shell');
+            if (bd && sh) return { bd, sh };
+
+            bd = document.createElement('div');
+            bd.id = 'zh-notif-split-backdrop';
+            bd.addEventListener('click', () => {
+                if (!sh.classList.contains('is-pinned')) closeNotifShell();
+            });
+
+            sh = document.createElement('div');
+            sh.id = 'zh-notif-split-shell';
+            sh.innerHTML = `
+                <div id="zh-notif-split-topbar">
+                    <span>消息通知</span>
+                    <div style="display: inline-flex; align-items: center; gap: 8px;">
+                        <button type="button" class="zh-qq-pin-btn" id="zh-notif-pin-btn" title="钉住窗口（点击外部不关闭，可操作后方页面）">钉住</button>
+                        <button type="button" id="zh-notif-split-close" title="关闭">×</button>
+                    </div>
+                </div>
+                <div id="zh-notif-split-body">
+                    <div id="zh-notif-split-left">
+                        <div id="zh-notif-split-left-cache"></div>
+                    </div>
+                    <div id="zh-notif-split-right">
+                        <div id="zh-notif-narrow-backbar">
+                            <button type="button" id="zh-notif-narrow-backbtn">← 返回消息列表</button>
+                        </div>
+                        <div id="zh-notif-split-empty">
+                            <svg width="42" height="42" viewBox="0 0 24 24" fill="currentColor" style="opacity: 0.35;"><path d="M12 2.37c5.67 0 10.266 4.085 10.267 9.125 0 2.08-.786 3.997-2.105 5.532a1.064 1.064 0 0 0-.247.91l.644 3.056c.24 1.157-.66 1.58-1.444 1.157l-2.925-1.584c-.53-.287-1.153-.338-1.743-.21-.784.172-1.604.265-2.447.265-5.67 0-10.268-4.087-10.268-9.126C1.732 6.455 6.33 2.37 12 2.37Z"/></svg>
+                            <span>点击左侧消息，在此查看评论与回复详情</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(bd);
+            document.body.appendChild(sh);
+
+            sh.querySelector('#zh-notif-split-close').addEventListener('click', closeNotifShell);
+            const notifPinBtn = sh.querySelector('#zh-notif-pin-btn');
+            if (notifPinBtn) {
+                notifPinBtn.addEventListener('click', () => {
+                    const pinned = !sh.classList.contains('is-pinned');
+                    sh.classList.toggle('is-pinned', pinned);
+                    document.body.classList.toggle('zh-notif-pinned-mode', pinned);
+                    notifPinBtn.classList.toggle('is-pinned', pinned);
+                    notifPinBtn.textContent = pinned ? '已钉住' : '钉住';
+                    lockPageScroll(!pinned);
+                });
+            }
+            sh.querySelector('#zh-notif-narrow-backbtn').addEventListener('click', () => {
+                const docked = document.querySelector('[data-zh-notif-docked="true"]');
+                if (docked) {
+                    const closeBtn = docked.querySelector('button[aria-label="关闭"]');
+                    if (closeBtn) closeBtn.click();
+                }
+                sh.classList.remove('zh-notif-has-detail');
+            });
+
+            const triggerPendingNotifAction = (pending) => {
+                window.__zhPendingNotifAction = pending;
+                if (pending.type === 'item') {
+                    window.__zhNotifSwitchingFromCache = true;
+                }
+                const emptyText = sh.querySelector('#zh-notif-split-empty span');
+                if (emptyText) emptyText.textContent = '正在加载评论详情...';
+
+                const docked = document.querySelector('[data-zh-notif-docked="true"]');
+                if (docked) {
+                    docked.querySelector('button[aria-label="关闭"]')?.click();
+                    docked.removeAttribute('data-zh-notif-docked');
+                }
+
+                const waitAndOpenBell = () => {
+                    if (window.__zhPendingNotifAction !== pending) return;
+                    // 等旧弹窗与退场动画中的 Popover 完全卸载后再点铃铛
+                    const stillHasModal = docked && docked.isConnected;
+                    const exitingPop = document.querySelector('.PushNotifications-menuContainer.Popover-content-exit, .PushNotifications-menuContainer.Popover-content-exit-active');
+                    if (stillHasModal || exitingPop) {
+                        if (Date.now() - pending.ts < 1500) {
+                            setTimeout(waitAndOpenBell, 35);
+                            return;
+                        }
+                    }
+
+                    const liveExisting = document.querySelector('.PushNotifications-menuContainer:not(.Popover-content-exit)');
+                    if (!liveExisting && window.__zhNotifBellBtn) {
+                        window.__zhNotifBellBtn.click();
+                    }
+
+                    let tries = 0;
+                    const timer = setInterval(() => {
+                        tries++;
+                        if (window.__zhPendingNotifAction !== pending) {
+                            clearInterval(timer);
+                            return;
+                        }
+                        const livePop = document.querySelector('.PushNotifications-menuContainer:not(.Popover-content-exit)');
+                        if (livePop) {
+                            if (pending.type === 'tab') {
+                                const tabs = Array.from(livePop.querySelectorAll('[role="tab"]'));
+                                if (tabs[pending.index]) {
+                                    clearInterval(timer);
+                                    window.__zhPendingNotifAction = null;
+                                    tabs[pending.index].click();
+                                    return;
+                                }
+                            } else if (pending.type === 'item') {
+                                const links = Array.from(livePop.querySelectorAll('.PushNotifications-item a[href]'));
+                                const notifIdMatch = pending.href.match(/notificationId=([^&]+)/);
+                                const targetLink = links.find((a) => {
+                                    const h = a.getAttribute('href') || '';
+                                    if (h === pending.href) return true;
+                                    return notifIdMatch && h.includes(`notificationId=${notifIdMatch[1]}`);
+                                });
+                                if (targetLink) {
+                                    clearInterval(timer);
+                                    window.__zhPendingNotifAction = null;
+                                    targetLink.click();
+                                    setTimeout(() => { window.__zhNotifSwitchingFromCache = false; }, 350);
+                                    return;
+                                }
+                            }
+                        } else if (tries === 6 && window.__zhNotifBellBtn) {
+                            window.__zhNotifBellBtn.click();
+                        }
+                        if (tries >= 50) {
+                            clearInterval(timer);
+                            if (window.__zhPendingNotifAction === pending) {
+                                window.__zhPendingNotifAction = null;
+                                window.__zhNotifSwitchingFromCache = false;
+                                if (emptyText) emptyText.textContent = '点击左侧消息，在此查看评论与回复详情';
+                                showToast('未能切换到该消息，请重试或点击原链接');
+                            }
+                        }
+                    }, 50);
+                };
+                waitAndOpenBell();
+            };
+
+            const loadMoreCachedNotifications = (cacheContainer) => {
+                if (window.__zhNotifLoadingMore || window.__zhPendingNotifAction || !window.__zhNotifBellBtn) return;
+                const cachedList = cacheContainer.querySelector('.PushNotifications-list');
+                if (!cachedList) return;
+                const oldCount = cachedList.querySelectorAll('.PushNotifications-item:not(.PlaceHolder)').length;
+                if (oldCount === 0) return;
+
+                window.__zhNotifLoadingMore = true;
+                window.__zhNotifBgLoadMore = true;
+
+                const existingLivePop = document.querySelector('.PushNotifications-menuContainer:not(.Popover-content-exit)');
+                if (!existingLivePop) {
+                    window.__zhNotifBellBtn.click();
+                }
+
+                let staleTries = 0;
+                let lastLiveCount = 0;
+
+                const timer = setInterval(() => {
+                    const livePop = document.querySelector('.PushNotifications-menuContainer:not(.Popover-content-exit)');
+                    if (livePop) {
+                        livePop.style.setProperty('opacity', '0', 'important');
+                        livePop.style.setProperty('pointer-events', 'none', 'important');
+                        const liveList = livePop.querySelector('.PushNotifications-list');
+                        if (liveList) {
+                            liveList.scrollTop = liveList.scrollHeight;
+                            const liveItems = liveList.querySelectorAll('.PushNotifications-item:not(.PlaceHolder)');
+                            if (liveItems.length > lastLiveCount) {
+                                lastLiveCount = liveItems.length;
+                                staleTries = 0;
+                            } else {
+                                staleTries++;
+                            }
+                            if (liveItems.length > oldCount) {
+                                const placeholderRow = Array.from(cachedList.children).find((ch) => ch.querySelector('.PlaceHolder.PushNotifications-item'));
+                                const tailSentinel = placeholderRow || (cachedList.lastElementChild && cachedList.lastElementChild.getAttribute('role') === 'listitem' ? cachedList.lastElementChild : null);
+                                for (let i = oldCount; i < liveItems.length; i++) {
+                                    let rowWrap = liveItems[i];
+                                    while (rowWrap && rowWrap.parentElement && rowWrap.parentElement !== liveList) {
+                                        rowWrap = rowWrap.parentElement;
+                                    }
+                                    if (!rowWrap || rowWrap === liveList) continue;
+                                    const clone = rowWrap.cloneNode(true);
+                                    if (tailSentinel && tailSentinel.parentElement === cachedList) {
+                                        cachedList.insertBefore(clone, tailSentinel);
+                                    } else {
+                                        cachedList.appendChild(clone);
+                                    }
+                                }
+                                clearInterval(timer);
+                                window.__zhNotifLoadingMore = false;
+                                return;
+                            }
+                        } else {
+                            staleTries++;
+                        }
+                    } else {
+                        staleTries++;
+                    }
+                    if (staleTries >= 30) {
+                        clearInterval(timer);
+                        const placeholderRow = Array.from(cachedList.children).find((ch) => ch.querySelector('.PlaceHolder.PushNotifications-item'));
+                        if (placeholderRow) placeholderRow.style.display = 'none';
+                        window.__zhNotifLoadingMore = false;
+                    }
+                }, 120);
+            };
+
+            const cacheEl = sh.querySelector('#zh-notif-split-left-cache');
+            const maybeTriggerCacheLoadMore = () => {
+                const listEl = cacheEl.querySelector('.PushNotifications-list');
+                if (!listEl) return;
+                window.__zhNotifListScrollTop = listEl.scrollTop;
+                if (listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight < 100) {
+                    loadMoreCachedNotifications(cacheEl);
+                }
+            };
+            cacheEl.addEventListener('scroll', maybeTriggerCacheLoadMore, true);
+            cacheEl.addEventListener('wheel', (e) => {
+                if (e.deltaY > 0) maybeTriggerCacheLoadMore();
+            }, { passive: true, capture: true });
+            cacheEl.addEventListener('click', (e) => {
+                const tabBtn = e.target.closest('[role="tab"]');
+                if (tabBtn) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const tabs = Array.from(cacheEl.querySelectorAll('[role="tab"]'));
+                    const idx = tabs.indexOf(tabBtn);
+                    if (idx >= 0) {
+                        triggerPendingNotifAction({ type: 'tab', index: idx, ts: Date.now() });
+                    }
+                    return;
+                }
+
+                const link = e.target.closest('a[href]');
+                if (!link) return;
+                const href = link.getAttribute('href') || '';
+                if (!href) return;
+
+                if (link.closest('.Notifications-footer')) {
+                    return;
+                }
+
+                if (!href.includes('#comment-')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.open(href, '_blank', 'noopener');
+                    return;
+                }
+
+                e.preventDefault();
+                e.stopPropagation();
+                window.__zhActiveNotifHref = href;
+                cacheEl.querySelectorAll('.PushNotifications-item.zh-notif-active').forEach((el) => el.classList.remove('zh-notif-active'));
+                const itemEl = link.closest('.PushNotifications-item');
+                if (itemEl) itemEl.classList.add('zh-notif-active');
+
+                triggerPendingNotifAction({ type: 'item', href, ts: Date.now() });
+            });
+
+            if (!window.__zhNotifResizeEscHook) {
+                window.__zhNotifResizeEscHook = true;
+                window.addEventListener('resize', () => {
+                    requestAnimationFrame(enhanceNotificationsSplitView);
+                }, { passive: true });
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        const s = document.getElementById('zh-notif-split-shell');
+                        if (s && s.classList.contains('open') && !s.classList.contains('is-pinned')) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            closeNotifShell();
+                        }
+                    }
+                }, true);
+                document.addEventListener('mousedown', (e) => {
+                    const s = document.getElementById('zh-notif-split-shell');
+                    if (!s || !s.classList.contains('open') || s.classList.contains('is-pinned')) return;
+                    const t = e.target;
+                    if (!(t instanceof Element)) return;
+                    if (t.closest('#zh-notif-split-shell, [data-zh-notif-modal-box="true"], .PushNotifications-menuContainer, [data-zh-sidebar-id="my-notifications"]')) return;
+                    closeNotifShell();
+                }, true);
+            }
+
+            return { bd, sh };
+        };
+
+        const pop = document.querySelector('.PushNotifications-menuContainer');
+        if (pop) {
+            const labelId = pop.getAttribute('aria-labelledby');
+            if (labelId) {
+                const bell = document.getElementById(labelId);
+                if (bell) window.__zhNotifBellBtn = bell;
+            }
+            if (!window.__zhNotifBellBtn) {
+                const fallbackBell = document.querySelector('.AppHeader-notifications button, button[aria-label*="消息"], button[aria-label*="通知"]');
+                if (fallbackBell) window.__zhNotifBellBtn = fallbackBell;
+            }
+
+            const { bd, sh } = ensureShell();
+            bd.classList.add('open');
+            sh.classList.add('open');
+            lockPageScroll(true);
+            pop.setAttribute('data-zh-notif-pinned', 'true');
+
+            if (!pop.getAttribute('data-zh-notif-click-hook')) {
+                pop.setAttribute('data-zh-notif-click-hook', 'true');
+                pop.addEventListener('scroll', (e) => {
+                    const listEl = e.target && e.target.classList && e.target.classList.contains('PushNotifications-list')
+                        ? e.target
+                        : pop.querySelector('.PushNotifications-list');
+                    if (listEl && !window.__zhNotifSwitchingFromCache && !(window.__zhPendingNotifAction && window.__zhPendingNotifAction.type === 'item')) {
+                        window.__zhNotifListScrollTop = listEl.scrollTop;
+                    }
+                }, true);
+                pop.addEventListener('click', (e) => {
+                    const link = e.target.closest('.PushNotifications-item a[href]');
+                    if (link) {
+                        const href = link.getAttribute('href') || '';
+                        if (href.includes('#comment-')) {
+                            window.__zhActiveNotifHref = href;
+                        } else if (href) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            window.open(href, '_blank', 'noopener');
+                            return;
+                        }
+                    }
+                    // 若是从缓存列表触发的后台切换，保留缓存列表原有 DOM 与滚动位置，不覆盖
+                    if (window.__zhNotifSwitchingFromCache) {
+                        return;
+                    }
+                    // 同步一份左栏快照，防止弹窗收起时左侧空白闪烁，并保持原滚动位置
+                    const cacheEl = sh.querySelector('#zh-notif-split-left-cache');
+                    const contentEl = pop.querySelector('.PushNotifications-content');
+                    const listEl = pop.querySelector('.PushNotifications-list');
+                    const savedScroll = (listEl && listEl.scrollTop > 0)
+                        ? listEl.scrollTop
+                        : (window.__zhNotifListScrollTop || 0);
+                    window.__zhNotifListScrollTop = savedScroll;
+                    if (cacheEl && contentEl) {
+                        cacheEl.innerHTML = contentEl.outerHTML;
+                        const cachedList = cacheEl.querySelector('.PushNotifications-list');
+                        if (cachedList) {
+                            cachedList.scrollTop = savedScroll;
+                            requestAnimationFrame(() => { cachedList.scrollTop = savedScroll; });
+                        }
+                        if (window.__zhActiveNotifHref) {
+                            cacheEl.querySelectorAll('.PushNotifications-item a[href]').forEach((a) => {
+                                if (a.getAttribute('href') === window.__zhActiveNotifHref) {
+                                    a.closest('.PushNotifications-item')?.classList.add('zh-notif-active');
+                                }
+                            });
+                        }
+                    }
+                }, true);
+            }
+            if ((window.__zhPendingNotifAction && window.__zhPendingNotifAction.type === 'item') || window.__zhNotifBgLoadMore) {
+                pop.style.setProperty('opacity', '0', 'important');
+                pop.style.setProperty('pointer-events', 'none', 'important');
+            } else {
+                pop.style.removeProperty('opacity');
+                pop.style.removeProperty('pointer-events');
+            }
+
+            // 执行待处理的切换 Tab 或切换消息点击
+            const pending = window.__zhPendingNotifAction;
+            if (pending && (Date.now() - pending.ts) < 3000) {
+                if (pending.type === 'tab') {
+                    const tabs = Array.from(pop.querySelectorAll('[role="tab"]'));
+                    if (tabs[pending.index]) {
+                        window.__zhPendingNotifAction = null;
+                        tabs[pending.index].click();
+                    }
+                } else if (pending.type === 'item') {
+                    const targetLink = Array.from(pop.querySelectorAll('.PushNotifications-item a[href]')).find((a) => {
+                        return a.getAttribute('href') === pending.href;
+                    });
+                    if (targetLink) {
+                        window.__zhPendingNotifAction = null;
+                        setTimeout(() => targetLink.click(), 20);
+                    }
+                }
+            }
+        }
+
+        const activeShell = document.getElementById('zh-notif-split-shell');
+        if (!activeShell || !activeShell.classList.contains('open')) return;
+
+        const isNarrow = window.innerWidth < 760;
+        activeShell.classList.toggle('zh-notif-narrow', isNarrow);
+
+        // 同步左栏实时弹窗位置
+        const leftPane = activeShell.querySelector('#zh-notif-split-left');
+        if (pop && leftPane) {
+            const lr = leftPane.getBoundingClientRect();
+            if (lr.width > 0 && lr.height > 0) {
+                pop.style.setProperty('left', `${Math.round(lr.left)}px`, 'important');
+                pop.style.setProperty('top', `${Math.round(lr.top)}px`, 'important');
+                pop.style.setProperty('width', `${Math.round(lr.width)}px`, 'important');
+                pop.style.setProperty('height', `${Math.round(lr.height)}px`, 'important');
+            }
+            const cacheEl = activeShell.querySelector('#zh-notif-split-left-cache');
+            const contentEl = pop.querySelector('.PushNotifications-content');
+            if (cacheEl && contentEl && !cacheEl.firstElementChild) {
+                cacheEl.innerHTML = contentEl.outerHTML;
+            }
+        }
+
+        // 查找并停靠评论详情弹窗到右栏
+        let dockedModalRoot = null;
+        const modals = document.querySelectorAll('.Modal-content');
+        for (const mc of modals) {
+            if (mc.closest('#zh-notif-split-shell') || mc.closest('#zh-qq-chat-shell')) continue;
+            const txt = mc.textContent || '';
+            const isCommentDetail = txt.includes('前往回答') || txt.includes('返回评论') || Boolean(mc.querySelector('.CommentContent, [data-id]'));
+            if (!isCommentDetail) continue;
+
+            const modalBox = mc.closest('[tabindex]') || mc.parentElement;
+            const root = (modalBox && modalBox.parentElement && modalBox.parentElement !== document.body)
+                ? modalBox.parentElement
+                : modalBox;
+            if (root && root !== document.body) {
+                dockedModalRoot = root;
+                root.setAttribute('data-zh-notif-docked', 'true');
+                if (modalBox) modalBox.setAttribute('data-zh-notif-modal-box', 'true');
+                Array.from(root.children).forEach((ch) => {
+                    if (ch !== modalBox && ch.tagName === 'DIV' && !ch.contains(mc)) {
+                        ch.setAttribute('data-zh-notif-backdrop', 'true');
+                    }
+                });
+                break;
+            }
+        }
+
+        const hasDetail = Boolean(dockedModalRoot);
+        activeShell.classList.toggle('zh-notif-has-detail', hasDetail);
+        const emptyEl = activeShell.querySelector('#zh-notif-split-empty');
+        if (emptyEl) emptyEl.style.display = hasDetail ? 'none' : 'flex';
+
+        if (dockedModalRoot) {
+            const modalBox = dockedModalRoot.getAttribute('data-zh-notif-modal-box') === 'true'
+                ? dockedModalRoot
+                : dockedModalRoot.querySelector('[data-zh-notif-modal-box="true"]');
+            const rightPane = activeShell.querySelector('#zh-notif-split-right');
+            const backBar = activeShell.querySelector('#zh-notif-narrow-backbar');
+            if (modalBox && rightPane) {
+                const rr = rightPane.getBoundingClientRect();
+                const backH = (isNarrow && backBar) ? backBar.getBoundingClientRect().height : 0;
+                if (rr.width > 0 && rr.height > 0) {
+                    modalBox.style.setProperty('left', `${Math.round(rr.left)}px`, 'important');
+                    modalBox.style.setProperty('top', `${Math.round(rr.top + backH)}px`, 'important');
+                    modalBox.style.setProperty('width', `${Math.round(rr.width)}px`, 'important');
+                    modalBox.style.setProperty('height', `${Math.max(120, Math.round(rr.height - backH))}px`, 'important');
+                }
+            }
+        }
+    }
+
     let lastLightboxSrc = '';
     let lastLightboxAt = 0;
 
@@ -5165,6 +6167,10 @@
     }
 
     function triggerProfileMenuAction(act) {
+        if (act.id === 'my-notifications') {
+            openNotificationsSplitShell();
+            return;
+        }
         if (act.id === 'my-messages') {
             openQqChatShell();
             return;
@@ -5230,6 +6236,50 @@
         if (txt.includes('创作')) return 'create';
         if (txt.includes('关于我们')) return 'about';
         return '';
+    }
+
+    function syncSidebarUnreadBadges() {
+        const readTopBarUnread = (btn) => {
+            if (!btn) return { count: '', hasDot: false };
+            const aria = btn.getAttribute('aria-label') || btn.getAttribute('title') || '';
+            const ariaMatch = aria.match(/(\d+\+?)/);
+            if (ariaMatch && ariaMatch[1] !== '0') return { count: ariaMatch[1], hasDot: true };
+            let count = '';
+            let hasDot = false;
+            for (const el of btn.querySelectorAll('span, div, sup')) {
+                if (el.querySelector('svg')) continue;
+                const txt = (el.textContent || '').trim();
+                if (/^\d+\+?$/.test(txt) && txt !== '0') {
+                    count = txt;
+                    hasDot = true;
+                    break;
+                }
+                const cls = (el.className || '').toString();
+                if (!txt && /badge|dot|count|red/i.test(cls)) {
+                    hasDot = true;
+                }
+            }
+            return { count, hasDot };
+        };
+
+        const updateSidebarUnreadItem = (sidebarId, baseLabel, unitLabel, unread) => {
+            const items = document.querySelectorAll(`[data-zh-sidebar-id="${sidebarId}"]`);
+            if (!items.length) return;
+            const isUnread = Boolean(unread.count || unread.hasDot);
+            const nextLabel = unread.count ? `${unread.count} ${unitLabel}` : (unread.hasDot ? `有新${baseLabel}` : baseLabel);
+            items.forEach((item) => {
+                item.classList.toggle('zh-sidebar-unread', isUnread);
+                const textEl = Array.from(item.querySelectorAll('span, div')).find((n) => !n.querySelector('svg') && n.textContent.trim().length > 0);
+                if (textEl && textEl.textContent !== nextLabel) {
+                    textEl.textContent = nextLabel;
+                }
+            });
+        };
+
+        const bellBtn = document.querySelector('.AppHeader-notifications button, header button[href*="/notifications"], header button[aria-label*="通知"], button[aria-label*="消息"]');
+        const dmBtn = document.querySelector('.AppHeader-messages button, header button[href*="/messages"], header button[aria-label*="私信"]');
+        updateSidebarUnreadItem('my-notifications', '通知', '条通知', readTopBarUnread(bellBtn));
+        updateSidebarUnreadItem('my-messages', '私信', '条私信', readTopBarUnread(dmBtn));
     }
 
     function applySidebarOrderAndVisibility() {
@@ -5645,9 +6695,40 @@
         return match ? match[1] : '';
     }
 
+    const resolvedUserTokenCache = new Map();
+
+    async function resolveRealUserToken(token) {
+        if (!token) return '';
+        if (resolvedUserTokenCache.has(token)) return resolvedUserTokenCache.get(token);
+        try {
+            const res = await fetch(`https://www.zhihu.com/people/${encodeURIComponent(token)}`, {
+                method: 'GET',
+                credentials: 'include',
+                redirect: 'follow'
+            });
+            const redirectedToken = extractUserToken(res.url || '');
+            if (redirectedToken && redirectedToken !== token) {
+                resolvedUserTokenCache.set(token, redirectedToken);
+                return redirectedToken;
+            }
+            if (res.ok) {
+                const html = await res.text();
+                const canonicalMatch = html.match(/rel="canonical"[^>]*href="[^"]*\/(?:people|org)\/([^"/?#]+)"/i);
+                const urlTokenMatch = html.match(/"urlToken"\s*:\s*"([^"]+)"/) || html.match(/"url_token"\s*:\s*"([^"]+)"/);
+                const found = (canonicalMatch && canonicalMatch[1]) || (urlTokenMatch && urlTokenMatch[1]) || '';
+                if (found && found !== token) {
+                    resolvedUserTokenCache.set(token, found);
+                    return found;
+                }
+            }
+        } catch { /* ignore */ }
+        return '';
+    }
+
     async function toggleBlockUser(token, name, btn) {
         if (!token) return;
-        const isBlocked = blockedTokenSet.has(token);
+        let targetToken = resolvedUserTokenCache.get(token) || token;
+        const isBlocked = blockedTokenSet.has(token) || blockedTokenSet.has(targetToken);
         const method = isBlocked ? 'DELETE' : 'POST';
 
         try {
@@ -5655,21 +6736,42 @@
             const headers = { 'content-type': 'application/json' };
             if (xsrf) headers['x-xsrftoken'] = xsrf;
 
-            const res = await fetch(`https://www.zhihu.com/api/v4/members/${encodeURIComponent(token)}/actions/block`, {
+            // 评论区链接常为 32 位十六进制用户 ID，block 接口需转换为真实 url_token
+            if (/^[0-9a-f]{32}$/i.test(targetToken)) {
+                const resolved = await resolveRealUserToken(targetToken);
+                if (resolved) targetToken = resolved;
+            }
+
+            let res = await fetch(`https://www.zhihu.com/api/v4/members/${encodeURIComponent(targetToken)}/actions/block`, {
                 method,
                 credentials: 'include',
                 headers
             });
 
+            if (res.status === 404 && targetToken === token) {
+                const resolved = await resolveRealUserToken(token);
+                if (resolved) {
+                    targetToken = resolved;
+                    res = await fetch(`https://www.zhihu.com/api/v4/members/${encodeURIComponent(targetToken)}/actions/block`, {
+                        method,
+                        credentials: 'include',
+                        headers
+                    });
+                }
+            }
+
             if (res.ok) {
                 if (isBlocked) {
                     blockedTokenSet.delete(token);
-                    showToast(`已取消屏蔽：${name || token}`);
+                    blockedTokenSet.delete(targetToken);
+                    showToast(`已取消屏蔽：${name || targetToken}`);
                 } else {
                     blockedTokenSet.add(token);
-                    showToast(`已屏蔽用户：${name || token}`);
+                    blockedTokenSet.add(targetToken);
+                    showToast(`已屏蔽用户：${name || targetToken}`);
                 }
                 updateButtonStates(token);
+                if (targetToken !== token) updateButtonStates(targetToken);
             } else {
                 showToast(`操作失败（HTTP ${res.status}），请确认已登录知乎`);
             }
@@ -5703,7 +6805,8 @@
 
     async function toggleFollowUser(token, name) {
         if (!token) return;
-        const isFollowed = followedTokenSet.has(token);
+        let targetToken = resolvedUserTokenCache.get(token) || token;
+        const isFollowed = followedTokenSet.has(token) || followedTokenSet.has(targetToken);
         const method = isFollowed ? 'DELETE' : 'POST';
 
         try {
@@ -5711,25 +6814,48 @@
             const headers = { 'content-type': 'application/json' };
             if (xsrf) headers['x-xsrftoken'] = xsrf;
 
-            const res = await fetch(`https://www.zhihu.com/api/v4/members/${encodeURIComponent(token)}/followers`, {
+            if (/^[0-9a-f]{32}$/i.test(targetToken)) {
+                const resolved = await resolveRealUserToken(targetToken);
+                if (resolved) targetToken = resolved;
+            }
+
+            let res = await fetch(`https://www.zhihu.com/api/v4/members/${encodeURIComponent(targetToken)}/followers`, {
                 method,
                 credentials: 'include',
                 headers
             });
 
+            if (res.status === 404 && targetToken === token) {
+                const resolved = await resolveRealUserToken(token);
+                if (resolved) {
+                    targetToken = resolved;
+                    res = await fetch(`https://www.zhihu.com/api/v4/members/${encodeURIComponent(targetToken)}/followers`, {
+                        method,
+                        credentials: 'include',
+                        headers
+                    });
+                }
+            }
+
             if (res.ok) {
                 if (isFollowed) {
                     followedTokenSet.delete(token);
-                    showToast(`已取消关注：${name || token}`);
+                    followedTokenSet.delete(targetToken);
+                    showToast(`已取消关注：${name || targetToken}`);
                 } else {
                     followedTokenSet.add(token);
-                    showToast(`已关注用户：${name || token}`);
+                    followedTokenSet.add(targetToken);
+                    showToast(`已关注用户：${name || targetToken}`);
                 }
-                document.querySelectorAll(`.zh-follow-user-btn[data-zh-follow-token="${CSS.escape(token)}"]`).forEach((b) => {
-                    const followed = followedTokenSet.has(token);
-                    b.textContent = followed ? '已关注' : '+ 关注';
-                    b.classList.toggle('is-followed', followed);
-                });
+                const syncFollowBtns = (tok) => {
+                    document.querySelectorAll(`.zh-follow-user-btn[data-zh-follow-token="${CSS.escape(tok)}"]`).forEach((b) => {
+                        const followed = followedTokenSet.has(tok);
+                        b.textContent = followed ? '已关注' : '+ 关注';
+                        b.classList.toggle('is-followed', followed);
+                    });
+                };
+                syncFollowBtns(token);
+                if (targetToken !== token) syncFollowBtns(targetToken);
             } else {
                 showToast(`关注操作失败（HTTP ${res.status}），请确认已登录知乎`);
             }
@@ -5755,7 +6881,7 @@
     }
 
     function attachBlockButtons() {
-        if (!settings.showBlockBtn && !settings.showFollowBtn) return;
+        if (!settings.showBlockBtn && !settings.showFollowBtn && !settings.showHoverCardBlockBtn) return;
         // 1) 作者头部（回答、文章、想法、推荐关注等）
         const authorHeads = document.querySelectorAll('.AuthorInfo-head, .FeedSource-firstline');
         for (const head of authorHeads) {
@@ -5801,6 +6927,36 @@
                         : link;
                     nextBlock.insertAdjacentElement('afterend', createFollowButton(token, name));
                 }
+            }
+        }
+
+        // 3) 弹出的个人简略信息卡片（HoverCard / Popover-content）ID 右侧显示“屏蔽用户”按钮
+        if (settings.showHoverCardBlockBtn) {
+            const hoverRoots = document.querySelectorAll('.HoverCard-buttons, .Popover-content');
+            for (const root of hoverRoots) {
+                let card = root.classList.contains('Popover-content') ? root : root.parentElement;
+                for (let i = 0; i < 4 && card && card !== document.body; i++) {
+                    if (card.querySelector('a.UserLink-link[href*="/people/"], a.UserLink-link[href*="/org/"]')) break;
+                    card = card.parentElement;
+                }
+                if (!card || card === document.body || card.querySelector('.zh-hovercard-block-btn')) continue;
+
+                const isProfileHover = root.classList.contains('HoverCard-buttons') ||
+                    Boolean(card.querySelector('.HoverCard, .HoverCard-item, [class*="HoverCard"]')) ||
+                    ((card.textContent || '').includes('发私信') && (card.textContent || '').includes('关注'));
+                if (!isProfileHover) continue;
+
+                const nameLink = Array.from(card.querySelectorAll('a[href*="/people/"], a[href*="/org/"]')).find((a) => {
+                    return (a.textContent || '').trim().length > 0 && !a.querySelector('img.Avatar');
+                });
+                if (!nameLink) continue;
+                const token = extractUserToken(nameLink.getAttribute('href'));
+                if (!token) continue;
+                const name = nameLink.textContent.trim();
+                const anchor = nameLink.closest('.UserLink') || nameLink;
+                const btn = createBlockButton(token, name);
+                btn.classList.add('zh-hovercard-block-btn');
+                anchor.insertAdjacentElement('afterend', btn);
             }
         }
     }
@@ -6488,6 +7644,93 @@
         return '';
     }
 
+    const questionTimeFetchingSet = new Set();
+    const questionMetaTagCache = new Map();
+    const questionMetaTagFetchingSet = new Set();
+
+    async function fetchQuestionMetaTags(qId) {
+        if (!qId || questionMetaTagFetchingSet.has(qId)) return;
+        questionMetaTagFetchingSet.add(qId);
+        const info = { authorName: '', authorToken: '', editorName: '', editorToken: '' };
+
+        try {
+            const qRes = await fetch(`https://www.zhihu.com/api/v4/questions/${encodeURIComponent(qId)}?include=author,created`, {
+                credentials: 'include'
+            });
+            if (qRes.ok) {
+                const qData = await qRes.json();
+                if (qData && (qData.created || qData.created_time)) {
+                    saveItemMeta('question', qId, qData);
+                }
+                if (qData && qData.author) {
+                    info.authorName = qData.author.is_anonymous ? '匿名用户' : (qData.author.name || '');
+                    info.authorToken = qData.author.url_token || qData.author.urlToken || '';
+                }
+            }
+        } catch { /* ignore */ }
+
+        try {
+            const logRes = await fetch(`https://www.zhihu.com/question/${encodeURIComponent(qId)}/log`, {
+                credentials: 'include'
+            });
+            if (logRes.ok) {
+                const html = await logRes.text();
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const items = Array.from(doc.querySelectorAll('.zm-item'));
+                if (items.length > 0) {
+                    const extractUserFromLogItem = (item) => {
+                        const a = item.querySelector('a[href*="/people/"], a[href*="/org/"]');
+                        if (a) {
+                            return {
+                                name: (a.textContent || '').trim(),
+                                token: extractUserToken(a.getAttribute('href') || '')
+                            };
+                        }
+                        if ((item.textContent || '').includes('匿名用户')) {
+                            return { name: '匿名用户', token: '' };
+                        }
+                        return { name: '', token: '' };
+                    };
+                    const latest = extractUserFromLogItem(items[0]);
+                    if (latest.name) {
+                        info.editorName = latest.name;
+                        info.editorToken = latest.token;
+                    }
+                    if (!info.authorName) {
+                        const createItem = items.find((it) => {
+                            const txt = it.textContent || '';
+                            return txt.includes('添加了问题') || txt.includes('添加了该问题') || txt.includes('创建了问题') || txt.includes('提出了问题');
+                        }) || items[items.length - 1];
+                        const creator = extractUserFromLogItem(createItem);
+                        if (creator.name) {
+                            info.authorName = creator.name;
+                            info.authorToken = creator.token;
+                        }
+                    }
+                }
+            }
+        } catch { /* ignore */ }
+
+        questionMetaTagCache.set(qId, info);
+        scheduleEnhance();
+    }
+
+    async function fetchQuestionCreatedFallback(qId) {
+        if (!qId || questionTimeFetchingSet.has(qId)) return;
+        questionTimeFetchingSet.add(qId);
+        try {
+            const res = await fetch(`https://www.zhihu.com/api/v4/questions/${encodeURIComponent(qId)}?include=created`, {
+                credentials: 'include'
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data && (data.created || data.created_time)) {
+                saveItemMeta('question', qId, data);
+                scheduleEnhance();
+            }
+        } catch { /* ignore */ }
+    }
+
     function enhanceQuestionPageHeader() {
         const qDesc = document.querySelector('[data-za-detail-view-path-module="QuestionDescription"], .QuestionHeader');
         if (!qDesc) return;
@@ -6542,6 +7785,45 @@
                 }
                 if (viewTag.textContent !== tagText) {
                     viewTag.textContent = tagText;
+                }
+            }
+        }
+
+        // 2.5) 提问者与最后编辑者标签（紧跟在“浏览·关注”标签后、话题标签前）
+        const topicsWrapForMeta = qDesc.querySelector('.QuestionHeader-topics, .css-tohka4') ||
+            (qDesc.querySelector('.Tag') ? qDesc.querySelector('.Tag').parentElement : null);
+        if (topicsWrapForMeta && (settings.showQuestionAuthorTag || settings.showQuestionEditorTag)) {
+            const qMeta = questionMetaTagCache.get(qId);
+            if (!qMeta) {
+                fetchQuestionMetaTags(qId);
+            } else {
+                const upsertPersonTag = (cls, prefix, name, token) => {
+                    if (!name) return;
+                    const label = `${prefix}：${name}`;
+                    const desiredTag = token ? 'A' : 'SPAN';
+                    let el = topicsWrapForMeta.querySelector(`.${cls}`);
+                    if (el && el.tagName !== desiredTag) {
+                        el.remove();
+                        el = null;
+                    }
+                    if (!el) {
+                        el = document.createElement(desiredTag.toLowerCase());
+                        el.className = `Tag ${cls}`;
+                        if (token) {
+                            el.href = `https://www.zhihu.com/people/${encodeURIComponent(token)}`;
+                            el.target = '_blank';
+                            el.rel = 'noopener noreferrer';
+                        }
+                        topicsWrapForMeta.appendChild(el);
+                    }
+                    if (el.textContent !== label) el.textContent = label;
+                };
+
+                if (settings.showQuestionAuthorTag && qMeta.authorName) {
+                    upsertPersonTag('zh-q-author-tag', '提问', qMeta.authorName, qMeta.authorToken);
+                }
+                if (settings.showQuestionEditorTag && qMeta.editorName) {
+                    upsertPersonTag('zh-q-editor-tag', '编辑', qMeta.editorName, qMeta.editorToken);
                 }
             }
         }
@@ -6613,11 +7895,61 @@
                 }
             }
 
-            // 4) 隐藏图4红框部分的底部次要信息栏（兼容兄弟节点与外层父节点结构，保留“收起”按钮）
+            // 插入“提问于 YYYY-MM-DD HH:mm”到“修改问题”前面
+            const qCached = answerTimeCache.get(`question:${qId}`);
+            const metaCreated = document.querySelector('meta[itemprop="dateCreated"]')?.getAttribute('content') || '';
+            const createdStr = formatTimestamp(qCached && qCached.created) || formatTimestamp(metaCreated);
+            if (!createdStr) {
+                fetchQuestionCreatedFallback(qId);
+            } else {
+                const timeText = `提问于 ${createdStr}`;
+                const findEditQBtn = (root) => {
+                    if (!root) return null;
+                    return Array.from(root.querySelectorAll('button, a, [role="button"], span, div')).find((el) => {
+                        if (el.children.length > 2 || el.classList.contains('zh-q-meta-inline') || el.classList.contains('QuestionButtonGroup')) return false;
+                        const t = (el.textContent || '').replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+                        return t === '修改问题';
+                    }) || null;
+                };
+                const editQuestionBtn = findEditQBtn(btnGroup.parentElement)
+                    || findEditQBtn(qDesc)
+                    || findEditQBtn(document.querySelector('.QuestionHeader'))
+                    || ((btnGroup.nextElementSibling && (btnGroup.nextElementSibling.textContent || '').includes('修改问题')) ? btnGroup.nextElementSibling : null);
+                let timeEl = (qDesc.closest('.QuestionPage') || document).querySelector('.zh-q-created-time');
+                if (!timeEl) {
+                    timeEl = document.createElement('span');
+                    timeEl.className = 'zh-q-created-time zh-keep-collapse';
+                }
+                if (timeEl.textContent !== timeText) {
+                    timeEl.textContent = timeText;
+                }
+                const anchorBtn = editQuestionBtn ? (editQuestionBtn.closest('.Popover') || editQuestionBtn) : null;
+                if (anchorBtn && anchorBtn.parentElement) {
+                    let metaInline = anchorBtn.closest('.zh-q-meta-inline');
+                    if (!metaInline) {
+                        metaInline = document.createElement('span');
+                        metaInline.className = 'zh-q-meta-inline zh-keep-collapse';
+                        anchorBtn.parentElement.insertBefore(metaInline, anchorBtn);
+                        metaInline.appendChild(timeEl);
+                        metaInline.appendChild(anchorBtn);
+                    } else if (timeEl.parentElement !== metaInline || timeEl.nextElementSibling !== anchorBtn) {
+                        metaInline.insertBefore(timeEl, anchorBtn);
+                    }
+                    metaInline.removeAttribute('data-zh-hide-q-meta');
+                    metaInline.querySelectorAll('[data-zh-hide-q-meta]').forEach((el) => el.removeAttribute('data-zh-hide-q-meta'));
+                } else if (timeEl.parentElement !== btnGroup) {
+                    btnGroup.appendChild(timeEl);
+                }
+            }
+
+            // 4) 隐藏图4红框部分的底部次要信息栏（兼容兄弟节点与外层父节点结构，保留“收起”按钮与提问时间/修改问题）
             const metaContainers = [];
             let sib = btnGroup.nextElementSibling;
             while (sib) {
-                metaContainers.push(sib);
+                const sibTxt = (sib.textContent || '').replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+                if (!sib.classList.contains('zh-q-meta-inline') && !sibTxt.includes('修改问题')) {
+                    metaContainers.push(sib);
+                }
                 sib = sib.nextElementSibling;
             }
             if (btnGroup.parentElement && btnGroup.parentElement.nextElementSibling) {
@@ -6830,19 +8162,175 @@
     }
 
     // =========================================================================
+    // 8.6 评论区增强：回复回答与回复评论支持直接粘贴图片
+    // =========================================================================
+
+    function findCommentEditorContainer(startEl) {
+        let curr = startEl;
+        for (let i = 0; i < 6 && curr && curr !== document.body; i++) {
+            if (curr.id === 'AnswerFormPortalContainer') return null;
+            if (curr.querySelector('svg.ZDI--ImagePlus24') && curr.querySelectorAll('.Editable').length === 1) {
+                return curr;
+            }
+            curr = curr.parentElement;
+        }
+        return null;
+    }
+
+    function normalizeCommentImageFile(file, callback) {
+        if (!file) return;
+        if (file.type === 'image/png' || file.type === 'image/jpeg' || file.type === 'image/gif') {
+            callback(file);
+            return;
+        }
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth || img.width;
+                canvas.height = img.naturalHeight || img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                canvas.toBlob((blob) => {
+                    URL.revokeObjectURL(url);
+                    if (blob) {
+                        callback(new File([blob], 'pasted-image.png', { type: 'image/png' }));
+                    } else {
+                        callback(file);
+                    }
+                }, 'image/png');
+            } catch {
+                URL.revokeObjectURL(url);
+                callback(file);
+            }
+        };
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            callback(file);
+        };
+        img.src = url;
+    }
+
+    function setupCommentPasteImage() {
+        if (window.__zhCommentPasteBound) return;
+        window.__zhCommentPasteBound = true;
+
+        document.addEventListener('paste', (e) => {
+            const target = e.target;
+            if (!(target instanceof Element)) return;
+            const editable = target.closest('.Editable');
+            if (!editable || editable.closest('#AnswerFormPortalContainer')) return;
+
+            const box = findCommentEditorContainer(editable);
+            if (!box) return;
+
+            const dt = e.clipboardData;
+            if (!dt) return;
+            let imageFile = null;
+            if (dt.items) {
+                for (const item of dt.items) {
+                    if (item.kind === 'file' && item.type.startsWith('image/')) {
+                        imageFile = item.getAsFile();
+                        break;
+                    }
+                }
+            }
+            if (!imageFile && dt.files && dt.files.length > 0) {
+                for (const f of dt.files) {
+                    if (f.type && f.type.startsWith('image/')) {
+                        imageFile = f;
+                        break;
+                    }
+                }
+            }
+            if (!imageFile) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const imgBtn = box.querySelector('svg.ZDI--ImagePlus24')?.closest('button');
+            const toolbarInput = imgBtn?.parentElement?.querySelector('input[type="file"]') || null;
+
+            normalizeCommentImageFile(imageFile, (finalFile) => {
+                const applyFileToInput = (inp) => {
+                    if (!inp) return false;
+                    const transfer = new DataTransfer();
+                    transfer.items.add(finalFile);
+                    inp.files = transfer.files;
+                    inp.dispatchEvent(new Event('change', { bubbles: true }));
+                    return true;
+                };
+
+                if (toolbarInput && applyFileToInput(toolbarInput)) return;
+
+                if (imgBtn) {
+                    const origClick = HTMLInputElement.prototype.click;
+                    let captured = false;
+                    HTMLInputElement.prototype.click = function () {
+                        if (this.type === 'file' && !captured) {
+                            captured = true;
+                            applyFileToInput(this);
+                            return;
+                        }
+                        return origClick.apply(this, arguments);
+                    };
+                    imgBtn.click();
+                    setTimeout(() => {
+                        HTMLInputElement.prototype.click = origClick;
+                        if (!captured) {
+                            const lazyInp = imgBtn.parentElement?.querySelector('input[type="file"]');
+                            if (!applyFileToInput(lazyInp)) {
+                                showToast('未能触发评论图片上传框，请手动点击图片按钮');
+                            }
+                        }
+                    }, 150);
+                }
+            });
+        }, true);
+    }
+
+    function enhanceCommentBoxes() {
+        setupCommentPasteImage();
+    }
+
+    // =========================================================================
     // 9. 偏好设置页内嵌脚本设置与主循环监听
     // =========================================================================
     function applySettingsClasses() {
         if (!document.body) return;
         document.body.classList.toggle('zh-off-block', !settings.showBlockBtn);
+        document.body.classList.toggle('zh-off-hover-block', !settings.showHoverCardBlockBtn);
         document.body.classList.toggle('zh-off-follow', !settings.showFollowBtn);
         document.body.classList.toggle('zh-off-time', !settings.showAnswerTime);
+        document.body.classList.toggle('zh-off-q-time', !settings.showQuestionTime);
         document.body.classList.toggle('zh-off-view-tag', !settings.showViewTag);
-        document.body.classList.toggle('zh-blue-view-tag', !!settings.blueViewTag);
+        document.body.classList.toggle('zh-off-q-author-tag', !settings.showQuestionAuthorTag);
+        document.body.classList.toggle('zh-off-q-editor-tag', !settings.showQuestionEditorTag);
+        const useCustomViewTag = !!(settings.viewTagCustomColor || settings.blueViewTag);
+        document.body.classList.toggle('zh-custom-view-tag', useCustomViewTag);
+        if (useCustomViewTag) {
+            document.body.style.setProperty('--zh-view-tag-bg', settings.viewTagBgColor || '#056de8');
+            document.body.style.setProperty('--zh-view-tag-color', settings.viewTagTextColor || '#ffffff');
+        } else {
+            document.body.style.removeProperty('--zh-view-tag-bg');
+            document.body.style.removeProperty('--zh-view-tag-color');
+        }
+        const useCustomQMetaTag = !!settings.qMetaTagCustomColor;
+        document.body.classList.toggle('zh-custom-q-meta-tag', useCustomQMetaTag);
+        if (useCustomQMetaTag) {
+            document.body.style.setProperty('--zh-q-meta-tag-bg', settings.qMetaTagBgColor || '#e1e4ea');
+            document.body.style.setProperty('--zh-q-meta-tag-color', settings.qMetaTagTextColor || '#373a40');
+        } else {
+            document.body.style.removeProperty('--zh-q-meta-tag-bg');
+            document.body.style.removeProperty('--zh-q-meta-tag-color');
+        }
         document.body.classList.toggle('zh-disable-entity-ai', !!settings.disableEntityAiLink);
         document.body.classList.toggle('zh-scale-profile-avatar', !!settings.scaleProfileAvatar);
         document.body.classList.toggle('zh-full-profile-cover', !!settings.fullProfileCover);
         document.body.classList.toggle('zh-hide-search-hot-hint', !!settings.hideSearchHotHint);
+        document.body.classList.toggle('zh-hide-topbar-dots', !!settings.hideTopBarRedDots);
+        document.body.style.setProperty('--zh-unread-icon-color', settings.unreadSidebarIconColor || '#ff4d94');
         document.body.classList.toggle('zh-messages-embed', isMessagesEmbedMode());
         updateAutoSidebarCollapse();
         const avatarBg = settings.profileAvatarBg || 'mosaic';
@@ -6897,17 +8385,126 @@
 
         const toggleDefs = [
             { key: 'showBlockBtn', label: '作者/评论 ID 旁显示「屏蔽用户」按钮', desc: '在回答、文章作者及评论区用户名右侧添加屏蔽用户按钮' },
+            { key: 'showHoverCardBlockBtn', label: '个人简略信息弹窗 ID 旁显示「屏蔽用户」按钮', desc: '鼠标悬停用户名弹出的个人简略信息卡片中，在用户名右侧显示屏蔽用户按钮' },
             { key: 'showFollowBtn', label: '作者/评论 ID 旁显示「+ 关注」按钮', desc: '在作者及评论区用户名右侧额外添加关注/取消关注按钮' },
-            { key: 'showAnswerTime', label: '赞同数旁显示回答/修改时间', desc: '在「xx 人赞同了该回答/文章/想法」右侧显示发布与修改时间' },
+            { key: 'showAnswerTime', label: '显示回答的发布时间与修改时间', desc: '在「xx 人赞同了该回答/文章/想法」右侧显示发布与修改时间' },
+            { key: 'showQuestionTime', label: '问题顶部显示「提问于」时间', desc: '在问题顶部操作栏「修改问题」前显示该问题的提出时间' },
             { key: 'enableBlankCollapse', label: '点击左右空白区域展开/折叠回答或问题', desc: '单击回答或问题详情左右两侧空白处，可快速展开或收起内容' },
             { key: 'showViewTag', label: '问题顶部显示「浏览 · 关注」标签', desc: '将问题浏览数与关注数以标签形式前置显示在话题标签最前面' },
-            { key: 'blueViewTag', label: '问题顶部「浏览 · 关注」标签改为蓝底白字', desc: '开启后该标签将使用知乎主题蓝底白字高亮显示' },
+            { key: 'showQuestionAuthorTag', label: '问题顶部显示「提问」标签', desc: '在话题标签栏显示该问题的提问者用户名（可点击跳转主页）' },
+            { key: 'showQuestionEditorTag', label: '问题顶部显示「编辑」标签', desc: '从问题日志获取并显示最后一次编辑该问题的用户名' },
             { key: 'defaultCloseAiAssistant', label: '默认不展开创作助手', desc: '打开写回答时默认关闭右侧创作助手面板（点击顶栏「助手」可随时展开）' },
             { key: 'disableEntityAiLink', label: '关闭正文 AI 词条（直答/看山）高亮链接', desc: '隐藏正文词语旁的四角星图标并取消蓝色高亮与点击跳转，恢复为普通文本' },
             { key: 'scaleProfileAvatar', label: '完整显示个人主页头像（不裁切）', desc: '开启后按原图比例完整居中显示个人主页头像，不再裁剪边缘（默认关闭保持原生样式）' },
             { key: 'fullProfileCover', label: '完整显示个人主页顶部海报（封面图）', desc: '开启后不再裁剪个人主页顶部自定义海报图片，按原图比例完整显示（头像会轻微遮挡左下角）' },
-            { key: 'hideSearchHotHint', label: '隐藏搜索框预设热点提示', desc: '开启后清空顶部搜索框的默认热搜词提示，并隐藏下拉弹窗中的知乎热搜/猜你想搜推荐（默认关闭）' }
+            { key: 'hideSearchHotHint', label: '隐藏搜索框预设热点提示', desc: '开启后清空顶部搜索框的默认热搜词提示，并隐藏下拉弹窗中的知乎热搜/猜你想搜推荐（默认关闭）' },
+            { key: 'hijackTopBarNotif', label: '劫持右上角「通知」铃铛为双栏弹窗', desc: '开启后点击右上角通知铃铛也会打开左右双栏消息窗口；关闭时仅点击左侧栏「通知」才打开（默认关闭）' },
+            { key: 'hijackTopBarDm', label: '劫持右上角「私信」图标为悬浮私信窗', desc: '开启后点击右上角私信图标也会打开三栏悬浮私信窗；关闭时仅点击左侧栏「私信」才打开（默认关闭）' },
+            { key: 'hideTopBarRedDots', label: '隐藏右上角通知与私信红点', desc: '隐藏顶栏右上角通知铃铛和私信图标上的未读红点角标（默认开启）' }
         ];
+
+        const makeChipBtn = (label) => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = label;
+            b.style.cssText = 'height: 26px; padding: 0 10px; font-size: 12px; border: 1px solid #d0d7de; border-radius: 4px; background: transparent; cursor: pointer;';
+            return b;
+        };
+        const makeColorPicker = (titleText, initialVal, onChange) => {
+            const wrap = document.createElement('label');
+            wrap.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #646973; cursor: pointer;';
+            wrap.title = titleText;
+            const txt = document.createElement('span');
+            txt.textContent = titleText;
+            const inp = document.createElement('input');
+            inp.type = 'color';
+            inp.value = /^#[0-9a-f]{6}$/i.test(initialVal || '') ? initialVal : '#ffffff';
+            inp.style.cssText = 'width: 24px; height: 24px; padding: 0; border: 1px solid #d0d7de; border-radius: 4px; cursor: pointer; background: transparent;';
+            inp.addEventListener('input', () => onChange(inp.value));
+            wrap.appendChild(txt);
+            wrap.appendChild(inp);
+            return { wrap, inp };
+        };
+        const createTagColorPrefRow = ({ titleText, descText, enableKey, legacyBoolKey, bgKey, textKey, defaultBg, defaultText }) => {
+            const colorRow = document.createElement('div');
+            colorRow.className = 'zh-pref-row';
+            colorRow.style.cssText = 'padding-left: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;';
+
+            const cInfo = document.createElement('div');
+            cInfo.className = 'zh-pref-info';
+            cInfo.innerHTML = `<div class="zh-pref-title">${titleText}</div><div class="zh-pref-desc">${descText}</div>`;
+
+            const cControls = document.createElement('div');
+            cControls.style.cssText = 'display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end;';
+
+            const isEnabled = () => !!(settings[enableKey] || (legacyBoolKey && settings[legacyBoolKey]));
+
+            const bgPicker = makeColorPicker('背景色', settings[bgKey] || defaultBg, (v) => {
+                settings[enableKey] = true;
+                if (legacyBoolKey) settings[legacyBoolKey] = false;
+                settings[bgKey] = v;
+                enableCb.checked = true;
+                saveSettings(settings);
+                applySettingsClasses();
+            });
+            const textPicker = makeColorPicker('字体色', settings[textKey] || defaultText, (v) => {
+                settings[enableKey] = true;
+                if (legacyBoolKey) settings[legacyBoolKey] = false;
+                settings[textKey] = v;
+                enableCb.checked = true;
+                saveSettings(settings);
+                applySettingsClasses();
+            });
+            const bluePresetBtn = makeChipBtn('蓝底白字');
+            bluePresetBtn.addEventListener('click', () => {
+                settings[enableKey] = true;
+                if (legacyBoolKey) settings[legacyBoolKey] = false;
+                settings[bgKey] = '#056de8';
+                settings[textKey] = '#ffffff';
+                bgPicker.inp.value = '#056de8';
+                textPicker.inp.value = '#ffffff';
+                enableCb.checked = true;
+                saveSettings(settings);
+                applySettingsClasses();
+            });
+            const resetBtn = makeChipBtn('默认灰');
+            resetBtn.addEventListener('click', () => {
+                settings[enableKey] = false;
+                if (legacyBoolKey) settings[legacyBoolKey] = false;
+                settings[bgKey] = defaultBg;
+                settings[textKey] = defaultText;
+                bgPicker.inp.value = defaultBg;
+                textPicker.inp.value = defaultText;
+                enableCb.checked = false;
+                saveSettings(settings);
+                applySettingsClasses();
+            });
+
+            const swLabel = document.createElement('label');
+            swLabel.className = 'zh-switch';
+            const enableCb = document.createElement('input');
+            enableCb.type = 'checkbox';
+            enableCb.checked = isEnabled();
+            enableCb.addEventListener('change', () => {
+                settings[enableKey] = enableCb.checked;
+                if (legacyBoolKey) settings[legacyBoolKey] = false;
+                saveSettings(settings);
+                applySettingsClasses();
+            });
+            const swSlider = document.createElement('span');
+            swSlider.className = 'zh-switch-slider';
+            swLabel.appendChild(enableCb);
+            swLabel.appendChild(swSlider);
+
+            cControls.appendChild(bgPicker.wrap);
+            cControls.appendChild(textPicker.wrap);
+            cControls.appendChild(bluePresetBtn);
+            cControls.appendChild(resetBtn);
+            cControls.appendChild(swLabel);
+            colorRow.appendChild(cInfo);
+            colorRow.appendChild(cControls);
+            return colorRow;
+        };
 
         let avatarBgRow = null;
         for (const def of toggleDefs) {
@@ -6948,6 +8545,58 @@
             row.appendChild(switchLabel);
             section.appendChild(row);
 
+            if (def.key === 'hideTopBarRedDots') {
+                const unreadColorRow = document.createElement('div');
+                unreadColorRow.className = 'zh-pref-row';
+                unreadColorRow.style.cssText = 'padding-left: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;';
+                const uInfo = document.createElement('div');
+                uInfo.className = 'zh-pref-info';
+                uInfo.innerHTML = '<div class="zh-pref-title">左侧栏未读通知/私信图标颜色</div><div class="zh-pref-desc">有新通知或私信时，左侧栏对应图标与数字文案的高亮颜色（默认粉红色）</div>';
+                const uControls = document.createElement('div');
+                uControls.style.cssText = 'display: flex; align-items: center; gap: 8px; flex-wrap: wrap;';
+                const uPicker = makeColorPicker('高亮色', settings.unreadSidebarIconColor || '#ff4d94', (v) => {
+                    settings.unreadSidebarIconColor = v;
+                    saveSettings(settings);
+                    applySettingsClasses();
+                });
+                const uReset = makeChipBtn('恢复粉红');
+                uReset.addEventListener('click', () => {
+                    settings.unreadSidebarIconColor = '#ff4d94';
+                    uPicker.inp.value = '#ff4d94';
+                    saveSettings(settings);
+                    applySettingsClasses();
+                });
+                uControls.appendChild(uPicker.wrap);
+                uControls.appendChild(uReset);
+                unreadColorRow.appendChild(uInfo);
+                unreadColorRow.appendChild(uControls);
+                section.appendChild(unreadColorRow);
+            }
+            if (def.key === 'showViewTag') {
+                section.appendChild(createTagColorPrefRow({
+                    titleText: '「浏览 · 关注」标签自定义配色',
+                    descText: '开启后可自定义背景色与字体色（或一键设为蓝底白字 / 恢复默认灰）',
+                    enableKey: 'viewTagCustomColor',
+                    legacyBoolKey: 'blueViewTag',
+                    bgKey: 'viewTagBgColor',
+                    textKey: 'viewTagTextColor',
+                    defaultBg: '#056de8',
+                    defaultText: '#ffffff'
+                }));
+            }
+            if (def.key === 'showQuestionEditorTag') {
+                section.appendChild(createTagColorPrefRow({
+                    titleText: '「提问 / 编辑」标签自定义配色',
+                    descText: '开启后可自定义提问与编辑标签的背景色和字体色',
+                    enableKey: 'qMetaTagCustomColor',
+                    legacyBoolKey: null,
+                    bgKey: 'qMetaTagBgColor',
+                    textKey: 'qMetaTagTextColor',
+                    defaultBg: '#e1e4ea',
+                    defaultText: '#373a40'
+                }));
+            }
+
             if (def.key === 'scaleProfileAvatar') {
                 avatarBgRow = document.createElement('div');
                 avatarBgRow.className = 'zh-pref-row';
@@ -6967,13 +8616,6 @@
                 const solidSubRow = document.createElement('div');
                 solidSubRow.style.cssText = 'display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end;';
 
-                const makeChipBtn = (label) => {
-                    const b = document.createElement('button');
-                    b.type = 'button';
-                    b.textContent = label;
-                    b.style.cssText = 'height: 26px; padding: 0 10px; font-size: 12px; border: 1px solid #d0d7de; border-radius: 4px; background: transparent; cursor: pointer;';
-                    return b;
-                };
                 const setChipActive = (btn, active) => {
                     btn.style.borderColor = active ? '#1772f6' : '#d0d7de';
                     btn.style.color = active ? '#1772f6' : 'inherit';
@@ -7004,22 +8646,6 @@
                     mosaicSubRow.appendChild(b);
                     return { btn: b, size };
                 });
-
-                const makeColorPicker = (titleText, initialVal, onChange) => {
-                    const wrap = document.createElement('label');
-                    wrap.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #646973; cursor: pointer;';
-                    wrap.title = titleText;
-                    const txt = document.createElement('span');
-                    txt.textContent = titleText;
-                    const inp = document.createElement('input');
-                    inp.type = 'color';
-                    inp.value = /^#[0-9a-f]{6}$/i.test(initialVal || '') ? initialVal : '#ffffff';
-                    inp.style.cssText = 'width: 24px; height: 24px; padding: 0; border: 1px solid #d0d7de; border-radius: 4px; cursor: pointer; background: transparent;';
-                    inp.addEventListener('input', () => onChange(inp.value));
-                    wrap.appendChild(txt);
-                    wrap.appendChild(inp);
-                    return { wrap, inp };
-                };
 
                 const mosaicColorPicker = makeColorPicker('格子色', settings.profileAvatarMosaicColor || '#e5e7eb', (v) => {
                     settings.profileAvatarBg = 'mosaic';
@@ -8250,6 +9876,7 @@
             applySettingsClasses,
             parseInitialData,
             tagLeftSidebar,
+            syncSidebarUnreadBadges,
             enhanceTopHeader,
             attachBlockButtons,
             attachAnswerTimes,
@@ -8261,11 +9888,13 @@
             hideRightSidebarCards,
             injectPreferenceSettings,
             enhanceArticleTitlePasteCover,
+            enhanceCommentBoxes,
             unpackToolbarMoreMenu,
             moveSecondaryToolsToTopBar,
             layoutAiAssistantPanel,
             collapseAnswerPublishSettings,
             enhanceMessagesPage,
+            enhanceNotificationsSplitView,
             checkAndAutoReadMutedCategoryDms
         ];
         for (const fn of steps) {
