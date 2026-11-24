@@ -53,6 +53,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/cookies/save", post(post_save_cookie))
         .route("/api/config", get(get_config))
         .route("/api/config/keywords", post(post_keywords))
+        .route("/api/config/settings", post(post_settings))
         .route("/api/logs", get(get_logs))
         .layer(cors)
         .with_state(state)
@@ -323,6 +324,7 @@ async fn get_config(State(state): State<AppState>) -> Json<Value> {
     let cfg = state.config.lock().unwrap().clone();
     Json(json!({
         "bilibili_keywords": cfg.bilibili.block_keywords,
+        "bilibili_video_only": cfg.bilibili.video_only,
         "interval_minutes": cfg.fetch.interval_minutes,
         "auto_sync": cfg.auto_sync,
         "render_embed_player": cfg.render.bilibili_embed_player,
@@ -355,6 +357,33 @@ async fn post_keywords(State(state): State<AppState>, Json(payload): Json<Keywor
     *state.config.lock().unwrap() = cfg;
 
     Json(json!({ "success": true, "keywords": kws }))
+}
+
+#[derive(Deserialize)]
+struct SettingsPayload {
+    bilibili_video_only: Option<bool>,
+}
+
+async fn post_settings(
+    State(state): State<AppState>,
+    Json(payload): Json<SettingsPayload>,
+) -> Json<Value> {
+    let env_path = std::path::Path::new(".env");
+    let mut cfg = state.config.lock().unwrap().clone();
+
+    if let Some(video_only) = payload.bilibili_video_only {
+        let val = if video_only { "true" } else { "false" };
+        let _ = AppConfig::save_key_to_env(env_path, "BILIBILI_VIDEO_ONLY", val);
+        cfg.bilibili.video_only = video_only;
+    }
+
+    let video_only = cfg.bilibili.video_only;
+    *state.config.lock().unwrap() = cfg;
+
+    Json(json!({
+        "success": true,
+        "bilibili_video_only": video_only,
+    }))
 }
 
 async fn get_logs(State(state): State<AppState>) -> Json<Vec<String>> {

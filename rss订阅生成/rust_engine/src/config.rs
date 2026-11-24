@@ -35,6 +35,7 @@ pub struct BilibiliConfig {
     pub skip_types: Vec<String>,
     pub block_keywords: Vec<String>,
     pub extra_pages: usize,
+    pub video_only: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,6 +102,7 @@ impl Default for AppConfig {
                 skip_types: Vec::new(),
                 block_keywords: Vec::new(),
                 extra_pages: 0,
+                video_only: false,
             },
             bilibili_alt: BilibiliAltConfig {
                 cookie: String::new(),
@@ -195,6 +197,7 @@ impl AppConfig {
         cfg.bilibili.skip_types = parse_list("BILIBILI_SKIP_TYPES");
         cfg.bilibili.block_keywords = parse_list("BILIBILI_BLOCK_KEYWORDS");
         cfg.bilibili.extra_pages = get_usize("BILIBILI_EXTRA_PAGES", 0);
+        cfg.bilibili.video_only = get_bool("BILIBILI_VIDEO_ONLY", false);
 
         cfg.bilibili_alt.cookie = get_str("BILIBILI_ALT_COOKIE");
         cfg.bilibili_alt.sessdata = get_str("BILIBILI_ALT_SESSDATA");

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         知乎样式与功能增强
 // @namespace    https://www.zhihu.com/
-// @version      2.0.58
+// @version      2.0.62
 // @description  全面优化知乎阅读与创作体验：1) 阅读排版：适度放大正文/标题/评论/顶栏字号且不裁切正文行，支持5行摘要预览，点击左右空白区域快速折叠回答或问题详情；2) 侧栏与界面净化：左侧栏放大且窄屏不折叠，支持在偏好设置页拖拽排序、显隐及自定义分隔线，隐藏右栏冗余卡片与刘看山角标；3) 互动与信息增强：作者及评论区ID旁支持一键「屏蔽用户」与可选「+ 关注」，去除赞同数前「航海家」等前缀并在其旁直接显示发布与修改时间；4) 问题页与个人主页优化：问题顶部集中展示「浏览 · 关注」标签与操作按钮（写回答/关注问题/问题日志/评论）并隐藏邀请回答；个人主页展开完整简介、放大头像、Tab栏改用紧凑胶囊分段框并将「搜索动态」框与精简「个人成就」移至列表顶栏（保留按时间排序），他人主页隐藏右侧冗余卡片并将「屏蔽用户」移至关注/发私信旁；5) 创作体验升级：写回答工具栏双排紧凑对齐、展开「更多」菜单中的帮助/设置/MD开关、创作助手与发布设置合并为右侧紧凑悬浮窗（支持定时「选择时间」按钮与默认不展开设置）；专栏写文章标题栏支持直接粘贴图片设为封面；6) 所有功能均可在知乎「偏好设置」页内开关与自定义。
 // @author       AI
 // @match        *://*.zhihu.com/*
@@ -7976,11 +7976,31 @@
     // =========================================================================
     // 8. 任意页面：点击左右空白区域展开或折叠回答/问题详情
     // =========================================================================
-    function findCollapseButton(itemEl) {
+    function normalizeButtonText(btn) {
+        return (btn.textContent || '').replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+    }
+
+    function findCommentCollapseButton(itemEl) {
         const buttons = itemEl.querySelectorAll('button');
         for (const btn of buttons) {
-            const text = btn.textContent.replace(/\s+/g, '');
-            if (text === '收起' || text === '收起全文' || (text.startsWith('收起') && text.length <= 4)) {
+            const text = normalizeButtonText(btn);
+            if (text === '收起评论' || text === '收起全部评论' || /^收起(\d+条)?评论$/.test(text)) {
+                const r = btn.getBoundingClientRect();
+                if (r.width > 0 && r.height > 0) return btn;
+            }
+        }
+        return null;
+    }
+
+    function findCollapseButton(itemEl) {
+        // 若当前回答的评论区处于展开状态，优先收起评论区而非直接折叠回答
+        const commentCollapseBtn = findCommentCollapseButton(itemEl);
+        if (commentCollapseBtn) return commentCollapseBtn;
+
+        const buttons = itemEl.querySelectorAll('button');
+        for (const btn of buttons) {
+            const text = normalizeButtonText(btn);
+            if (text === '收起' || text === '收起全文' || (text.startsWith('收起') && text.length <= 4 && text !== '收起评论')) {
                 return btn;
             }
         }
@@ -7995,7 +8015,7 @@
         const buttons = itemEl.querySelectorAll('button');
         for (const btn of buttons) {
             if (btn.hasAttribute('data-zh-hide-expand-btn') || btn.classList.contains('zh-q-action-btn')) continue;
-            const text = btn.textContent.replace(/\s+/g, '');
+            const text = normalizeButtonText(btn);
             if (text === '阅读全文' || text === '展开阅读全文' || text === '展开全文' || text === '显示全部') {
                 return btn;
             }
@@ -8015,6 +8035,9 @@
 
             const target = e.target;
             if (!(target instanceof Element)) return;
+
+            // 若当前存在原生弹窗（如评论弹窗），不触发底层回答的折叠
+            if (document.querySelector('.Modal-backdrop, .Modal-wrapper .Modal')) return;
 
             // 排除点击在交互控件、弹窗、顶栏、侧栏或回答卡片内部的情况
             if (target.closest(
@@ -9717,7 +9740,7 @@
         const sideCards = document.querySelectorAll('.Profile-sideColumn .Card');
         for (const card of sideCards) {
             const headerTxt = (card.querySelector('.Card-headerText')?.textContent || '').trim();
-            if (!headerTxt.includes('个人成就')) continue;
+            if (!headerTxt.includes('个人成就') && !headerTxt.includes('认证与成就')) continue;
             card.setAttribute('data-zh-hide-achievement-card', 'true');
             const bodyTxt = (card.textContent || '').replace(/\s+/g, ' ');
             const upvoteMatch = bodyTxt.match(/获得\s*([\d,]+)\s*次赞同/);

@@ -12,7 +12,7 @@ pub async fn run_all_fetchers(config: &AppConfig, store: &DataStore) -> Result<(
 
     // Bilibili Main
     if !config.bilibili.cookie.is_empty() || !config.bilibili.sessdata.is_empty() {
-        let _ = bilibili::fetch_and_store(config, store, "bilibili", false).await;
+        let _ = bilibili::fetch_and_store(config, store, "bilibili", config.bilibili.video_only).await;
     }
 
     // Bilibili Alt (if has independent cookie)

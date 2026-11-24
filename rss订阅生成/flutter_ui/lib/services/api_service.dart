@@ -113,6 +113,33 @@ class ApiService {
     return false;
   }
 
+  Future<Map<String, dynamic>?> getConfig() async {
+    try {
+      final resp = await http.get(Uri.parse('$baseUrl/api/config'));
+      if (resp.statusCode == 200) {
+        return json.decode(resp.body) as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<bool> updateSettings({bool? bilibiliVideoOnly}) async {
+    try {
+      final resp = await http.post(
+        Uri.parse('$baseUrl/api/config/settings'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          if (bilibiliVideoOnly != null) 'bilibili_video_only': bilibiliVideoOnly,
+        }),
+      );
+      if (resp.statusCode == 200) {
+        final data = json.decode(resp.body);
+        return data['success'] == true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
   Future<List<String>> getKeywords() async {
     try {
       final resp = await http.get(Uri.parse('$baseUrl/api/config'));

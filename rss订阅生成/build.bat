@@ -82,8 +82,8 @@ echo [OK] Packaging all files into dist\ ...
 xcopy /e /y /q "%ROOT_DIR%\flutter_ui\build\windows\x64\runner\Release\*" "%ROOT_DIR%\dist\" >nul
 copy /y "%ROOT_DIR%\rust_engine\target\release\rss_engine.exe" "%ROOT_DIR%\dist\" >nul
 copy /y "%ROOT_DIR%\dist\rss_manager_ui.exe" "%ROOT_DIR%\dist\RSSManager.exe" >nul
-if exist "%ROOT_DIR%\.env" copy /y "%ROOT_DIR%\.env" "%ROOT_DIR%\dist\" >nul
-if exist "%ROOT_DIR%\gui_config.json" copy /y "%ROOT_DIR%\gui_config.json" "%ROOT_DIR%\dist\" >nul
+if not exist "%ROOT_DIR%\dist\.env" if exist "%ROOT_DIR%\.env" copy /y "%ROOT_DIR%\.env" "%ROOT_DIR%\dist\" >nul
+if not exist "%ROOT_DIR%\dist\gui_config.json" if exist "%ROOT_DIR%\gui_config.json" copy /y "%ROOT_DIR%\gui_config.json" "%ROOT_DIR%\dist\" >nul
 
 echo.
 echo ========================================

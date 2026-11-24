@@ -177,8 +177,8 @@ class HomePage extends StatelessWidget {
                         ),
                         Tab(
                           height: 38,
-                          icon: Icon(Icons.block, size: 16),
-                          text: '屏蔽词',
+                          icon: Icon(Icons.settings, size: 16),
+                          text: '设置',
                         ),
                       ],
                     ),

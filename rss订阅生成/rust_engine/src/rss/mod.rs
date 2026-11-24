@@ -75,7 +75,8 @@ pub fn generate_rss(config: &AppConfig, platform: &str, items: &[DynamicItem]) -
         .iter()
         .filter(|item| {
             if platform == "bilibili" {
-                !crate::fetcher::bilibili::is_bilibili_item_blocked(item, &config.bilibili.block_keywords)
+                !(config.bilibili.video_only && item.item_type != "DYNAMIC_TYPE_AV")
+                    && !crate::fetcher::bilibili::is_bilibili_item_blocked(item, &config.bilibili.block_keywords)
             } else {
                 true
             }
@@ -292,5 +293,42 @@ mod tests {
         let xml = generate_rss(&cfg, "bilibili", &items);
         assert!(!xml.contains("领外卖红包"));
         assert!(xml.contains("外卖员的一天"));
+    }
+
+    #[test]
+    fn test_generate_rss_bilibili_video_only() {
+        let mut cfg = AppConfig::default();
+        cfg.bilibili.video_only = true;
+
+        let make = |id: &str, item_type: &str, title: &str| DynamicItem {
+            id: id.to_string(),
+            platform: "bilibili".to_string(),
+            item_type: item_type.to_string(),
+            author: "UP".to_string(),
+            author_face: String::new(),
+            author_mid: None,
+            author_url: None,
+            title: title.to_string(),
+            raw_title: title.to_string(),
+            content: String::new(),
+            link: format!("https://www.bilibili.com/opus/{}", id),
+            images: vec![],
+            video_cover: String::new(),
+            video_duration: String::new(),
+            video_bvid: String::new(),
+            emojis: HashMap::new(),
+            orig_dynamic: None,
+            publish_time: 0,
+            stats: DynamicStats::default(),
+        };
+
+        let items = vec![
+            make("1", "DYNAMIC_TYPE_OPUS", "普通图文动态"),
+            make("2", "DYNAMIC_TYPE_AV", "新视频投稿"),
+        ];
+
+        let xml = generate_rss(&cfg, "bilibili", &items);
+        assert!(!xml.contains("普通图文动态"));
+        assert!(xml.contains("新视频投稿"));
     }
 }
