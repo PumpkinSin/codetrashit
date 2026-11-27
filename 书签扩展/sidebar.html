@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>书签侧边栏</title>
+  <link rel="stylesheet" href="sidebar.css" />
+</head>
+<body>
+  <section id="sidebar">
+    <div id="sidebarTopSearches" class="sidebar-search-stack pos-top hidden"></div>
+
+    <div id="searchPane" class="bookmark-pane hidden"></div>
+
+    <div id="splitContainer" class="split-container">
+      <div id="topPane" class="bookmark-pane top-pane"></div>
+
+      <div class="category-bar">
+        <div id="topCats" class="cat-row"></div>
+        <div class="cat-divider"></div>
+        <div id="bottomCats" class="cat-row"></div>
+      </div>
+
+      <div id="bottomPane" class="bookmark-pane bottom-pane"></div>
+    </div>
+
+    <div id="sidebarBottomSearches" class="sidebar-search-stack pos-bottom hidden"></div>
+  </section>
+
+  <div id="ctxMenu" class="ctx-menu hidden"></div>
+  <div id="ctxSubmenu" class="ctx-menu ctx-submenu hidden"></div>
+
+  <div id="modalOverlay" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div id="modalTitle" class="modal-title">重命名</div>
+      <input id="modalInput" type="text" class="modal-input" autocomplete="off" />
+      <div id="modalConfirmText" class="modal-confirm-text hidden"></div>
+      <div class="modal-actions">
+        <button id="modalCancelBtn" type="button" class="icon-btn">取消</button>
+        <button id="modalOkBtn" type="button" class="modal-ok-btn">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="sidebar.js"></script>
+</body>
+</html>

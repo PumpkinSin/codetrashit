@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>新标签页</title>
+  <link id="faviconLink" rel="icon" type="image/svg+xml" href="" />
+  <style>
+    :root {
+      --nt-bg: #18191c;
+      --nt-card: #22242a;
+      --nt-hover: #2a2d35;
+      --nt-text: #d4d7dd;
+      --nt-accent: #0078d4;
+      --nt-font: "Segoe UI Variable", "Microsoft YaHei", sans-serif;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--nt-bg);
+      color: var(--nt-text);
+      font-family: var(--nt-font);
+    }
+    .newtab-shell {
+      display: flex;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .newtab-shell.right {
+      flex-direction: row-reverse;
+    }
+    #sidebarFrame {
+      flex-shrink: 0;
+      width: 460px;
+      height: 100vh;
+      border: none;
+      background: var(--nt-bg);
+      box-shadow: 4px 0 22px rgba(0, 0, 0, 0.28);
+      z-index: 2;
+    }
+    .newtab-shell.right #sidebarFrame {
+      box-shadow: -4px 0 22px rgba(0, 0, 0, 0.28);
+    }
+    .dida-workspace {
+      flex: 1;
+      min-width: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 18px 24px 16px;
+      overflow: hidden;
+      position: relative;
+    }
+    .dida-workspace.wallpaper-mode {
+      padding: 0;
+    }
+    /* No-API Wallpaper + Search View */
+    .wallpaper-stage {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      overflow: hidden;
+    }
+    .wallpaper-stage.default-bg {
+      background:
+        radial-gradient(circle at 75% 22%, rgba(251, 191, 36, 0.34), transparent 45%),
+        radial-gradient(circle at 22% 78%, rgba(96, 165, 250, 0.24), transparent 50%),
+        linear-gradient(150deg, #1d202b 0%, #2d2a3d 48%, #3c3342 100%);
+    }
+    .wallpaper-scrim {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.16);
+      pointer-events: none;
+    }
+    .search-glass {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      max-width: 600px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .wp-clock {
+      font-size: 56px;
+      font-weight: 300;
+      letter-spacing: 2px;
+      color: #ffffff;
+      text-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+      line-height: 1;
+    }
+    .wp-date {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.9);
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      margin-top: -6px;
+    }
+    .engine-pills {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .engine-pill {
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      color: #ffffff;
+      font-size: 12.5px;
+      cursor: pointer;
+      transition: background 0.14s, color 0.14s;
+    }
+    .engine-pill:hover {
+      background: rgba(255, 255, 255, 0.32);
+    }
+    .engine-pill.active {
+      background: rgba(255, 255, 255, 0.94);
+      color: #1f2937;
+      font-weight: 700;
+    }
+    .search-box-pill {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 9px 7px 18px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.24);
+    }
+    .search-box-pill input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      font-size: 15px;
+      color: #1f2937;
+      outline: none;
+    }
+    .search-box-pill button {
+      padding: 7px 18px;
+      border-radius: 999px;
+      border: none;
+      background: var(--nt-accent);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .wp-corner-actions {
+      position: absolute;
+      right: 20px;
+      bottom: 18px;
+      display: flex;
+      gap: 8px;
+      z-index: 2;
+    }
+    .wp-top-switcher {
+      position: absolute;
+      top: 18px;
+      left: 24px;
+      z-index: 3;
+      background: rgba(0, 0, 0, 0.32);
+      backdrop-filter: blur(12px);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+    .wp-top-switcher .mode-tab {
+      color: rgba(255, 255, 255, 0.85);
+    }
+    .wp-top-switcher .mode-tab:hover {
+      background: rgba(255, 255, 255, 0.16);
+      color: #ffffff;
+    }
+    .wp-top-switcher .mode-tab.active {
+      background: var(--nt-accent);
+      color: #ffffff;
+    }
+    .wp-chip {
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.36);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .wp-chip:hover {
+      background: rgba(0, 0, 0, 0.56);
+    }
+    /* Workspace Header & Mode Tabs */
+    .dida-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    .dida-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .mode-switcher {
+      display: inline-flex;
+      background: var(--nt-card);
+      border: 1px solid rgba(128, 128, 128, 0.22);
+      border-radius: 8px;
+      padding: 3px;
+      gap: 2px;
+    }
+    .mode-tab {
+      padding: 4px 13px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--nt-text);
+      opacity: 0.72;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .mode-tab:hover {
+      opacity: 1;
+      background: var(--nt-hover);
+    }
+    .mode-tab.active {
+      background: var(--nt-accent);
+      color: #ffffff;
+      opacity: 1;
+    }
+    .dida-badge {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(128, 128, 128, 0.2);
+      opacity: 0.85;
+    }
+    .dida-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .dida-search {
+      width: 175px;
+      height: 31px;
+      padding: 0 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(128, 128, 128, 0.26);
+      background: var(--nt-card);
+      color: var(--nt-text);
+      font-size: 12.5px;
+      outline: none;
+    }
+    .dida-search:focus {
+      border-color: var(--nt-accent);
+    }
+    .dida-btn {
+      padding: 5px 10px;
+      height: 31px;
+      border-radius: 6px;
+      border: 1px solid rgba(128, 128, 128, 0.24);
+      background: var(--nt-card);
+      color: var(--nt-text);
+      font-size: 12.5px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+    }
+    .dida-btn:hover {
+      background: var(--nt-hover);
+      border-color: var(--nt-accent);
+    }
+    .dida-btn.primary {
+      background: var(--nt-accent);
+      border-color: var(--nt-accent);
+      color: #ffffff;
+      font-weight: 600;
+    }
+    .dida-btn.danger:hover {
+      border-color: #ef4444;
+      color: #ef4444;
+    }
+    .dida-smart-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+      flex-shrink: 0;
+    }
+    .smart-pill {
+      padding: 4px 10px;
+      border-radius: 7px;
+      border: 1px solid rgba(128, 128, 128, 0.2);
+      background: var(--nt-card);
+      color: var(--nt-text);
+      font-size: 12.5px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      opacity: 0.88;
+    }
+    .smart-pill:hover {
+      background: var(--nt-hover);
+      opacity: 1;
+    }
+    .smart-pill.active {
+      background: var(--nt-accent);
+      border-color: var(--nt-accent);
+      color: #ffffff;
+      font-weight: 600;
+      opacity: 1;
+    }
+    .smart-pill .cnt {
+      font-size: 11px;
+      opacity: 0.78;
+    }
+    .dida-projects {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 10px;
+      flex-shrink: 0;
+    }
+    .proj-tab {
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(128, 128, 128, 0.22);
+      background: var(--nt-card);
+      color: var(--nt-text);
+      font-size: 12.5px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .proj-tab:hover {
+      background: var(--nt-hover);
+    }
+    .proj-tab.active {
+      background: var(--nt-accent);
+      border-color: var(--nt-accent);
+      color: #ffffff;
+      font-weight: 600;
+    }
+    .proj-tab.add-proj {
+      border-style: dashed;
+      opacity: 0.8;
+    }
+    .proj-tab.add-proj:hover {
+      opacity: 1;
+      border-color: var(--nt-accent);
+    }
+    .proj-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .proj-edit-btn {
+      border: none;
+      background: transparent;
+      color: inherit;
+      opacity: 0.72;
+      cursor: pointer;
+      padding: 0 2px;
+      font-size: 11px;
+      line-height: 1;
+    }
+    .proj-edit-btn:hover {
+      opacity: 1;
+    }
+    .dida-tags-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 10px;
+      flex-shrink: 0;
+    }
+    .tag-chip {
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(128, 128, 128, 0.22);
+      background: transparent;
+      color: var(--nt-text);
+      font-size: 11.5px;
+      cursor: pointer;
+      opacity: 0.8;
+    }
+    .tag-chip:hover {
+      opacity: 1;
+      background: var(--nt-hover);
+    }
+    .tag-chip.active {
+      background: var(--nt-accent);
+      border-color: var(--nt-accent);
+      color: #ffffff;
+      opacity: 1;
+    }
+    .dida-add-bar {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    .dida-input {
+      flex: 1;
+      min-width: 180px;
+      height: 36px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(128, 128, 128, 0.26);
+      background: var(--nt-card);
+      color: var(--nt-text);
+      font-size: 13px;
+      outline: none;
+    }
+    .dida-input:focus {
+      border-color: var(--nt-accent);
+    }
+    .dida-select,
+    .dida-date {
+      height: 36px;
+      padding: 0 8px;
+      border-radius: 8px;
+      border: 1px solid rgba(128, 128, 128, 0.26);
+      background: var(--nt-card);
+      color: var(--nt-text);
+      font-size: 12.5px;
+      outline: none;
+    }
+    .dida-select.compact {
+      height: 31px;
+      border-radius: 6px;
+    }
+    .dida-main-split {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      gap: 14px;
+      overflow: hidden;
+    }
+    .dida-list {
+      flex: 1;
+      min-width: 0;
+      min-height: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-right: 6px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(128, 128, 128, 0.35) transparent;
+    }
+    .dida-list::-webkit-scrollbar,
+    .kanban-col-list::-webkit-scrollbar,
+    .drawer-body::-webkit-scrollbar,
+    .cal-scroll::-webkit-scrollbar,
+    .gantt-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .dida-list::-webkit-scrollbar-track,
+    .kanban-col-list::-webkit-scrollbar-track,
+    .drawer-body::-webkit-scrollbar-track,
+    .cal-scroll::-webkit-scrollbar-track,
+    .gantt-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .dida-list::-webkit-scrollbar-thumb,
+    .kanban-col-list::-webkit-scrollbar-thumb,
+    .drawer-body::-webkit-scrollbar-thumb,
+    .cal-scroll::-webkit-scrollbar-thumb,
+    .gantt-scroll::-webkit-scrollbar-thumb {
+      background: rgba(128, 128, 128, 0.32);
+      border-radius: 999px;
+    }
+    .dida-list::-webkit-scrollbar-thumb:hover,
+    .kanban-col-list::-webkit-scrollbar-thumb:hover,
+    .drawer-body::-webkit-scrollbar-thumb:hover,
+    .cal-scroll::-webkit-scrollbar-thumb:hover,
+    .gantt-scroll::-webkit-scrollbar-thumb:hover {
+      background: rgba(128, 128, 128, 0.55);
+    }
+    /* Kanban View */
+    .dida-kanban {
+      flex: 1;
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(200px, 1fr));
+      gap: 10px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .kanban-col {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      background: rgba(128, 128, 128, 0.06);
+      border: 1px solid rgba(128, 128, 128, 0.14);
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .kanban-col-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(128, 128, 128, 0.16);
+    }
+    .kanban-col-list {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-right: 3px;
+    }
+    /* Calendar Views */
+    .cal-scroll {
+      flex: 1;
+      min-width: 0;
+      min-height: 0;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .cal-month-grid {
+      flex: 1;
+      min-height: 500px;
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      grid-template-rows: auto repeat(6, minmax(84px, 1fr));
+      border-left: 1px solid rgba(128, 128, 128, 0.18);
+      border-top: 1px solid rgba(128, 128, 128, 0.18);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--nt-card);
+    }
+    .cal-dow {
+      padding: 7px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      opacity: 0.72;
+      background: rgba(128, 128, 128, 0.08);
+      border-right: 1px solid rgba(128, 128, 128, 0.18);
+      border-bottom: 1px solid rgba(128, 128, 128, 0.18);
+      text-align: center;
+    }
+    .cal-cell {
+      padding: 6px 7px;
+      border-right: 1px solid rgba(128, 128, 128, 0.18);
+      border-bottom: 1px solid rgba(128, 128, 128, 0.18);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
+      cursor: pointer;
+    }
+    .cal-cell:hover {
+      background: var(--nt-hover);
+    }
+    .cal-cell.other {
+      opacity: 0.42;
+    }
+    .cal-day-num {
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .today-dot {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: #ef4444;
+      color: #ffffff;
+      font-size: 11.5px;
+      font-weight: 700;
+    }
+    .cal-event {
+      font-size: 11.5px;
+      padding: 2px 6px;
+      border-radius: 5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 600;
+      cursor: pointer;
+      background: rgba(59, 130, 246, 0.16);
+      border-left: 3px solid var(--nt-accent);
+    }
+    .cal-event:hover {
+      filter: brightness(1.08);
+    }
+    .cal-event.p5 { background: rgba(239, 68, 68, 0.16); border-left-color: #ef4444; }
+    .cal-event.p3 { background: rgba(245, 158, 11, 0.18); border-left-color: #f59e0b; }
+    .cal-event.p1 { background: rgba(59, 130, 246, 0.16); border-left-color: #3b82f6; }
+    .cal-event.selected {
+      outline: 1.5px solid var(--nt-accent);
+    }
+    .cal-week-grid {
+      display: grid;
+      grid-template-columns: 60px repeat(7, minmax(0, 1fr));
+      border-left: 1px solid rgba(128, 128, 128, 0.18);
+      border-top: 1px solid rgba(128, 128, 128, 0.18);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--nt-card);
+    }
+    .cal-day-grid {
+      display: grid;
+      grid-template-columns: 74px 1fr;
+      border-left: 1px solid rgba(128, 128, 128, 0.18);
+      border-top: 1px solid rgba(128, 128, 128, 0.18);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--nt-card);
+    }
+    .cal-time-cell {
+      padding: 8px 6px;
+      font-size: 11.5px;
+      opacity: 0.68;
+      text-align: center;
+      border-right: 1px solid rgba(128, 128, 128, 0.18);
+      border-bottom: 1px solid rgba(128, 128, 128, 0.18);
+      background: rgba(128, 128, 128, 0.05);
+    }
+    /* Gantt View */
+    .gantt-scroll {
+      flex: 1;
+      min-width: 0;
+      min-height: 0;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .gantt-board {
+      background: var(--nt-card);
+      border: 1px solid rgba(128, 128, 128, 0.2);
+      border-radius: 10px;
+      overflow-x: auto;
+      min-width: 720px;
+    }
+    .gantt-head {
+      display: grid;
+      grid-template-columns: 148px repeat(14, minmax(48px, 1fr));
+      border-bottom: 1px solid rgba(128, 128, 128, 0.18);
+      background: rgba(128, 128, 128, 0.07);
+      font-size: 12px;
+    }
+    .gantt-head-cell {
+      padding: 8px 4px;
+      text-align: center;
+      border-left: 1px solid rgba(128, 128, 128, 0.14);
+      opacity: 0.8;
+    }
+    .gantt-head-cell.today {
+      opacity: 1;
+    }
+    .gantt-group-row {
+      display: grid;
+      grid-template-columns: 148px 1fr;
+      border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+    }
+    .gantt-group-label {
+      padding: 12px 12px;
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      font-size: 12.5px;
+      font-weight: 600;
+      border-right: 1px solid rgba(128, 128, 128, 0.16);
+      cursor: pointer;
+    }
+    .gantt-group-label:hover {
+      background: var(--nt-hover);
+    }
+    .gantt-track-wrap {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .gantt-bg-cols {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-columns: repeat(14, minmax(48px, 1fr));
+      pointer-events: none;
+    }
+    .gantt-bg-col {
+      border-left: 1px solid rgba(128, 128, 128, 0.11);
+    }
+    .gantt-bg-col.weekend {
+      background: rgba(128, 128, 128, 0.05);
+    }
+    .gantt-today-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: rgba(239, 68, 68, 0.78);
+      z-index: 3;
+      pointer-events: none;
+    }
+    .gantt-lane {
+      position: relative;
+      height: 46px;
+    }
+    .gantt-bar {
+      position: absolute;
+      top: 6px;
+      height: 34px;
+      border-radius: 7px;
+      background: var(--nt-bg);
+      border: 1px solid rgba(128, 128, 128, 0.28);
+      border-left: 3px solid var(--nt-accent);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.09);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 10px;
+      font-size: 12.5px;
+      font-weight: 600;
+      z-index: 4;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      width: max-content;
+    }
+    .gantt-bar:hover,
+    .gantt-bar.selected {
+      border-color: var(--nt-accent);
+      background: var(--nt-hover);
+    }
+    .gantt-status {
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 10.5px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .gantt-status.overdue { background: rgba(239, 68, 68, 0.16); color: #ef4444; }
+    .gantt-status.active { background: rgba(59, 130, 246, 0.16); color: #3b82f6; }
+    .gantt-status.upcoming { background: rgba(16, 185, 129, 0.16); color: #10b981; }
+    .gantt-unscheduled {
+      background: var(--nt-card);
+      border: 1px solid rgba(128, 128, 128, 0.18);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+    .gantt-unscheduled-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    /* Task Tree */
+    .task-node {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .task-children {
+      margin-left: 22px;
+      padding-left: 10px;
+      border-left: 1px solid rgba(128, 128, 128, 0.22);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .task-node.collapsed > .task-children {
+      display: none;
+    }
+    .task-toggle {
+      width: 18px;
+      height: 18px;
+      margin-top: 2px;
+      border: none;
+      background: transparent;
+      color: var(--nt-text);
+      opacity: 0.65;
+      font-size: 11px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      padding: 0;
+      border-radius: 4px;
+    }
+    .task-toggle:hover {
+      opacity: 1;
+      background: rgba(128, 128, 128, 0.18);
+    }
+    .task-toggle.spacer {
+      pointer-events: none;
+      opacity: 0;
+    }
+    .task-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: var(--nt-card);
+      border: 1px solid rgba(128, 128, 128, 0.16);
+      transition: background 0.14s ease, border-color 0.14s ease, opacity 0.2s ease;
+    }
+    .task-card:hover {
+      background: var(--nt-hover);
+    }
+    .task-card.selected {
+      border-color: var(--nt-accent);
+      background: var(--nt-hover);
+    }
+    .task-card.completed-row {
+      opacity: 0.68;
+    }
+    .task-card.completed-row .task-title {
+      text-decoration: line-through;
+    }
+    .task-check {
+      width: 18px;
+      height: 18px;
+      margin-top: 2px;
+      border-radius: 50%;
+      border: 2px solid rgba(128, 128, 128, 0.55);
+      background: transparent;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.14s, border-color 0.14s;
+    }
+    .task-check.p1 { border-color: #3b82f6; }
+    .task-check.p3 { border-color: #f59e0b; }
+    .task-check.p5 { border-color: #ef4444; }
+    .task-check:hover {
+      background: var(--nt-accent);
+      border-color: var(--nt-accent);
+    }
+    .task-body {
+      flex: 1;
+      min-width: 0;
+      cursor: pointer;
+    }
+    .task-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+    .task-meta {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-top: 4px;
+      font-size: 11.5px;
+      opacity: 0.78;
+      flex-wrap: wrap;
+    }
+    .task-due.overdue {
+      color: #ef4444;
+      opacity: 1;
+      font-weight: 600;
+    }
+    .task-meta-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .task-meta-badge svg {
+      width: 12px;
+      height: 12px;
+      flex-shrink: 0;
+    }
+    .task-tag {
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: rgba(128, 128, 128, 0.2);
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .task-tag:hover {
+      background: var(--nt-accent);
+      color: #fff;
+    }
+    .task-meta a {
+      color: var(--nt-accent);
+      text-decoration: none;
+    }
+    .task-meta a:hover {
+      text-decoration: underline;
+    }
+    .task-checklist {
+      margin-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .checklist-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      opacity: 0.9;
+    }
+    .checklist-item.done span {
+      text-decoration: line-through;
+      opacity: 0.55;
+    }
+    .checklist-box {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      border: 1.5px solid rgba(128, 128, 128, 0.55);
+      background: transparent;
+      cursor: pointer;
+      flex-shrink: 0;
+      padding: 0;
+    }
+    .checklist-item.done .checklist-box {
+      background: var(--nt-accent);
+      border-color: var(--nt-accent);
+    }
+    .task-actions {
+      display: flex;
+      gap: 3px;
+      opacity: 0;
+      transition: opacity 0.14s;
+      flex-shrink: 0;
+    }
+    .task-card:hover .task-actions {
+      opacity: 1;
+    }
+    .task-act {
+      border: none;
+      background: transparent;
+      color: var(--nt-text);
+      opacity: 0.75;
+      font-size: 11.5px;
+      padding: 3px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .task-act:hover {
+      opacity: 1;
+      background: rgba(128, 128, 128, 0.22);
+    }
+    .task-act.danger:hover {
+      color: #ef4444;
+    }
+    /* Detail Editor Drawer (50/50 Split) */
+    .dida-drawer {
+      flex: 1;
+      min-width: 320px;
+      background: var(--nt-card);
+      border: 1px solid rgba(128, 128, 128, 0.22);
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(128, 128, 128, 0.16);
+      font-size: 13.5px;
+      font-weight: 700;
+    }
+    .drawer-body {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+    }
+    .drawer-field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .drawer-label {
+      font-size: 11.5px;
+      opacity: 0.72;
+      font-weight: 600;
+    }
+    .drawer-input,
+    .drawer-textarea,
+    .drawer-select {
+      width: 100%;
+      padding: 7px 9px;
+      border-radius: 6px;
+      border: 1px solid rgba(128, 128, 128, 0.26);
+      background: var(--nt-bg);
+      color: var(--nt-text);
+      font-size: 12.5px;
+      font-family: inherit;
+      outline: none;
+    }
+    .drawer-input:focus,
+    .drawer-textarea:focus,
+    .drawer-select:focus {
+      border-color: var(--nt-accent);
+    }
+    .drawer-textarea {
+      min-height: 140px;
+      resize: vertical;
+      line-height: 1.55;
+    }
+    .drawer-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .prio-group {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 5px;
+    }
+    .prio-btn {
+      padding: 5px 4px;
+      border-radius: 6px;
+      border: 1px solid rgba(128, 128, 128, 0.26);
+      background: var(--nt-bg);
+      color: var(--nt-text);
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .prio-btn.active {
+      border-color: var(--nt-accent);
+      background: var(--nt-accent);
+      color: #fff;
+      font-weight: 600;
+    }
+    .prio-btn.p1.active { background: #3b82f6; border-color: #3b82f6; }
+    .prio-btn.p3.active { background: #f59e0b; border-color: #f59e0b; }
+    .prio-btn.p5.active { background: #ef4444; border-color: #ef4444; }
+    .drawer-quick-dates {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+    .mini-pill {
+      padding: 2px 7px;
+      border-radius: 5px;
+      border: 1px solid rgba(128, 128, 128, 0.25);
+      background: transparent;
+      color: var(--nt-text);
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .mini-pill:hover {
+      background: var(--nt-hover);
+      border-color: var(--nt-accent);
+    }
+    .drawer-checklist-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 5px;
+    }
+    .drawer-checklist-row input[type="text"] {
+      flex: 1;
+      padding: 4px 7px;
+      border-radius: 5px;
+      border: 1px solid rgba(128, 128, 128, 0.22);
+      background: var(--nt-bg);
+      color: var(--nt-text);
+      font-size: 12px;
+    }
+    .drawer-footer {
+      padding: 10px 14px;
+      border-top: 1px solid rgba(128, 128, 128, 0.16);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    /* Modal */
+    .dida-modal-mask {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    .dida-modal {
+      width: 380px;
+      max-width: 92vw;
+      background: var(--nt-card);
+      border: 1px solid rgba(128, 128, 128, 0.28);
+      border-radius: 12px;
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+    }
+    .dida-modal-title {
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .color-swatches {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .color-swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+    }
+    .color-swatch.active {
+      border-color: #ffffff;
+      transform: scale(1.12);
+    }
+    .dida-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      opacity: 0.75;
+      text-align: center;
+      font-size: 14px;
+    }
+  </style>
+  <style id="didaCustomCssTag"></style>
+</head>
+<body>
+  <div id="newtabShell" class="newtab-shell">
+    <iframe id="sidebarFrame" src="sidebar.html"></iframe>
+    <main id="didaWorkspace" class="dida-workspace"></main>
+  </div>
+  <script src="newtab.js"></script>
+</body>
+</html>

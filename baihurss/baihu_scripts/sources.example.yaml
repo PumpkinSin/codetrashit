@@ -1,0 +1,10 @@
+# 手动订阅名单示例（复制为 sources.yaml 后使用，不要把包含个人名单的 sources.yaml 提交到 GitHub）
+# 支持直接粘贴主页链接，也支持直接写 UID / url_token，# 后为备注
+
+bilibili:
+  # - https://space.bilibili.com/2267573  # 示例 UP 主
+  # - 2267573
+
+zhihu:
+  # - https://www.zhihu.com/people/diygod  # 示例答主
+  # - diygod

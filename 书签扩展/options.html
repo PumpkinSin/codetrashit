@@ -1,0 +1,1535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>吉签中出</title>
+  <style>
+    :root {
+      /* Fluent 2 Dark (Mica + Layer Fill) */
+      --opt-bg: #202020;
+      --opt-bg-mica: radial-gradient(ellipse at 10% 0%, rgba(96, 205, 255, 0.09), transparent 45%),
+        radial-gradient(ellipse at 90% 100%, rgba(0, 120, 212, 0.08), transparent 45%);
+      --opt-card: rgba(43, 43, 43, 0.88);
+      --opt-border: rgba(255, 255, 255, 0.075);
+      --opt-border-strong: rgba(255, 255, 255, 0.13);
+      --opt-text: #f3f3f3;
+      --opt-heading: #ffffff;
+      --opt-label: #e0e0e0;
+      --opt-muted: #9e9e9e;
+      --opt-input-bg: rgba(255, 255, 255, 0.055);
+      --opt-input-hover: rgba(255, 255, 255, 0.085);
+      --opt-input-border: rgba(255, 255, 255, 0.09);
+      --opt-input-bottom: rgba(255, 255, 255, 0.42);
+      --opt-input-text: #ffffff;
+      --opt-textarea-bg: rgba(28, 28, 28, 0.72);
+      --opt-actions-bg: rgba(40, 40, 40, 0.78);
+      --opt-mock-bg: #1c1c1c;
+      --opt-mock-top: #2b2b2b;
+      --opt-mock-body: linear-gradient(180deg, #242424 0%, #1c1c1c 100%);
+      --opt-accent: #60cdff;
+      --opt-accent-fg: #000000;
+      --opt-accent-hover: #4cc2ff;
+      --opt-h2: #60cdff;
+      --opt-shadow: 0 2px 6px rgba(0, 0, 0, 0.24), 0 0 1px rgba(0, 0, 0, 0.35);
+      --opt-toggle-off: transparent;
+      --opt-toggle-border: rgba(255, 255, 255, 0.55);
+      --opt-toggle-knob: rgba(255, 255, 255, 0.8);
+    }
+    body.light-mode {
+      /* Fluent 2 Light (Mica + Elevated Surface) */
+      --opt-bg: #f3f3f3;
+      --opt-bg-mica: radial-gradient(ellipse at 10% 0%, rgba(0, 103, 192, 0.07), transparent 45%),
+        radial-gradient(ellipse at 90% 100%, rgba(0, 120, 212, 0.05), transparent 45%);
+      --opt-card: rgba(255, 255, 255, 0.92);
+      --opt-border: rgba(0, 0, 0, 0.058);
+      --opt-border-strong: rgba(0, 0, 0, 0.11);
+      --opt-text: #1b1b1b;
+      --opt-heading: #111111;
+      --opt-label: #2c2c2c;
+      --opt-muted: #616161;
+      --opt-input-bg: rgba(255, 255, 255, 0.75);
+      --opt-input-hover: rgba(249, 249, 249, 0.95);
+      --opt-input-border: rgba(0, 0, 0, 0.08);
+      --opt-input-bottom: rgba(0, 0, 0, 0.38);
+      --opt-input-text: #1b1b1b;
+      --opt-textarea-bg: rgba(249, 249, 249, 0.9);
+      --opt-actions-bg: rgba(252, 252, 252, 0.82);
+      --opt-mock-bg: #eeeeee;
+      --opt-mock-top: #e5e5e5;
+      --opt-mock-body: linear-gradient(180deg, #ffffff 0%, #f3f3f3 100%);
+      --opt-accent: #0067c0;
+      --opt-accent-fg: #ffffff;
+      --opt-accent-hover: #005fb8;
+      --opt-h2: #0067c0;
+      --opt-shadow: 0 2px 4px rgba(0, 0, 0, 0.04), 0 0 2px rgba(0, 0, 0, 0.03);
+      --opt-toggle-off: rgba(0, 0, 0, 0.02);
+      --opt-toggle-border: rgba(0, 0, 0, 0.45);
+      --opt-toggle-knob: rgba(0, 0, 0, 0.6);
+    }
+    * {
+      box-sizing: border-box;
+    }
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+    body {
+      font-family: "Segoe UI Variable", "Segoe UI", "DreamW10", "梦源黑体 SC", "Microsoft YaHei UI", sans-serif;
+      background-color: var(--opt-bg);
+      background-image: var(--opt-bg-mica);
+      background-attachment: fixed;
+      color: var(--opt-text);
+      padding: 0 24px;
+      font-size: 14px;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 180ms ease, color 180ms ease;
+    }
+    .options-shell {
+      max-width: 1440px;
+      height: 100vh;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 450px minmax(0, 1fr);
+      gap: 28px;
+      align-items: stretch;
+    }
+    .container {
+      width: 100%;
+      min-width: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 28px 10px 86px 0;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+    }
+    body.light-mode .container {
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+    .container::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .container::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .container::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.16);
+      border-radius: 3px;
+    }
+    .container::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.32);
+    }
+    body.light-mode .container::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.16);
+    }
+    body.light-mode .container::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 0, 0, 0.32);
+    }
+    .live-preview-aside {
+      order: -1;
+      height: 100vh;
+      padding: 28px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: hidden;
+    }
+    @media (max-width: 1220px) {
+      html,
+      body {
+        height: auto;
+        overflow: auto;
+      }
+      body {
+        padding: 28px 24px 86px;
+      }
+      .options-shell {
+        grid-template-columns: 1fr;
+        max-width: 900px;
+        height: auto;
+      }
+      .container {
+        height: auto;
+        overflow: visible;
+        padding: 0;
+      }
+      .live-preview-aside {
+        display: none !important;
+      }
+    }
+    .live-preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--opt-h2);
+      padding: 0 4px;
+    }
+    .live-preview-sub {
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--opt-muted);
+    }
+    .live-preview-frame-wrap {
+      flex: 1;
+      min-height: 0;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--opt-border-strong);
+      box-shadow: var(--opt-shadow);
+      background: var(--opt-card);
+    }
+    #livePreviewFrame {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.2px;
+      color: var(--opt-heading);
+    }
+    .card {
+      background: var(--opt-card);
+      backdrop-filter: blur(20px) saturate(140%);
+      border: 1px solid var(--opt-border);
+      border-radius: 8px;
+      padding: 20px 22px;
+      margin-bottom: 16px;
+      box-shadow: var(--opt-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+    .card h2 {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin: 0 0 16px;
+      font-size: 14.5px;
+      font-weight: 600;
+      color: var(--opt-heading);
+      border-bottom: 1px solid var(--opt-border);
+      padding-bottom: 10px;
+    }
+    .card h2::before {
+      content: "";
+      width: 3px;
+      height: 15px;
+      border-radius: 2px;
+      background: var(--opt-accent);
+      flex-shrink: 0;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px 28px;
+      align-items: center;
+    }
+    .grid-2 > .row {
+      margin-bottom: 0;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .row:last-child {
+      margin-bottom: 0;
+    }
+    label {
+      color: var(--opt-label);
+      font-size: 13.5px;
+      font-weight: 400;
+    }
+    .hint {
+      font-size: 12px;
+      color: var(--opt-muted);
+      margin-top: 6px;
+    }
+    select,
+    input[type="number"],
+    input[type="text"] {
+      width: 164px;
+      padding: 6px 10px;
+      border-radius: 5px;
+      border: 1px solid var(--opt-input-border);
+      border-bottom: 1.5px solid var(--opt-input-bottom);
+      background: var(--opt-input-bg);
+      color: var(--opt-input-text);
+      font-size: 13px;
+      outline: none;
+      transition: background 120ms ease, border-color 120ms ease;
+    }
+    select:hover,
+    input[type="number"]:hover,
+    input[type="text"]:hover {
+      background: var(--opt-input-hover);
+    }
+    select:focus,
+    input[type="number"]:focus,
+    input[type="text"]:focus,
+    textarea:focus {
+      border-bottom: 2px solid var(--opt-accent);
+      background: var(--opt-input-hover);
+    }
+    select option,
+    select optgroup {
+      background: #2b2b2b;
+      color: #f3f3f3;
+    }
+    body.light-mode select option,
+    body.light-mode select optgroup {
+      background: #ffffff;
+      color: #1b1b1b;
+    }
+    input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      position: relative;
+      width: 40px;
+      height: 20px;
+      border-radius: 999px;
+      border: 1px solid var(--opt-toggle-border);
+      background: var(--opt-toggle-off);
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 160ms ease, border-color 160ms ease;
+    }
+    input[type="checkbox"]::after {
+      content: "";
+      position: absolute;
+      left: 3px;
+      top: 3px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--opt-toggle-knob);
+      transition: transform 160ms cubic-bezier(0.1, 0.9, 0.2, 1), width 120ms ease, height 120ms ease, top 120ms ease, left 120ms ease, background 160ms ease;
+    }
+    input[type="checkbox"]:hover::after {
+      width: 14px;
+      height: 14px;
+      top: 2px;
+      left: 2px;
+    }
+    input[type="checkbox"]:checked {
+      background: var(--opt-accent);
+      border-color: var(--opt-accent);
+    }
+    input[type="checkbox"]:checked::after {
+      background: var(--opt-accent-fg);
+      transform: translateX(20px);
+    }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type="number"] {
+      -moz-appearance: textfield;
+      appearance: textfield;
+    }
+    input[type="color"] {
+      width: 46px;
+      height: 30px;
+      padding: 2px;
+      border-radius: 7px;
+      border: 1px solid var(--opt-input-border);
+      background: var(--opt-input-bg);
+      cursor: pointer;
+    }
+    .slot-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .slot-controls select {
+      width: 175px;
+    }
+    .slot-controls input[type="number"] {
+      width: 68px;
+    }
+    .slot-editor {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+      margin: 12px 0 14px;
+    }
+    @media (max-width: 720px) {
+      .slot-editor {
+        grid-template-columns: 1fr;
+      }
+    }
+    .slot-visual-box {
+      background: var(--opt-textarea-bg);
+      border: 1px solid var(--opt-border-strong);
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .slot-visual-row {
+      display: grid;
+      gap: 6px;
+    }
+    .slot-visual-divider {
+      height: 4px;
+      border-radius: 2px;
+      background: var(--opt-border-strong);
+      margin: 2px 24px;
+    }
+    .slot-tile-btn {
+      position: relative;
+      height: 62px;
+      padding: 6px 8px;
+      border-radius: 7px;
+      border: 1px solid var(--opt-input-border);
+      background: var(--opt-input-bg);
+      color: var(--opt-text);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      overflow: hidden;
+      transition: border-color 140ms, background 140ms, transform 120ms;
+    }
+    .slot-tile-btn:hover {
+      border-color: #3b82f6;
+    }
+    .slot-tile-btn.active {
+      border: 2px solid #3b82f6;
+      background: rgba(59, 130, 246, 0.16);
+      color: var(--opt-heading);
+    }
+    .slot-tile-name {
+      font-size: 13px;
+      font-weight: 700;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .slot-tile-meta {
+      font-size: 11px;
+      color: var(--opt-muted);
+    }
+    .slot-tile-def {
+      position: absolute;
+      top: 4px;
+      right: 5px;
+      font-size: 10px;
+      padding: 1px 4px;
+      border-radius: 3px;
+      background: #0078d4;
+      color: #fff;
+      font-weight: 600;
+    }
+    .slot-inspector {
+      background: var(--opt-textarea-bg);
+      border: 1px solid var(--opt-border-strong);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .slot-inspector-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--opt-h2);
+      margin-bottom: 12px;
+    }
+    .big-pills {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+    .big-pill {
+      padding: 4px 9px;
+      border-radius: 6px;
+      border: 1px solid var(--opt-input-border);
+      background: var(--opt-input-bg);
+      color: var(--opt-text);
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .big-pill.active {
+      background: #0078d4;
+      border-color: #0078d4;
+      color: #fff;
+    }
+    .icon-picker-grid {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .icon-pick-btn {
+      width: 36px;
+      height: 36px;
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid var(--opt-input-border);
+      background: var(--opt-input-bg);
+      color: var(--opt-text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: border-color 120ms ease, background 120ms ease, transform 80ms ease;
+    }
+    .icon-pick-btn:hover {
+      background: var(--opt-input-hover);
+      border-color: var(--opt-accent);
+    }
+    .icon-pick-btn.active {
+      border: 2px solid var(--opt-accent);
+      background: rgba(96, 205, 255, 0.14);
+    }
+    .small-label {
+      font-size: 12px;
+      color: var(--opt-muted);
+    }
+    .theme-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .theme-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border: 1px solid var(--opt-border-strong);
+      border-radius: 6px;
+      background: var(--opt-input-bg);
+      color: var(--opt-text);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .theme-btn:hover {
+      border-color: #3b82f6;
+    }
+    .theme-btn.active {
+      border-color: #3b82f6;
+      background: rgba(59, 130, 246, 0.18);
+      color: var(--opt-heading);
+    }
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+      border: 1px solid var(--opt-border-strong);
+    }
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--opt-input-border);
+      background: var(--opt-textarea-bg);
+      color: var(--opt-text);
+      font-family: Consolas, "Cascadia Code", monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      resize: vertical;
+    }
+    .actions {
+      position: sticky;
+      bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--opt-actions-bg);
+      backdrop-filter: blur(24px) saturate(160%);
+      border: 1px solid var(--opt-border-strong);
+      padding: 12px 18px;
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+    }
+    .btn-primary {
+      padding: 7px 20px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 5px;
+      background: var(--opt-accent);
+      color: var(--opt-accent-fg);
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 120ms ease, transform 80ms ease;
+    }
+    .btn-primary:hover {
+      background: var(--opt-accent-hover);
+    }
+    .btn-primary:active,
+    .btn-secondary:active {
+      transform: scale(0.98);
+    }
+    .btn-secondary {
+      padding: 6px 14px;
+      border: 1px solid var(--opt-input-border);
+      border-bottom-color: var(--opt-border-strong);
+      border-radius: 5px;
+      background: var(--opt-input-bg);
+      color: var(--opt-text);
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 120ms ease, border-color 120ms ease, transform 80ms ease;
+    }
+    .btn-secondary:hover {
+      background: var(--opt-input-hover);
+      border-color: var(--opt-border-strong);
+    }
+    #status {
+      color: #10b981;
+      font-size: 13.5px;
+      font-weight: 600;
+    }
+    .trigger-preview-wrap {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 28px;
+      align-items: stretch;
+      margin-bottom: 4px;
+    }
+    .browser-mock {
+      width: 100%;
+      min-height: 300px;
+      background: var(--opt-mock-bg);
+      border: 1px solid var(--opt-input-border);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+      user-select: none;
+    }
+    .browser-mock-top {
+      height: 26px;
+      background: var(--opt-mock-top);
+      border-bottom: 1px solid var(--opt-input-border);
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      gap: 5px;
+    }
+    .mock-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #94a3b8;
+    }
+    .mock-url {
+      flex: 1;
+      height: 14px;
+      margin-left: 4px;
+      border-radius: 3px;
+      background: var(--opt-mock-bg);
+    }
+    .browser-mock-body {
+      position: relative;
+      flex: 1;
+      background: var(--opt-mock-body);
+    }
+    .mock-trigger {
+      position: absolute;
+      left: 0;
+      top: 0%;
+      height: 100%;
+      width: 12px;
+      background: #0078d4;
+      cursor: grab;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 0 8px rgba(0, 120, 212, 0.6);
+    }
+    .mock-trigger.right {
+      left: auto;
+      right: 0;
+    }
+    .mock-trigger:active {
+      cursor: grabbing;
+    }
+    .mock-handle {
+      width: 100%;
+      height: 7px;
+      background: #60a5fa;
+      cursor: ns-resize;
+      flex-shrink: 0;
+    }
+    .mock-label {
+      position: absolute;
+      left: 22px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 12px;
+      color: #8b94a5;
+      pointer-events: none;
+      line-height: 1.6;
+    }
+    .mock-label.right {
+      left: auto;
+      right: 22px;
+      text-align: right;
+    }
+    .trigger-fields {
+      min-width: 0;
+    }
+    .card.tab-hidden {
+      display: none !important;
+    }
+    .page-header-left {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      min-width: 0;
+    }
+    .top-tab-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px;
+      background: var(--opt-card);
+      border: 1px solid var(--opt-border-strong);
+      border-radius: 6px;
+    }
+    .side-tab-btn {
+      position: relative;
+      appearance: none;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--opt-muted);
+      cursor: pointer;
+      font-size: 13.5px;
+      font-weight: 600;
+      font-family: inherit;
+      padding: 6px 22px;
+      line-height: 1.2;
+      transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+    }
+    .side-tab-btn:hover {
+      background: var(--opt-input-hover);
+      color: var(--opt-heading);
+    }
+    .side-tab-btn.active {
+      background: var(--opt-accent);
+      color: var(--opt-accent-fg);
+      border-color: var(--opt-accent);
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="options-shell">
+  <div class="container">
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1>吉签中出</h1>
+        <nav class="top-tab-bar" aria-label="设置分类切换">
+          <button type="button" class="side-tab-btn active" data-opt-tab="settings">设置</button>
+          <button type="button" class="side-tab-btn" data-opt-tab="style">样式</button>
+        </nav>
+      </div>
+      <button id="pageThemeToggle" type="button" class="btn-secondary">☀️ 明亮模式</button>
+    </div>
+
+    <!-- 3. 位置与触发区域 -->
+    <div class="card" data-opt-panel="settings">
+      <h2>位置、触发方式与快捷键</h2>
+      <div class="trigger-preview-wrap">
+        <div class="browser-mock" title="拖动蓝色条上下移动位置，拖动上下浅蓝手柄调整高度">
+          <div class="browser-mock-top">
+            <span class="mock-dot"></span>
+            <span class="mock-dot"></span>
+            <span class="mock-dot"></span>
+            <div class="mock-url"></div>
+          </div>
+          <div id="mockBody" class="browser-mock-body">
+            <div id="mockTrigger" class="mock-trigger">
+              <div id="handleTop" class="mock-handle"></div>
+              <div id="handleBottom" class="mock-handle"></div>
+            </div>
+            <div id="mockLabel" class="mock-label">
+              拖动蓝条调整<br />位置与高度
+            </div>
+          </div>
+        </div>
+        <div class="trigger-fields">
+          <div class="row">
+            <label for="position">侧边栏位置</label>
+            <select id="position">
+              <option value="left">屏幕左侧</option>
+              <option value="right">屏幕右侧</option>
+            </select>
+          </div>
+          <div class="row">
+            <label for="triggerMode">打开方式</label>
+            <select id="triggerMode">
+              <option value="mouseover">鼠标滑过边缘</option>
+              <option value="click">左键点击边缘</option>
+              <option value="rightclick">右键点击边缘</option>
+              <option value="icon">仅图标 / 快捷键</option>
+            </select>
+          </div>
+          <div class="row">
+            <label for="triggerTop">触发区域距顶部 (%)</label>
+            <input id="triggerTop" type="number" min="0" max="95" step="1" />
+          </div>
+          <div class="row">
+            <label for="triggerHeight">边缘触发区域高度 (%)</label>
+            <input id="triggerHeight" type="number" min="5" max="100" step="1" />
+          </div>
+          <div class="row">
+            <label for="triggerWidth">全屏边缘触发宽度 (px)</label>
+            <input id="triggerWidth" type="number" min="1" max="30" step="1" />
+          </div>
+          <div class="row">
+            <label for="triggerWidthWindowed">窗口模式边缘触发宽度 (px)</label>
+            <input id="triggerWidthWindowed" type="number" min="1" max="30" step="1" />
+          </div>
+          <div class="row">
+            <label for="disableInWindowed">在窗口模式中禁用边缘触发</label>
+            <input id="disableInWindowed" type="checkbox" />
+          </div>
+          <div class="row">
+            <label>键盘快捷键（默认 Alt+B）</label>
+            <button id="shortcutBtn" type="button" class="btn-secondary">配置快捷键</button>
+          </div>
+          <div class="row" style="margin-top: 6px;">
+            <span class="small-label">多热区触发</span>
+            <button id="addTriggerZoneBtn" type="button" class="btn-secondary">+ 增加触发区域</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="extraTriggersContainer"></div>
+
+    <!-- 1. 主题与配色 -->
+    <div class="card" data-opt-panel="style">
+      <h2>主题与配色</h2>
+      <div id="themeList" class="theme-list"></div>
+      <div class="grid-2">
+        <div class="row">
+          <label for="bgColor">主背景色</label>
+          <input id="bgColor" type="color" />
+        </div>
+        <div class="row">
+          <label for="barColor">顶栏与分类栏底色</label>
+          <input id="barColor" type="color" />
+        </div>
+        <div class="row">
+          <label for="accentColor">高亮色</label>
+          <input id="accentColor" type="color" />
+        </div>
+        <div class="row">
+          <label for="tileColor">未选中分类底色</label>
+          <input id="tileColor" type="color" />
+        </div>
+        <div class="row">
+          <label for="bigCardColor">大卡片底色</label>
+          <input id="bigCardColor" type="color" />
+        </div>
+        <div class="row">
+          <label for="hoverColor">悬停背景色</label>
+          <input id="hoverColor" type="color" />
+        </div>
+        <div class="row">
+          <label for="textColor">文字颜色</label>
+          <input id="textColor" type="color" />
+        </div>
+        <div class="row">
+          <label for="backdropOpacity">背景遮罩透明度 (0~0.85)</label>
+          <input id="backdropOpacity" type="number" min="0" max="0.85" step="0.05" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 中间区块设置 -->
+    <div class="card" data-opt-panel="settings">
+      <h2>中间区块设置</h2>
+      <div class="grid-2" style="margin-bottom: 12px;">
+        <div class="row">
+          <label for="topSlotCount">上排数量</label>
+          <select id="topSlotCount">
+            <option value="1">1 个</option>
+            <option value="2">2 个</option>
+            <option value="3">3 个</option>
+            <option value="4">4 个</option>
+            <option value="5">5 个</option>
+            <option value="6">6 个</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="bottomSlotCount">下排数量</label>
+          <select id="bottomSlotCount">
+            <option value="1">1 个</option>
+            <option value="2">2 个</option>
+            <option value="3">3 个</option>
+            <option value="4">4 个</option>
+            <option value="5">5 个</option>
+            <option value="6">6 个</option>
+          </select>
+        </div>
+      </div>
+      <div class="slot-editor">
+        <div class="slot-visual-box">
+          <div class="small-label" style="margin-bottom: 2px;">点击下方任意磁贴进行详细配置：</div>
+          <div id="slotVisualTop" class="slot-visual-row"></div>
+          <div class="slot-visual-divider"></div>
+          <div id="slotVisualBottom" class="slot-visual-row"></div>
+        </div>
+        <div class="slot-inspector">
+          <div id="inspTitle" class="slot-inspector-title">当前选中：上排第 1 格</div>
+          <div class="row">
+            <label for="inspFolderSelect">目录选择</label>
+            <select id="inspFolderSelect"></select>
+          </div>
+          <div class="row">
+            <label>放大块数</label>
+            <div class="big-pills">
+              <button type="button" class="big-pill" data-big="0">0</button>
+              <button type="button" class="big-pill" data-big="2">2</button>
+              <button type="button" class="big-pill" data-big="4">4</button>
+              <button type="button" class="big-pill" data-big="6">6</button>
+              <input id="inspBigCount" type="number" min="0" max="50" style="width: 54px; padding: 4px 6px;" />
+            </div>
+          </div>
+          <div class="row">
+            <label for="inspIsDefault">设为该区默认显示</label>
+            <input id="inspIsDefault" type="checkbox" />
+          </div>
+          <div class="row" style="margin-top: 8px;">
+            <span class="small-label">快捷操作</span>
+            <button id="inspGoBgBtn" type="button" class="btn-secondary" style="padding: 5px 10px; font-size: 12px;">设置此目录背景 →</button>
+          </div>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-top: 12px;">
+        <div class="row">
+          <label for="flatFolderMode">关闭中间分类栏（从上往下平铺）</label>
+          <input id="flatFolderMode" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="rememberLastCategory">记住上次浏览的分类</label>
+          <input id="rememberLastCategory" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="categorySwitchMode">分类切换方式</label>
+          <select id="categorySwitchMode">
+            <option value="hover">鼠标悬停切换</option>
+            <option value="click">鼠标点击切换</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="showOtherFolders">底部显示其余文件夹</label>
+          <input id="showOtherFolders" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="otherFolderAlign">其余文件夹标题对齐</label>
+          <select id="otherFolderAlign">
+            <option value="left">靠左</option>
+            <option value="center">居中</option>
+            <option value="right">靠右</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2.2 站内映射与常用文件夹 -->
+    <div class="card" data-opt-panel="settings">
+      <h2>站内映射与常用文件夹</h2>
+      <div class="hint" style="margin-bottom: 12px;">
+        可将「站内」或「常用」直接放入上方中间分类栏的任意槽位；若未放入中间分类栏，访问命中网站时「站内」会自动置顶出现在底部区域，未命中时原文件夹保持在它原本的位置。
+      </div>
+      <div class="grid-2" style="margin-bottom: 12px;">
+        <div class="row">
+          <label for="siteFolderName">「站内」显示名称</label>
+          <input id="siteFolderName" type="text" placeholder="站内" />
+        </div>
+        <div class="row">
+          <label for="frequentFolderName">「常用」显示名称</label>
+          <input id="frequentFolderName" type="text" placeholder="常用" />
+        </div>
+        <div class="row">
+          <label for="siteAutoSwitch">命中网站时自动切换到「站内」槽位</label>
+          <input id="siteAutoSwitch" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="siteFallbackToFrequent">未命中网站时「站内」槽位显示「常用」</label>
+          <input id="siteFallbackToFrequent" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="frequentMaxCount">「常用」最多显示条数</label>
+          <input id="frequentMaxCount" type="number" min="4" max="60" />
+        </div>
+        <div class="row">
+          <label for="frequentHalfLifeDays">「常用」热度衰减半衰期 (天)</label>
+          <input id="frequentHalfLifeDays" type="number" min="1" max="90" />
+        </div>
+        <div class="row">
+          <label for="showFrequentInOther">未放入中间分类时在底部显示「常用」</label>
+          <input id="showFrequentInOther" type="checkbox" />
+        </div>
+        <div class="row">
+          <span class="small-label">点击统计管理</span>
+          <button id="clearBookmarkStatsBtn" type="button" class="btn-secondary" style="padding: 5px 10px; font-size: 12px;">清空常用统计</button>
+        </div>
+      </div>
+
+      <div style="border-top: 1px solid var(--border); padding-top: 12px;">
+        <div class="row" style="margin-bottom: 8px;">
+          <label style="font-weight: 600;">网站域名 → 书签文件夹映射</label>
+          <button id="addSiteRuleBtn" type="button" class="btn-secondary" style="padding: 5px 10px; font-size: 12px;">+ 添加网站映射</button>
+        </div>
+        <div id="siteRulesList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        <div class="hint" style="margin-top: 8px;">
+          域名支持自动匹配子域名（如 <code>bilibili.com</code>）；右侧 4 格可自定义站内搜索（格式 <code>名称|含%s链接</code>，填几格就显示几个搜索框，留空不显示）。
+        </div>
+      </div>
+    </div>
+
+    <!-- 2.5 背景和功能 -->
+    <div class="card" data-opt-panel="style">
+      <h2>背景和功能</h2>
+      <div class="row" style="margin-bottom: 12px;">
+        <label for="catBarBgUrlInput">中间整体背景（图片 / 纯色 / 渐变）</label>
+        <div class="slot-controls" style="flex-wrap: wrap;">
+          <button id="catBarBgUploadBtn" type="button" class="btn-secondary">上传图片</button>
+          <input id="catBarBgFileInput" type="file" accept="image/*" style="display:none;" />
+          <input id="catBarBgColorPick" type="color" value="#1e293b" title="选择纯色背景" />
+          <select id="catBarBgGradSelect" style="width: 118px;">
+            <option value="">预设渐变...</option>
+            <option value="linear-gradient(125deg, #2563eb 0%, #9333ea 55%, #ec4899 100%)">极光蓝紫</option>
+            <option value="linear-gradient(135deg, #f97316 0%, #ec4899 100%)">日落橙粉</option>
+            <option value="linear-gradient(135deg, #0ea5e9 0%, #10b981 100%)">翡翠青绿</option>
+            <option value="linear-gradient(135deg, #1e293b 0%, #475569 100%)">暗夜金属</option>
+            <option value="linear-gradient(135deg, #6366f1 0%, #a855f7 100%)">紫罗兰梦境</option>
+            <option value="linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)">晨曦暖金</option>
+          </select>
+          <input id="catBarBgUrlInput" type="text" placeholder="图片网址 / 颜色 / CSS渐变" style="width: 175px;" />
+          <button id="catBarBgClearBtn" type="button" class="btn-secondary">清除</button>
+        </div>
+      </div>
+      <div id="catBarBgPreviewWrap" style="display:none; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <div id="catBarBgPreviewBox" style="position: relative; width: 240px; height: 96px; border-radius: 6px; border: 1px solid var(--opt-border-strong); cursor: grab; user-select: none; overflow: hidden;">
+            <div id="catBarBgPreviewImg" style="position: absolute; inset: 0; background-size: cover; background-position: 50% 50%; transform: scale(1); transform-origin: center center; pointer-events: none;"></div>
+            <div style="position: absolute; inset: 0; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); gap: 3px; pointer-events: none;">
+              <div style="border: 1px dashed rgba(255,255,255,0.45);"></div>
+              <div style="border: 1px dashed rgba(255,255,255,0.45);"></div>
+              <div style="border: 1px dashed rgba(255,255,255,0.45);"></div>
+              <div style="border: 1px dashed rgba(255,255,255,0.45);"></div>
+              <div style="border: 1px dashed rgba(255,255,255,0.45);"></div>
+              <div style="border: 1px dashed rgba(255,255,255,0.45);"></div>
+            </div>
+            <span id="catBarBgFocalDot" style="position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; border: 2px solid #ffffff; background: rgba(0, 120, 212, 0.85); box-shadow: 0 0 4px rgba(0,0,0,0.6); pointer-events: none;"></span>
+            <span id="catBarBgScaleBadge" style="position: absolute; right: 6px; bottom: 4px; font-size: 11px; padding: 1px 5px; border-radius: 3px; background: rgba(0,0,0,0.6); color: #fff; pointer-events: none;">1.0x</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <span class="hint" style="margin: 0;">拖动调整中心点，滚轮放大缩小</span>
+            <button id="catBarBgResetPosBtn" type="button" class="btn-secondary" style="align-self: flex-start;">重置居中与缩放</button>
+          </div>
+        </div>
+      </div>
+      <div class="row" style="margin-bottom: 12px;">
+        <label for="bgFolderSelect">单个文件夹背景</label>
+        <div class="slot-controls" style="flex-wrap: wrap;">
+          <select id="bgFolderSelect"></select>
+          <button id="bgUploadBtn" type="button" class="btn-secondary">上传图片</button>
+          <input id="bgFileInput" type="file" accept="image/*" style="display:none;" />
+          <input id="bgColorPick" type="color" value="#1e293b" title="选择纯色背景" />
+          <select id="bgGradSelect" style="width: 118px;">
+            <option value="">预设渐变...</option>
+            <option value="linear-gradient(125deg, #2563eb 0%, #9333ea 55%, #ec4899 100%)">极光蓝紫</option>
+            <option value="linear-gradient(135deg, #f97316 0%, #ec4899 100%)">日落橙粉</option>
+            <option value="linear-gradient(135deg, #0ea5e9 0%, #10b981 100%)">翡翠青绿</option>
+            <option value="linear-gradient(135deg, #1e293b 0%, #475569 100%)">暗夜金属</option>
+            <option value="linear-gradient(135deg, #6366f1 0%, #a855f7 100%)">紫罗兰梦境</option>
+            <option value="linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)">晨曦暖金</option>
+          </select>
+          <input id="bgUrlInput" type="text" placeholder="图片网址 / 颜色 / CSS渐变" style="width: 175px;" />
+          <button id="bgClearBtn" type="button" class="btn-secondary">清除</button>
+        </div>
+      </div>
+      <div id="bgPreviewWrap" style="display:none; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <div id="bgPreviewBox" style="position: relative; width: 240px; height: 68px; border-radius: 6px; border: 1px solid var(--opt-border-strong); cursor: grab; user-select: none; overflow: hidden;">
+            <div id="bgPreviewImg" style="position: absolute; inset: 0; background-size: cover; background-position: 50% 50%; transform: scale(1); transform-origin: center center; pointer-events: none;"></div>
+            <span id="bgFocalDot" style="position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; border: 2px solid #ffffff; background: rgba(0, 120, 212, 0.85); box-shadow: 0 0 4px rgba(0,0,0,0.6); pointer-events: none;"></span>
+            <span id="bgScaleBadge" style="position: absolute; right: 6px; bottom: 4px; font-size: 11px; padding: 1px 5px; border-radius: 3px; background: rgba(0,0,0,0.6); color: #fff; pointer-events: none;">1.0x</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <span class="hint" style="margin: 0;">拖动调整中心点，滚轮放大缩小</span>
+            <button id="bgResetPosBtn" type="button" class="btn-secondary" style="align-self: flex-start;">重置居中与缩放</button>
+          </div>
+        </div>
+      </div>
+      <div class="row" style="margin-bottom: 12px; justify-content: flex-start; gap: 16px;">
+        <label for="folderClickUrlInput">悬停切换时，在中间区块点击打开网址</label>
+        <input id="folderClickUrlInput" type="text" placeholder="留空不跳转，如 https://bilibili.com" style="width: 270px;" />
+      </div>
+      <div style="border-top: 1px dashed var(--opt-border-strong); margin: 16px 0 12px; padding-top: 12px;">
+        <div class="small-label" style="margin-bottom: 10px;">以下为中间分类统一样式（仅作用于中间磁贴，保持视觉一致）：</div>
+      </div>
+      <div class="grid-2">
+        <div class="row">
+          <label for="folderBgMaskColor">遮罩颜色</label>
+          <input id="folderBgMaskColor" type="color" />
+        </div>
+        <div class="row">
+          <label for="folderBgMaskOpacity">遮罩不透明度 (0~0.9)</label>
+          <input id="folderBgMaskOpacity" type="number" min="0" max="0.9" step="0.05" />
+        </div>
+        <div class="row">
+          <label for="folderBgBlur">高斯模糊 (px)</label>
+          <input id="folderBgBlur" type="number" min="0" max="20" step="1" />
+        </div>
+        <div class="row">
+          <label for="folderBgEffect">鼠标悬停特效</label>
+          <select id="folderBgEffect">
+            <option value="zoom">轻微放大</option>
+            <option value="brighten">悬停提亮</option>
+            <option value="unblur">悬停变清晰</option>
+            <option value="grayscale">黑白转彩色</option>
+            <option value="none">无特效</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="showFolderTitle">显示文件夹名</label>
+          <input id="showFolderTitle" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="folderTitlePos">文件夹名位置</label>
+          <select id="folderTitlePos">
+            <option value="center">居中</option>
+            <option value="top-left">左上角</option>
+            <option value="bottom-left">左下角</option>
+            <option value="top-right">右上角</option>
+            <option value="bottom-right">右下角</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="folderTitleSize">文件夹名字号 (px，0=默认)</label>
+          <input id="folderTitleSize" type="number" min="0" max="36" step="1" />
+        </div>
+        <div class="row">
+          <label for="folderTitleFont">文件夹名字体</label>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <select id="folderTitleFont" style="width: 148px;">
+              <option value="">跟随全局字体</option>
+            </select>
+            <button id="scanLocalFacesBtn2" type="button" class="btn-secondary" style="padding: 6px 8px; font-size: 12px; white-space: nowrap;" title="读取 W1~W27 等细分子字重">读取子字重</button>
+          </div>
+        </div>
+        <div class="row">
+          <label for="folderTitleWeight">文件夹名字重</label>
+          <select id="folderTitleWeight">
+            <option value="0">跟随默认 (700)</option>
+            <option value="300">细体 (300)</option>
+            <option value="400">常规 (400)</option>
+            <option value="500">中等 (500)</option>
+            <option value="600">半粗 (600)</option>
+            <option value="700">粗体 (700)</option>
+            <option value="800">特粗 (800)</option>
+            <option value="900">极粗 (900)</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="showFolderCount">显示书签数目</label>
+          <input id="showFolderCount" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="folderCountPos">书签数目位置</label>
+          <select id="folderCountPos">
+            <option value="bottom-right">右下角</option>
+            <option value="top-left">左上角</option>
+            <option value="bottom-left">左下角</option>
+            <option value="top-right">右上角</option>
+            <option value="inline">紧跟文件夹名右侧</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. 行为设置 -->
+    <div class="card" data-opt-panel="settings">
+      <h2>行为设置</h2>
+      <div class="grid-2">
+        <div class="row">
+          <label for="openDelay">悬停打开延迟 (ms)</label>
+          <input id="openDelay" type="number" min="0" max="2000" step="50" />
+        </div>
+        <div class="row">
+          <label for="closeDelay">离开关闭延迟 (ms)</label>
+          <input id="closeDelay" type="number" min="0" max="2000" step="20" />
+        </div>
+        <div class="row">
+          <label for="idleTimeout">无操作自动隐藏 (ms，0=不隐藏)</label>
+          <input id="idleTimeout" type="number" min="0" max="60000" step="500" />
+        </div>
+        <div class="row">
+          <label for="transitionMs">动画时长 (ms)</label>
+          <input id="transitionMs" type="number" min="0" max="600" step="20" />
+        </div>
+        <div class="row">
+          <label for="openInNewTab">新标签页打开书签</label>
+          <input id="openInNewTab" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="openTabActive">打开后切换到新标签页</label>
+          <input id="openTabActive" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="openTabPosition">新标签页位置</label>
+          <select id="openTabPosition">
+            <option value="after">当前标签页之后</option>
+            <option value="end">窗口最末尾</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="closeOnClickBookmark">点击书签后关闭侧边栏</label>
+          <input id="closeOnClickBookmark" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="preventPageScroll">打开时锁定网页滚动</label>
+          <input id="preventPageScroll" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="tooltipMode">悬停提示内容</label>
+          <select id="tooltipMode">
+            <option value="both">标题和网址</option>
+            <option value="title">仅标题</option>
+            <option value="url">仅网址</option>
+            <option value="none">不显示提示</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="trashFolderName">回收站名称</label>
+          <input id="trashFolderName" type="text" placeholder="回收站" />
+        </div>
+        <div class="row">
+          <label for="showPermanentDelete">右键显示「永久删除」</label>
+          <input id="showPermanentDelete" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="showTrashFolder">底部显示回收站</label>
+          <input id="showTrashFolder" type="checkbox" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. 尺寸、字体与排版 -->
+    <div class="card" data-opt-panel="style">
+      <h2>尺寸、字体与排版</h2>
+      <div class="grid-2">
+        <div class="row">
+          <label for="columns">书签列数</label>
+          <select id="columns">
+            <option value="1">1 列</option>
+            <option value="2">2 列</option>
+            <option value="3">3 列</option>
+            <option value="4">4 列</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="sidebarWidth">侧边栏宽度 (px)</label>
+          <input id="sidebarWidth" type="number" min="260" max="950" step="10" />
+        </div>
+        <div class="row">
+          <label for="normalFontSize">普通书签字号 (px)</label>
+          <input id="normalFontSize" type="number" min="11" max="24" step="0.5" />
+        </div>
+        <div class="row">
+          <label for="normalRowHeight">普通书签行高 (px)</label>
+          <input id="normalRowHeight" type="number" min="24" max="64" step="1" />
+        </div>
+        <div class="row">
+          <label for="iconSize">书签图标大小 (px)</label>
+          <input id="iconSize" type="number" min="12" max="32" step="1" />
+        </div>
+        <div class="row">
+          <label for="bigScale">放大书签倍数 (1 ~ 2.5)</label>
+          <input id="bigScale" type="number" min="1" max="2.5" step="0.1" />
+        </div>
+        <div class="row">
+          <label for="itemPaddingX">书签左右边距 (px)</label>
+          <input id="itemPaddingX" type="number" min="2" max="24" step="1" />
+        </div>
+        <div class="row">
+          <label for="itemGap">书签间距 (px)</label>
+          <input id="itemGap" type="number" min="0" max="16" step="1" />
+        </div>
+        <div class="row">
+          <label for="tileHeight">分类磁贴高度 (px)</label>
+          <input id="tileHeight" type="number" min="28" max="110" step="2" />
+        </div>
+        <div class="row">
+          <label for="tileFontSize">分类磁贴字号 (px)</label>
+          <input id="tileFontSize" type="number" min="10" max="32" step="1" />
+        </div>
+        <div class="row">
+          <label for="tileRadius">分类圆角 (px，0=直角)</label>
+          <input id="tileRadius" type="number" min="0" max="16" step="1" />
+        </div>
+        <div class="row">
+          <label for="scrollbarWidth">滚动条宽度 (px，0=隐藏)</label>
+          <input id="scrollbarWidth" type="number" min="0" max="16" step="1" />
+        </div>
+        <div class="row">
+          <label for="fontFamilySelect">系统字体</label>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <select id="fontFamilySelect" style="width: 148px;">
+              <option value="">正在读取系统字体...</option>
+            </select>
+            <button id="scanLocalFacesBtn" type="button" class="btn-secondary" style="padding: 6px 8px; font-size: 12px; white-space: nowrap;" title="读取 W1~W27 等细分子字重">读取子字重</button>
+          </div>
+        </div>
+        <div class="row">
+          <label for="fontFamily">字体（CSS 名称）</label>
+          <input id="fontFamily" type="text" />
+        </div>
+        <div class="row">
+          <label for="fontWeight">字重 (100~900)</label>
+          <input id="fontWeight" type="number" min="100" max="900" step="100" />
+        </div>
+        <div class="row">
+          <label for="splitRatio">上半区高度占比 (0.15~0.85)</label>
+          <input id="splitRatio" type="number" min="0.15" max="0.85" step="0.05" />
+        </div>
+        <div class="row">
+          <label for="bigCardTwoLines">放大卡片标题允许两行显示</label>
+          <input id="bigCardTwoLines" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="fadeOverflowText">长标题末尾渐隐（替代省略号）</label>
+          <input id="fadeOverflowText" type="checkbox" />
+        </div>
+      </div>
+      <div style="border-top: 1px dashed var(--opt-border-strong); margin: 14px 0 12px; padding-top: 12px;">
+        <div class="row" style="justify-content: space-between; margin-bottom: 8px;">
+          <span class="small-label">侧边栏搜索框（可叠加多个，支持网络搜索与书签搜索；在侧边栏右键任意搜索框可随时切换引擎）：</span>
+          <button id="addSidebarSearchBoxBtn" type="button" class="btn-secondary">+ 添加搜索框</button>
+        </div>
+        <div id="sidebarSearchBoxesList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+      </div>
+      <div style="border-top: 1px dashed var(--opt-border-strong); margin: 16px 0 12px; padding-top: 12px;">
+        <div class="small-label" style="margin-bottom: 10px;">书签显示名称净化（仅修改显示效果，不改动原书签名称）：</div>
+      </div>
+      <div class="grid-2" style="margin-bottom: 12px;">
+        <div class="row">
+          <label for="titleStripParens">隐藏括号及之后内容 ( () / （） / [] / 【】 )</label>
+          <input id="titleStripParens" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="titleStripDash">隐藏 - / — 及之后内容</label>
+          <input id="titleStripDash" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="titleStripPipe">隐藏 | 及之后内容</label>
+          <input id="titleStripPipe" type="checkbox" />
+        </div>
+        <div class="row">
+          <label for="titleStripColon">隐藏 : / ： 及之后内容</label>
+          <input id="titleStripColon" type="checkbox" />
+        </div>
+      </div>
+      <div>
+        <label for="titleCustomRegex" style="display: block; margin-bottom: 6px;">自定义正则替换（每行一条：直接写正则表示删除，或用 <code>正则 =&gt; 替换内容</code>）</label>
+        <textarea
+          id="titleCustomRegex"
+          style="min-height: 76px;"
+          placeholder="例如：&#10;^https?://&#10;\s*[,，。].*$&#10;GitHub => GH"
+        ></textarea>
+      </div>
+    </div>
+
+    <!-- 6. 网站黑白名单 -->
+    <div class="card" data-opt-panel="settings">
+      <h2>加载侧边栏（网站黑白名单）</h2>
+      <div class="row">
+        <label for="siteFilterMode">加载规则</label>
+        <select id="siteFilterMode">
+          <option value="all">每一页面都加载</option>
+          <option value="blacklist">黑名单（以下网站不加载）</option>
+          <option value="whitelist">白名单（仅以下网站加载）</option>
+        </select>
+      </div>
+      <textarea
+        id="siteFilterList"
+        style="min-height: 84px;"
+        placeholder="每行输入一个域名，例如：&#10;bilibili.com&#10;github.com"
+      ></textarea>
+    </div>
+
+    <!-- 7. 新标签页与图标 -->
+    <div class="card" data-opt-panel="settings">
+      <h2>新标签页与图标</h2>
+      <div class="grid-2">
+        <div class="row" style="grid-column: 1 / -1; justify-content: flex-start; gap: 20px;">
+          <label>新标签页图标形状</label>
+          <input id="newtabIconShape" type="hidden" value="bookmarkSolid" />
+          <div id="newtabIconPicker" class="icon-picker-grid">
+            <button type="button" class="icon-pick-btn" data-shape="plusCircle" title="加号圆圈">
+              <svg viewBox="0 0 32 32" width="22" height="22"><circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M16 11v10M11 16h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+            </button>
+            <button type="button" class="icon-pick-btn" data-shape="plusSquare" title="加号方框">
+              <svg viewBox="0 0 32 32" width="22" height="22"><rect x="6" y="6" width="20" height="20" rx="3" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M16 11v10M11 16h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+            </button>
+            <button type="button" class="icon-pick-btn" data-shape="bookmarkOutline" title="空心书签">
+              <svg viewBox="0 0 32 32" width="22" height="22"><path d="M9 5h14v22l-7-5-7 5V5z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>
+            </button>
+            <button type="button" class="icon-pick-btn" data-shape="bookmarkSolid" title="实心书签">
+              <svg viewBox="0 0 32 32" width="22" height="22"><path d="M9 5h14v22l-7-5-7 5V5z" fill="currentColor"/></svg>
+            </button>
+            <button type="button" class="icon-pick-btn" data-shape="starOutline" title="空心星星">
+              <svg viewBox="0 0 32 32" width="22" height="22"><path d="M16 4l3.7 7.5 8.3 1.2-6 5.8 1.4 8.3L16 23l-7.4 3.8 1.4-8.3-6-5.8 8.3-1.2L16 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            </button>
+            <button type="button" class="icon-pick-btn" data-shape="starSolid" title="实心星星">
+              <svg viewBox="0 0 32 32" width="22" height="22"><path d="M16 4l3.7 7.5 8.3 1.2-6 5.8 1.4 8.3L16 23l-7.4 3.8 1.4-8.3-6-5.8 8.3-1.2L16 4z" fill="currentColor"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="row">
+          <label for="newtabIconColor">图标前景颜色</label>
+          <input id="newtabIconColor" type="color" />
+        </div>
+        <div class="row">
+          <label for="newtabIconBg">图标背景颜色</label>
+          <select id="newtabIconBg">
+            <option value="transparent">透明</option>
+            <option value="#0078d4">科技蓝</option>
+            <option value="#10b981">翡翠绿</option>
+            <option value="#f59e0b">琥珀黄</option>
+            <option value="#ef4444">珊瑚红</option>
+            <option value="#22242a">深灰黑</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="syncActionIcon">同步应用到浏览器工具栏扩展图标</label>
+          <input id="syncActionIcon" type="checkbox" />
+        </div>
+        <div class="row">
+          <label>新标签页地址</label>
+          <button id="previewNewtabBtn" type="button" class="btn-secondary">预览新标签页</button>
+        </div>
+      </div>
+      <div style="margin-top: 12px;">
+        <label for="customIconSvg" style="display: block; margin-bottom: 6px;">自定义图标 SVG（留空则使用上方所选形状，填写完整 <code>&lt;svg&gt;...&lt;/svg&gt;</code> 代码）</label>
+        <textarea
+          id="customIconSvg"
+          style="min-height: 70px;"
+          placeholder='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M9 5h14v22l-7-5-7 5V5z" fill="none" stroke="#60a5fa" stroke-width="2.2" stroke-linejoin="round"/></svg>'
+        ></textarea>
+      </div>
+      <div style="border-top: 1px dashed var(--opt-border-strong); margin: 14px 0 12px; padding-top: 12px;">
+        <div class="small-label" style="margin-bottom: 10px;">新标签页右侧 · 无 API 时的壁纸与搜索框设置：</div>
+        <div class="row" style="justify-content: flex-start; gap: 10px; flex-wrap: wrap;">
+          <label for="newtabWallpaperUrl">自定义壁纸</label>
+          <input id="newtabWallpaperUrl" type="text" placeholder="输入图片链接，或点击右侧上传本地壁纸" style="flex: 1; min-width: 220px;" />
+          <input id="newtabWallpaperFile" type="file" accept="image/*" style="display: none;" />
+          <button id="newtabWallpaperUploadBtn" type="button" class="btn-secondary">上传本地图片</button>
+          <button id="newtabWallpaperClearBtn" type="button" class="btn-secondary">清除壁纸</button>
+          <span id="newtabWallpaperHint" class="small-label"></span>
+        </div>
+        <div style="margin-top: 10px;">
+          <label for="newtabSearchEngines" style="display: block; margin-bottom: 6px;">搜索引擎列表（每行一条：<code>名称 | 含 %s 的搜索链接</code>，留空使用默认主流引擎）</label>
+          <textarea
+            id="newtabSearchEngines"
+            style="min-height: 76px;"
+            placeholder="Google | https://www.google.com/search?q=%s&#10;必应 | https://www.bing.com/search?q=%s&#10;百度 | https://www.baidu.com/s?wd=%s&#10;DuckDuckGo | https://duckduckgo.com/?q=%s&#10;GitHub | https://github.com/search?q=%s&#10;B站 | https://search.bilibili.com/all?keyword=%s"
+          ></textarea>
+        </div>
+      </div>
+      <div style="border-top: 1px dashed var(--opt-border-strong); margin: 14px 0 12px; padding-top: 12px;">
+        <div class="small-label" style="margin-bottom: 10px;">新标签页右侧 · 滴答清单 Open API 集成（填写 Token 后自动切换为滴答清单 / 日历 / 甘特图）：</div>
+        <div class="grid-2" style="margin-bottom: 10px;">
+          <div class="row">
+            <label for="didaHost">服务版本</label>
+            <select id="didaHost">
+              <option value="dida365.com">滴答清单中国版 (dida365.com)</option>
+              <option value="ticktick.com">TickTick 国际版 (ticktick.com)</option>
+            </select>
+          </div>
+          <div class="row">
+            <label for="didaToken">Access Token</label>
+            <input id="didaToken" type="text" placeholder="直接粘贴 Bearer Token" style="width: 220px;" />
+          </div>
+          <div class="row">
+            <label for="didaClientId">Client ID（可选，用于换取 Token）</label>
+            <input id="didaClientId" type="text" placeholder="开放平台 Client ID" style="width: 220px;" />
+          </div>
+          <div class="row">
+            <label for="didaClientSecret">Client Secret（可选）</label>
+            <input id="didaClientSecret" type="text" placeholder="开放平台 Client Secret" style="width: 220px;" />
+          </div>
+        </div>
+        <div class="row" style="justify-content: flex-start; gap: 10px; flex-wrap: wrap;">
+          <button id="didaOauthBtn" type="button" class="btn-secondary">通过 Client ID 授权获取 Token</button>
+          <button id="didaTestBtn" type="button" class="btn-secondary">测试连接</button>
+          <span id="didaStatusHint" class="small-label"></span>
+        </div>
+        <div id="didaRedirectHint" class="hint"></div>
+        <div style="margin-top: 10px;">
+          <label for="didaCustomCss" style="display: block; margin-bottom: 6px;">自定义滴答清单 CSS（仅作用于新标签页右侧滴答清单面板）</label>
+          <textarea
+            id="didaCustomCss"
+            style="min-height: 76px;"
+            placeholder="例如：&#10;.task-card { border-radius: 12px; }&#10;.task-title { font-size: 15px; }"
+          ></textarea>
+        </div>
+      </div>
+      <div id="newtabUrlHint" class="hint"></div>
+    </div>
+
+    <!-- 8. 自定义 CSS -->
+    <div class="card" data-opt-panel="style">
+      <h2>自定义 CSS</h2>
+      <textarea
+        id="customCss"
+        placeholder="例如：&#10;#sidebar .cat-btn.active { background: #10b981 !important; }&#10;#sidebar a.link { border-radius: 0 !important; }"
+      ></textarea>
+      <div class="hint">
+        支持直接编写 CSS 覆盖侧边栏样式，保存后立即生效。
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="saveBtn" class="btn-primary">保存设置</button>
+      <button id="resetBtn" class="btn-secondary">恢复默认</button>
+      <span id="status"></span>
+    </div>
+  </div>
+  <aside class="live-preview-aside">
+    <div class="live-preview-header">
+      <span>实时预览</span>
+      <span class="live-preview-sub">修改即时生效 · 点击保存同步全部网页</span>
+    </div>
+    <div class="live-preview-frame-wrap">
+      <iframe id="livePreviewFrame" src="sidebar.html"></iframe>
+    </div>
+  </aside>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

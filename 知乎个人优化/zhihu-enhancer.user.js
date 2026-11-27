@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         知乎样式与功能增强
 // @namespace    https://www.zhihu.com/
-// @version      2.0.62
+// @version      2.0.84
 // @description  全面优化知乎阅读与创作体验：1) 阅读排版：适度放大正文/标题/评论/顶栏字号且不裁切正文行，支持5行摘要预览，点击左右空白区域快速折叠回答或问题详情；2) 侧栏与界面净化：左侧栏放大且窄屏不折叠，支持在偏好设置页拖拽排序、显隐及自定义分隔线，隐藏右栏冗余卡片与刘看山角标；3) 互动与信息增强：作者及评论区ID旁支持一键「屏蔽用户」与可选「+ 关注」，去除赞同数前「航海家」等前缀并在其旁直接显示发布与修改时间；4) 问题页与个人主页优化：问题顶部集中展示「浏览 · 关注」标签与操作按钮（写回答/关注问题/问题日志/评论）并隐藏邀请回答；个人主页展开完整简介、放大头像、Tab栏改用紧凑胶囊分段框并将「搜索动态」框与精简「个人成就」移至列表顶栏（保留按时间排序），他人主页隐藏右侧冗余卡片并将「屏蔽用户」移至关注/发私信旁；5) 创作体验升级：写回答工具栏双排紧凑对齐、展开「更多」菜单中的帮助/设置/MD开关、创作助手与发布设置合并为右侧紧凑悬浮窗（支持定时「选择时间」按钮与默认不展开设置）；专栏写文章标题栏支持直接粘贴图片设为封面；6) 所有功能均可在知乎「偏好设置」页内开关与自定义。
 // @author       AI
 // @match        *://*.zhihu.com/*
@@ -65,24 +65,23 @@
         qMetaTagTextColor: '#373a40',
         defaultCloseAiAssistant: true,
         disableEntityAiLink: true,
+        allowCopyProtected: false,
         scaleProfileAvatar: false,
         profileAvatarBg: 'mosaic',
         profileAvatarMosaicSize: 16,
         profileAvatarMosaicColor: '#e5e7eb',
         profileAvatarMosaicBg: '#ffffff',
-        fullProfileCover: false,
+        fullProfileCover: 'default',
         hideSearchHotHint: false,
         hijackTopBarNotif: false,
         hijackTopBarDm: false,
         hideTopBarRedDots: true,
         unreadSidebarIconColor: '#ff4d94',
-        sidebarCollapsed: false,
         chatCategories: [],
         chatGroupOrder: ['__recent__', '__friends__'],
         defaultChatGroup: '__recent__',
         chatModalRect: null,
         chatQuickReplies: ['人工客服'],
-        hamburgerPos: null,
         sidebarItems: DEFAULT_SIDEBAR_ITEMS
     };
 
@@ -310,7 +309,8 @@
         /* 隐藏左侧栏指定项及原“+ 创作”按钮 */
         [data-zh-sidebar-card="true"] [data-zh-hide-sidebar-item="true"],
         [data-zh-sidebar="true"] [data-zh-hide-sidebar-item="true"],
-        [data-zh-hide-sidebar-item="true"] {
+        [data-zh-hide-sidebar-item="true"],
+        [data-zh-hide-top-nav="true"] {
             display: none !important;
         }
         .zh-sidebar-create-item {
@@ -864,6 +864,19 @@
             align-items: center !important;
             flex-wrap: wrap !important;
         }
+        .zh-voters-inline {
+            display: inline-block !important;
+            vertical-align: middle !important;
+            font-size: 14px;
+            color: #8491a5;
+        }
+        html[data-theme="dark"] .zh-voters-inline {
+            color: #8590a6;
+        }
+        .ContentItem-meta > .zh-voters-inline,
+        .ContentItem-meta > .zh-voters-inline + .zh-answer-time-meta {
+            margin-top: 6px;
+        }
         /* ---------- 1.4.1 信息流折叠态 5 行预览（安全保留阅读全文按钮与封面） ---------- */
         .RichContent.is-collapsed .zh-5line-preview {
             display: -webkit-box !important;
@@ -1053,6 +1066,18 @@
             object-fit: contain !important;
             transform: none !important;
         }
+        /* 个人主页顶部海报（封面图）：不显示 */
+        body.zh-hide-profile-cover .ProfileHeader-userCover,
+        body.zh-hide-profile-cover .UserCoverEditor {
+            display: none !important;
+        }
+        body.zh-hide-profile-cover .ProfileHeader-main {
+            padding-top: 20px !important;
+        }
+        body.zh-hide-profile-cover .ProfileHeader-avatar,
+        body.zh-hide-profile-cover [data-zh-profile-avatar="true"] {
+            top: 20px !important;
+        }
         /* ---------- 1.7.2 个人主页 Tab 栏紧凑胶囊分段框 + List-header 内联搜索框 ---------- */
         .ProfileMain-header {
             display: flex !important;
@@ -1180,12 +1205,21 @@
             box-shadow: none !important;
         }
         .ProfileMain-tabs .Tabs-meta {
-            font-size: 10.5px !important;
-            margin-left: 1px !important;
-            color: #8491A5 !important;
+            font-size: 12px !important;
+            font-weight: 600 !important;
+            margin-left: 2px !important;
+            color: #191B1F !important;
+            line-height: 1 !important;
+            transform: translateY(1px) !important;
         }
         .ProfileMain-tabs .Tabs-link.is-active .Tabs-meta {
-            color: rgba(255, 255, 255, 0.9) !important;
+            color: #FFFFFF !important;
+        }
+        html[data-theme="dark"] .ProfileMain-tabs .Tabs-meta {
+            color: #E5E7EB !important;
+        }
+        html[data-theme="dark"] .ProfileMain-tabs .Tabs-link.is-active .Tabs-meta {
+            color: #FFFFFF !important;
         }
         html[data-theme="dark"] .ProfileMain-tabs {
             background: #1E1F24 !important;
@@ -1224,6 +1258,7 @@
             width: 240px !important;
             max-width: 280px !important;
             margin-left: auto !important;
+            margin-right: 10px !important;
             height: 30px !important;
             padding: 0 10px !important;
             background: #F4F6F9 !important;
@@ -1292,6 +1327,28 @@
             min-width: 0 !important;
             flex: 1 1 auto !important;
         }
+        .zh-profile-agree-box {
+            position: absolute !important;
+            left: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            gap: 3px !important;
+            font-size: 13px !important;
+            line-height: 1.45 !important;
+            box-sizing: border-box !important;
+            z-index: 2 !important;
+        }
+        .Profile-mainColumn .List-header .List-headerOptions,
+        .ProfileMain .List-header .List-headerOptions,
+        #ProfileMain .List-header .List-headerOptions,
+        .Profile-answers .List-header .List-headerOptions {
+            flex-shrink: 0 !important;
+            white-space: nowrap !important;
+        }
+        .zh-profile-search-box {
+            flex-shrink: 0 !important;
+        }
         .zh-profile-achievement-text b {
             color: #191B1F !important;
             font-weight: 600 !important;
@@ -1301,12 +1358,14 @@
             user-select: none !important;
         }
         .zh-profile-agree-link {
-            color: #1772F6 !important;
+            color: #8491A5 !important;
             text-decoration: none !important;
             cursor: pointer !important;
             white-space: nowrap !important;
+            transition: color 0.15s ease !important;
         }
         .zh-profile-agree-link:hover {
+            color: #191B1F !important;
             text-decoration: underline !important;
         }
         html[data-theme="dark"] .zh-profile-achievement-text {
@@ -1319,7 +1378,10 @@
             color: #4A4D57 !important;
         }
         html[data-theme="dark"] .zh-profile-agree-link {
-            color: #4D9CFF !important;
+            color: #9CA3AF !important;
+        }
+        html[data-theme="dark"] .zh-profile-agree-link:hover {
+            color: #E5E7EB !important;
         }
         .zh-profile-block-btn,
         .zh-profile-consult-btn {
@@ -3111,6 +3173,19 @@
         body.zh-disable-entity-ai a[href*="zhida.zhihu.com/search"][href*="zhida_source=entity"] svg {
             display: none !important;
         }
+        /* 允许复制“禁止转载”正文：恢复文本可选中状态 */
+        body.zh-allow-copy .RichContent,
+        body.zh-allow-copy .RichText,
+        body.zh-allow-copy .Post-RichText,
+        body.zh-allow-copy .QuestionRichText,
+        body.zh-allow-copy .CommentContent,
+        body.zh-allow-copy .CopyrightRichText-richText,
+        body.zh-allow-copy .RichText *,
+        body.zh-allow-copy .Post-RichText *,
+        body.zh-allow-copy .CommentContent * {
+            user-select: text !important;
+            -webkit-user-select: text !important;
+        }
         body.zh-custom-view-tag .zh-view-count-tag {
             color: var(--zh-view-tag-color, #ffffff) !important;
             background-color: var(--zh-view-tag-bg, #056de8) !important;
@@ -3121,9 +3196,69 @@
             background-color: var(--zh-q-meta-tag-bg, #e1e4ea) !important;
         }
 
-        /* ---------- 1.9 偏好设置页内嵌脚本设置样式（与知乎原生偏好设置完全一致） ---------- */
+        /* ---------- 1.9 设置页独立「脚本设置」标签页样式 ---------- */
         #zh-preference-settings-section {
+            display: none;
             margin-top: 0;
+        }
+        body.zh-script-settings-tab #zh-preference-settings-section {
+            display: block !important;
+        }
+        body.zh-script-settings-tab [data-zh-settings-pane="true"] > :not(#zh-preference-settings-section) {
+            display: none !important;
+        }
+        body.zh-script-settings-tab .SettingsNav a:not(#zh-settings-nav-item) {
+            background: transparent !important;
+            color: #8491a5 !important;
+            font-weight: 400 !important;
+        }
+        body.zh-script-settings-tab .SettingsNav a:not(#zh-settings-nav-item) svg,
+        body.zh-script-settings-tab .SettingsNav a:not(#zh-settings-nav-item) svg path,
+        body.zh-script-settings-tab .SettingsNav a:not(#zh-settings-nav-item) svg circle {
+            color: #8491a5 !important;
+            fill: #8491a5 !important;
+        }
+        #zh-settings-nav-item {
+            display: flex !important;
+            align-items: center !important;
+            gap: 10px !important;
+            cursor: pointer !important;
+            text-decoration: none !important;
+            color: #8491a5 !important;
+        }
+        #zh-settings-nav-item svg {
+            flex-shrink: 0;
+        }
+        body.zh-script-settings-tab #zh-settings-nav-item {
+            background: #f6f6f6 !important;
+            color: #191b1f !important;
+            font-weight: 600 !important;
+        }
+        html[data-theme="dark"] body.zh-script-settings-tab #zh-settings-nav-item {
+            background: #2a2c32 !important;
+            color: #e5e7eb !important;
+        }
+        .zh-pref-page-header {
+            padding: 20px 20px 16px;
+            border-bottom: 1px solid #ebeced;
+        }
+        html[data-theme="dark"] .zh-pref-page-header {
+            border-bottom-color: #2e3035;
+        }
+        .zh-pref-page-header h2 {
+            margin: 0 0 6px;
+            font-size: 19px;
+            font-weight: 600;
+            color: #191b1f;
+            line-height: 1.35;
+        }
+        html[data-theme="dark"] .zh-pref-page-header h2 {
+            color: #e5e7eb;
+        }
+        .zh-pref-page-header p {
+            margin: 0;
+            font-size: 13.5px;
+            color: #8491a5;
         }
         .zh-pref-row {
             display: flex;
@@ -3312,11 +3447,33 @@
             line-height: 1.45 !important;
         }
         /* 红框2 & 3：关注和发私信按钮放在用户 ID 右侧 */
+        .ProfileHeader-contentHead:has(.ProfileHeader-Widget) {
+            position: relative !important;
+            display: block !important;
+            padding-right: 0 !important;
+        }
+        .ProfileHeader-contentHead:has(.ProfileHeader-Widget) .ProfileHeader-Widget {
+            position: absolute !important;
+            top: 0 !important;
+            right: 0 !important;
+            margin: 0 !important;
+            z-index: 2 !important;
+        }
+        .ProfileHeader-contentHead:has(.ProfileHeader-Widget) [data-zh-profile-title="true"] .ProfileHeader-name {
+            padding-right: 88px !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        .ProfileHeader-contentHead:has(.ProfileHeader-Widget) [data-zh-moved-buttons="true"] {
+            flex-basis: 100% !important;
+        }
         [data-zh-profile-title="true"] {
             display: flex !important;
             align-items: center !important;
             flex-wrap: wrap !important;
             gap: 10px 14px !important;
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
         }
         [data-zh-moved-buttons="true"] {
             position: static !important;
@@ -3327,8 +3484,20 @@
             margin: 0 !important;
             display: inline-flex !important;
             align-items: center !important;
-            gap: 10px !important;
+            flex-wrap: wrap !important;
+            gap: 8px 10px !important;
+            max-width: 100% !important;
             vertical-align: middle !important;
+        }
+        [data-zh-moved-buttons="true"] button,
+        [data-zh-moved-buttons="true"] .Button {
+            white-space: nowrap !important;
+            flex-shrink: 0 !important;
+            height: 34px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            line-height: 1 !important;
         }
         /* 红框4：隐藏“查看/收起详细资料”按钮及多余底部留白 */
         [data-zh-hide-expand-btn="true"] {
@@ -3655,8 +3824,15 @@
             min-height: 0 !important;
             overscroll-behavior: contain !important;
         }
-        [data-zh-notif-docked="true"] * {
-            overscroll-behavior: contain !important;
+        [data-zh-notif-closing="true"] {
+            display: none !important;
+            pointer-events: none !important;
+        }
+        .ImageView,
+        .ImageView-backdrop,
+        body > div:has(.ImageView),
+        body > div:has(.ImageView-img) {
+            z-index: 100020 !important;
         }
         [data-zh-notif-docked="true"] button[aria-label="关闭"] {
             display: none !important;
@@ -5615,6 +5791,8 @@
             window.__zhNotifListScrollTop = 0;
             window.__zhNotifBgLoadMore = false;
             window.__zhNotifLoadingMore = false;
+            window.__zhNotifSwitchingFromCache = false;
+            window.__zhNotifLoadingMore = false;
             const docked = document.querySelector('[data-zh-notif-docked="true"]');
             if (docked) {
                 docked.style.setProperty('display', 'none', 'important');
@@ -5708,17 +5886,21 @@
 
                 const docked = document.querySelector('[data-zh-notif-docked="true"]');
                 if (docked) {
-                    docked.querySelector('button[aria-label="关闭"]')?.click();
+                    docked.setAttribute('data-zh-notif-closing', 'true');
                     docked.removeAttribute('data-zh-notif-docked');
+                    docked.querySelector('button[aria-label="关闭"]')?.click();
                 }
+                sh.classList.remove('zh-notif-has-detail');
+                const emptyEl = sh.querySelector('#zh-notif-split-empty');
+                if (emptyEl) emptyEl.style.display = 'flex';
 
                 const waitAndOpenBell = () => {
                     if (window.__zhPendingNotifAction !== pending) return;
                     // 等旧弹窗与退场动画中的 Popover 完全卸载后再点铃铛
-                    const stillHasModal = docked && docked.isConnected;
+                    const stillHasModal = document.querySelector('[data-zh-notif-closing="true"]');
                     const exitingPop = document.querySelector('.PushNotifications-menuContainer.Popover-content-exit, .PushNotifications-menuContainer.Popover-content-exit-active');
                     if (stillHasModal || exitingPop) {
-                        if (Date.now() - pending.ts < 1500) {
+                        if (Date.now() - pending.ts < 600) {
                             setTimeout(waitAndOpenBell, 35);
                             return;
                         }
@@ -5906,6 +6088,13 @@
                 }, { passive: true });
                 document.addEventListener('keydown', (e) => {
                     if (e.key === 'Escape') {
+                        const lb = document.getElementById('zh-chat-img-lightbox');
+                        if (lb) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            lb.remove();
+                            return;
+                        }
                         const s = document.getElementById('zh-notif-split-shell');
                         if (s && s.classList.contains('open') && !s.classList.contains('is-pinned')) {
                             e.preventDefault();
@@ -5919,7 +6108,7 @@
                     if (!s || !s.classList.contains('open') || s.classList.contains('is-pinned')) return;
                     const t = e.target;
                     if (!(t instanceof Element)) return;
-                    if (t.closest('#zh-notif-split-shell, [data-zh-notif-modal-box="true"], .PushNotifications-menuContainer, [data-zh-sidebar-id="my-notifications"]')) return;
+                    if (t.closest('#zh-notif-split-shell, [data-zh-notif-modal-box="true"], .PushNotifications-menuContainer, [data-zh-sidebar-id="my-notifications"], #zh-chat-img-lightbox, .ImageView')) return;
                     closeNotifShell();
                 }, true);
             }
@@ -6004,26 +6193,6 @@
                 pop.style.removeProperty('opacity');
                 pop.style.removeProperty('pointer-events');
             }
-
-            // 执行待处理的切换 Tab 或切换消息点击
-            const pending = window.__zhPendingNotifAction;
-            if (pending && (Date.now() - pending.ts) < 3000) {
-                if (pending.type === 'tab') {
-                    const tabs = Array.from(pop.querySelectorAll('[role="tab"]'));
-                    if (tabs[pending.index]) {
-                        window.__zhPendingNotifAction = null;
-                        tabs[pending.index].click();
-                    }
-                } else if (pending.type === 'item') {
-                    const targetLink = Array.from(pop.querySelectorAll('.PushNotifications-item a[href]')).find((a) => {
-                        return a.getAttribute('href') === pending.href;
-                    });
-                    if (targetLink) {
-                        window.__zhPendingNotifAction = null;
-                        setTimeout(() => targetLink.click(), 20);
-                    }
-                }
-            }
         }
 
         const activeShell = document.getElementById('zh-notif-split-shell');
@@ -6053,7 +6222,7 @@
         let dockedModalRoot = null;
         const modals = document.querySelectorAll('.Modal-content');
         for (const mc of modals) {
-            if (mc.closest('#zh-notif-split-shell') || mc.closest('#zh-qq-chat-shell')) continue;
+            if (mc.closest('#zh-notif-split-shell') || mc.closest('#zh-qq-chat-shell') || mc.closest('[data-zh-notif-closing="true"]')) continue;
             const txt = mc.textContent || '';
             const isCommentDetail = txt.includes('前往回答') || txt.includes('返回评论') || Boolean(mc.querySelector('.CommentContent, [data-id]'));
             if (!isCommentDetail) continue;
@@ -6081,6 +6250,22 @@
         if (emptyEl) emptyEl.style.display = hasDetail ? 'none' : 'flex';
 
         if (dockedModalRoot) {
+            if (!dockedModalRoot.getAttribute('data-zh-notif-img-hook')) {
+                dockedModalRoot.setAttribute('data-zh-notif-img-hook', 'true');
+                dockedModalRoot.addEventListener('click', (e) => {
+                    const img = e.target instanceof Element ? e.target.closest('img') : null;
+                    if (!img) return;
+                    if (img.classList.contains('Avatar') || img.classList.contains('sticker') || img.closest('.AuthorInfo-avatarWrapper, .UserLink')) return;
+                    const r = img.getBoundingClientRect();
+                    if (r.width < 40 && r.height < 40) return;
+                    const src = img.getAttribute('data-original') || img.getAttribute('data-actualsrc') || img.currentSrc || img.src;
+                    if (!src) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openChatImageLightbox(src, document);
+                }, true);
+            }
+
             const modalBox = dockedModalRoot.getAttribute('data-zh-notif-modal-box') === 'true'
                 ? dockedModalRoot
                 : dockedModalRoot.querySelector('[data-zh-notif-modal-box="true"]');
@@ -7178,7 +7363,11 @@
                 continue;
             }
 
-            parent.classList.add('zh-voters-wrap');
+            if (parent.classList.contains('ContentItem-meta') || parent.querySelector('.AuthorInfo')) {
+                voters.classList.add('zh-voters-inline');
+            } else {
+                parent.classList.add('zh-voters-wrap');
+            }
             const timeSpan = document.createElement('span');
             timeSpan.className = 'zh-answer-time-meta';
             timeSpan.textContent = nextText;
@@ -7447,7 +7636,15 @@
                     box.style.setProperty('top', `${boxTop}px`, 'important');
                     box.style.setProperty('width', `${avWidth}px`, 'important');
                     const boxHeight = box.offsetHeight || 46;
-                    headerMain.style.setProperty('min-height', `${boxTop + boxHeight + 8}px`, 'important');
+                    let totalBottom = boxTop + boxHeight;
+                    const agreeBox = headerMain.querySelector('.zh-profile-agree-box');
+                    if (agreeBox) {
+                        const agreeTop = boxTop + boxHeight + 6;
+                        agreeBox.style.setProperty('top', `${agreeTop}px`, 'important');
+                        agreeBox.style.setProperty('width', `${avWidth}px`, 'important');
+                        totalBottom = Math.max(totalBottom, agreeTop + (agreeBox.offsetHeight || 22));
+                    }
+                    headerMain.style.setProperty('min-height', `${totalBottom + 8}px`, 'important');
                 }
             }
         }
@@ -7579,6 +7776,28 @@
             const t = a.textContent.trim();
             if (t === '关注' || t === '推荐' || t === '热榜') {
                 a.setAttribute('data-zh-top-tab', 'true');
+            }
+        }
+        // 隐藏顶栏多余入口（专栏 / 圈子 / AI Works / 故事 / 直答 / 知学堂 及分隔线）
+        const headerEl = document.querySelector('header[role="banner"], header.AppHeader, header');
+        if (headerEl) {
+            const hideNavUrls = ['zhida.zhihu.com', '/column-square', '/ring-feeds', '/project-square', '/fiore/h5/vip-web', '/education/learning'];
+            const topItems = headerEl.querySelectorAll('nav a, a[href], button');
+            for (const el of topItems) {
+                if (el.getAttribute('data-zh-hide-top-nav') === 'true') continue;
+                const href = el.getAttribute('href') || '';
+                const t = (el.textContent || '').replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+                const hitText = t === '专栏' || t === '圈子' || t === '故事' || t === '盐言故事' || t === '直答' || t === '知学堂' || /^AIWorks(Beta)?$/i.test(t);
+                const hitHref = href && hideNavUrls.some((u) => href.includes(u));
+                if (!hitText && !hitHref) continue;
+                const li = el.closest('li');
+                const target = (li && li.parentElement && li.parentElement.closest('header')) ? li : el;
+                target.setAttribute('data-zh-hide-top-nav', 'true');
+                // 若前面紧邻顶栏里的竖线分隔符，一并隐藏
+                const prev = target.previousElementSibling;
+                if (prev && !(prev.textContent || '').trim() && !prev.querySelector('a, button, svg, input') && prev.getBoundingClientRect().width <= 4) {
+                    prev.setAttribute('data-zh-hide-top-nav', 'true');
+                }
             }
         }
         // 顶部搜索框加高（不左右延长）& 可选关闭预设热点提示
@@ -8348,9 +8567,15 @@
             document.body.style.removeProperty('--zh-q-meta-tag-bg');
             document.body.style.removeProperty('--zh-q-meta-tag-color');
         }
+        document.body.classList.add('zh-settings-applied');
         document.body.classList.toggle('zh-disable-entity-ai', !!settings.disableEntityAiLink);
+        document.body.classList.toggle('zh-allow-copy', !!settings.allowCopyProtected);
         document.body.classList.toggle('zh-scale-profile-avatar', !!settings.scaleProfileAvatar);
-        document.body.classList.toggle('zh-full-profile-cover', !!settings.fullProfileCover);
+        const coverMode = (settings.fullProfileCover === true || settings.fullProfileCover === 'full')
+            ? 'full'
+            : (settings.fullProfileCover === 'hide' ? 'hide' : 'default');
+        document.body.classList.toggle('zh-full-profile-cover', coverMode === 'full');
+        document.body.classList.toggle('zh-hide-profile-cover', coverMode === 'hide');
         document.body.classList.toggle('zh-hide-search-hot-hint', !!settings.hideSearchHotHint);
         document.body.classList.toggle('zh-hide-topbar-dots', !!settings.hideTopBarRedDots);
         document.body.style.setProperty('--zh-unread-icon-color', settings.unreadSidebarIconColor || '#ff4d94');
@@ -8372,39 +8597,97 @@
         document.body.style.setProperty('--zh-mosaic-base', settings.profileAvatarMosaicBg || '#ffffff');
     }
 
+    function setScriptSettingsTabActive(active) {
+        window.__zhScriptSettingsActive = !!active;
+        if (document.body) {
+            document.body.classList.toggle('zh-script-settings-tab', !!active);
+        }
+        try {
+            if (active && location.hash !== '#zh-script-settings') {
+                history.replaceState(null, '', `${location.pathname}${location.search}#zh-script-settings`);
+            } else if (!active && location.hash === '#zh-script-settings') {
+                history.replaceState(null, '', `${location.pathname}${location.search}`);
+            }
+        } catch { /* ignore */ }
+    }
+
     function openScriptSettingsPage() {
-        if (location.pathname.startsWith('/settings/preference')) {
-            const sec = document.getElementById('zh-preference-settings-section');
-            if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (location.pathname.startsWith('/settings')) {
+            injectPreferenceSettings();
+            setScriptSettingsTabActive(true);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
             return;
         }
-        window.open('https://www.zhihu.com/settings/preference', '_blank');
+        window.open('https://www.zhihu.com/settings/preference#zh-script-settings', '_blank');
     }
 
     function injectPreferenceSettings() {
-        if (!location.pathname.startsWith('/settings/preference')) return;
-        if (document.getElementById('zh-preference-settings-section')) return;
+        if (!location.pathname.startsWith('/settings')) return;
 
-        // 精准定位 #SettingsMain 内部“摘录到百科”或“快捷键”所在的偏好行（与 .RecommendEnginePreference 同级）
-        const settingsRoot = document.getElementById('SettingsMain') || document;
-        const heading = Array.from(settingsRoot.querySelectorAll('h3')).find((h) => {
-            const t = h.textContent.trim();
-            return t === '摘录到百科' || t === '快捷键';
-        });
-        if (!heading) return;
+        const navEl = document.querySelector('.SettingsNav');
+        const paneEl = navEl ? navEl.nextElementSibling : null;
+        if (!navEl || !paneEl) return;
+        paneEl.setAttribute('data-zh-settings-pane', 'true');
 
-        let anchorItem = heading;
-        while (anchorItem.parentElement && anchorItem.parentElement !== settingsRoot) {
-            if (anchorItem.parentElement.querySelector('.RecommendEnginePreference') ||
-                anchorItem.parentElement.previousElementSibling?.classList.contains('SettingsNav')) {
-                break;
+        // 1) 在左侧设置导航栏底部注入独立的「脚本设置」菜单项
+        if (!document.getElementById('zh-settings-nav-item')) {
+            const navLinks = Array.from(navEl.querySelectorAll('a'));
+            const templateLink = navLinks.find((a) => (a.textContent || '').includes('偏好设置')) || navLinks[navLinks.length - 1];
+            if (templateLink) {
+                const navLink = document.createElement('a');
+                navLink.id = 'zh-settings-nav-item';
+                navLink.href = '/settings/preference#zh-script-settings';
+                const cleanCls = (templateLink.className || '')
+                    .split(/\s+/)
+                    .filter((c) => c && !/active/i.test(c))
+                    .join(' ');
+                if (cleanCls) navLink.className = cleanCls;
+                navLink.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"></line><circle cx="9" cy="6" r="2.2" fill="currentColor"></circle><line x1="4" y1="12" x2="20" y2="12"></line><circle cx="15" cy="12" r="2.2" fill="currentColor"></circle><line x1="4" y1="18" x2="20" y2="18"></line><circle cx="10" cy="18" r="2.2" fill="currentColor"></circle></svg><span>脚本设置</span>';
+                navLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setScriptSettingsTabActive(true);
+                    window.scrollTo({ top: 0, behavior: 'instant' });
+                });
+
+                const tplParent = templateLink.parentElement;
+                if (tplParent && tplParent.tagName === 'LI' && tplParent.parentElement) {
+                    const li = document.createElement('li');
+                    if (tplParent.className) li.className = tplParent.className;
+                    li.appendChild(navLink);
+                    tplParent.parentElement.appendChild(li);
+                } else if (tplParent) {
+                    tplParent.appendChild(navLink);
+                } else {
+                    navEl.appendChild(navLink);
+                }
             }
-            anchorItem = anchorItem.parentElement;
         }
-        if (!anchorItem || !anchorItem.parentElement) return;
+
+        if (!navEl.getAttribute('data-zh-nav-click-hook')) {
+            navEl.setAttribute('data-zh-nav-click-hook', 'true');
+            navEl.addEventListener('click', (e) => {
+                const a = e.target instanceof Element ? e.target.closest('a') : null;
+                if (a && a.id !== 'zh-settings-nav-item') {
+                    setScriptSettingsTabActive(false);
+                }
+            }, true);
+        }
+
+        if (location.hash === '#zh-script-settings' || window.__zhScriptSettingsActive) {
+            if (!document.body.classList.contains('zh-script-settings-tab')) {
+                setScriptSettingsTabActive(true);
+            }
+        }
+
+        if (document.getElementById('zh-preference-settings-section')) return;
 
         const section = document.createElement('div');
         section.id = 'zh-preference-settings-section';
+        const pageHeader = document.createElement('div');
+        pageHeader.className = 'zh-pref-page-header';
+        pageHeader.innerHTML = '<h2>脚本设置</h2><p>知乎样式与功能增强脚本的全部开关、侧栏排序、私信分类与配置备份</p>';
+        section.appendChild(pageHeader);
 
         const toggleDefs = [
             { key: 'showBlockBtn', label: '作者/评论 ID 旁显示「屏蔽用户」按钮', desc: '在回答、文章作者及评论区用户名右侧添加屏蔽用户按钮' },
@@ -8418,8 +8701,8 @@
             { key: 'showQuestionEditorTag', label: '问题顶部显示「编辑」标签', desc: '从问题日志获取并显示最后一次编辑该问题的用户名' },
             { key: 'defaultCloseAiAssistant', label: '默认不展开创作助手', desc: '打开写回答时默认关闭右侧创作助手面板（点击顶栏「助手」可随时展开）' },
             { key: 'disableEntityAiLink', label: '关闭正文 AI 词条（直答/看山）高亮链接', desc: '隐藏正文词语旁的四角星图标并取消蓝色高亮与点击跳转，恢复为普通文本' },
+            { key: 'allowCopyProtected', label: '允许复制「禁止转载」正文（去除复制拦截与版权尾巴）', desc: '开启后可正常划选并复制标记为禁止转载的回答与文章，且不附加版权声明尾巴（默认关闭，不影响编辑器内复制）' },
             { key: 'scaleProfileAvatar', label: '完整显示个人主页头像（不裁切）', desc: '开启后按原图比例完整居中显示个人主页头像，不再裁剪边缘（默认关闭保持原生样式）' },
-            { key: 'fullProfileCover', label: '完整显示个人主页顶部海报（封面图）', desc: '开启后不再裁剪个人主页顶部自定义海报图片，按原图比例完整显示（头像会轻微遮挡左下角）' },
             { key: 'hideSearchHotHint', label: '隐藏搜索框预设热点提示', desc: '开启后清空顶部搜索框的默认热搜词提示，并隐藏下拉弹窗中的知乎热搜/猜你想搜推荐（默认关闭）' },
             { key: 'hijackTopBarNotif', label: '劫持右上角「通知」铃铛为双栏弹窗', desc: '开启后点击右上角通知铃铛也会打开左右双栏消息窗口；关闭时仅点击左侧栏「通知」才打开（默认关闭）' },
             { key: 'hijackTopBarDm', label: '劫持右上角「私信」图标为悬浮私信窗', desc: '开启后点击右上角私信图标也会打开三栏悬浮私信窗；关闭时仅点击左侧栏「私信」才打开（默认关闭）' },
@@ -8432,6 +8715,11 @@
             b.textContent = label;
             b.style.cssText = 'height: 26px; padding: 0 10px; font-size: 12px; border: 1px solid #d0d7de; border-radius: 4px; background: transparent; cursor: pointer;';
             return b;
+        };
+        const setChipActive = (btn, active) => {
+            btn.style.borderColor = active ? '#1772f6' : '#d0d7de';
+            btn.style.color = active ? '#1772f6' : 'inherit';
+            btn.style.fontWeight = active ? '600' : '400';
         };
         const makeColorPicker = (titleText, initialVal, onChange) => {
             const wrap = document.createElement('label');
@@ -8639,12 +8927,6 @@
                 const solidSubRow = document.createElement('div');
                 solidSubRow.style.cssText = 'display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end;';
 
-                const setChipActive = (btn, active) => {
-                    btn.style.borderColor = active ? '#1772f6' : '#d0d7de';
-                    btn.style.color = active ? '#1772f6' : 'inherit';
-                    btn.style.fontWeight = active ? '600' : '400';
-                };
-
                 const mosaicModeBtn = makeChipBtn('1. 马赛克');
                 const solidModeBtn = makeChipBtn('2. 纯色');
                 typeRow.appendChild(mosaicModeBtn);
@@ -8749,6 +9031,38 @@
                 avatarBgRow.appendChild(bgInfo);
                 avatarBgRow.appendChild(bgControls);
                 section.appendChild(avatarBgRow);
+
+                const coverRow = document.createElement('div');
+                coverRow.className = 'zh-pref-row';
+                const coverInfo = document.createElement('div');
+                coverInfo.className = 'zh-pref-info';
+                coverInfo.innerHTML = '<div class="zh-pref-title">个人主页顶部海报（封面图）</div><div class="zh-pref-desc">选择个人主页顶部自定义封面图的显示方式：不显示、完整显示（按原图比例不裁切），或知乎默认</div>';
+                const coverControls = document.createElement('div');
+                coverControls.style.cssText = 'display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end;';
+                const coverOptions = [
+                    { val: 'hide', label: '不显示' },
+                    { val: 'full', label: '完整显示' },
+                    { val: 'default', label: '知乎默认' }
+                ];
+                const getCurCoverMode = () => (settings.fullProfileCover === true || settings.fullProfileCover === 'full')
+                    ? 'full'
+                    : (settings.fullProfileCover === 'hide' ? 'hide' : 'default');
+                const coverBtns = coverOptions.map(({ val, label }) => {
+                    const b = makeChipBtn(label);
+                    b.addEventListener('click', () => {
+                        settings.fullProfileCover = val;
+                        saveSettings(settings);
+                        applySettingsClasses();
+                        coverBtns.forEach((item) => setChipActive(item.btn, item.val === val));
+                    });
+                    coverControls.appendChild(b);
+                    return { btn: b, val };
+                });
+                const curCover = getCurCoverMode();
+                coverBtns.forEach((item) => setChipActive(item.btn, item.val === curCover));
+                coverRow.appendChild(coverInfo);
+                coverRow.appendChild(coverControls);
+                section.appendChild(coverRow);
             }
         }
 
@@ -9168,14 +9482,14 @@
         section.appendChild(chatBox);
         section.appendChild(quickBox);
         section.appendChild(backupBox);
-        anchorItem.insertAdjacentElement('afterend', section);
+        paneEl.appendChild(section);
     }
 
     let menuRegistered = false;
     function registerSettingsMenu() {
         if (menuRegistered || typeof GM_registerMenuCommand !== 'function') return;
         menuRegistered = true;
-        GM_registerMenuCommand('⚙️ 知乎增强设置（偏好设置页）', openScriptSettingsPage);
+        GM_registerMenuCommand('⚙️ 知乎增强设置（脚本设置）', openScriptSettingsPage);
     }
     registerSettingsMenu();
 
@@ -9785,6 +10099,55 @@
             }
         }
 
+        // 将“我赞同他 / 他赞同我”移至头像下方“关注了 / 关注者”下面
+        const profileHeaderMain = document.querySelector('.ProfileHeader-main');
+        if (profileHeaderMain) {
+            let agreeBox = profileHeaderMain.querySelector('.zh-profile-agree-box');
+            if (agreeLinks.length > 0) {
+                if (!agreeBox) {
+                    agreeBox = document.createElement('div');
+                    agreeBox.className = 'zh-profile-agree-box';
+                    profileHeaderMain.appendChild(agreeBox);
+                }
+                const agreeSig = JSON.stringify(agreeLinks.map((a) => ({ text: a.text, href: a.href })));
+                if (agreeBox.getAttribute('data-zh-agree-sig') !== agreeSig) {
+                    agreeBox.setAttribute('data-zh-agree-sig', agreeSig);
+                    agreeBox.innerHTML = '';
+                    for (const ag of agreeLinks) {
+                        const a = document.createElement('a');
+                        a.className = 'zh-profile-agree-link';
+                        a.textContent = ag.text;
+                        a.href = ag.href || 'javascript:void(0)';
+                        if (ag.target) a.target = ag.target;
+                        if (!ag.href || ag.href === '#' || ag.href.startsWith('javascript:')) {
+                            a.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                ag.nativeEl?.click();
+                            });
+                        }
+                        agreeBox.appendChild(a);
+                    }
+                }
+                const avEl = profileHeaderMain.querySelector('[data-zh-profile-avatar="true"], .ProfileHeader-avatar, .UserAvatar');
+                const followBox = profileHeaderMain.querySelector('.zh-profile-followship-box');
+                const avTop = avEl ? avEl.offsetTop : -57;
+                const avHeight = avEl ? avEl.offsetHeight : (settings.scaleProfileAvatar ? 200 : 160);
+                const avWidth = avEl ? avEl.offsetWidth : (settings.scaleProfileAvatar ? 200 : 160);
+                const agreeTop = followBox
+                    ? (followBox.offsetTop + (followBox.offsetHeight || 46) + 6)
+                    : Math.max(0, avTop + avHeight + 8);
+                agreeBox.style.setProperty('top', `${agreeTop}px`, 'important');
+                agreeBox.style.setProperty('width', `${avWidth}px`, 'important');
+                const needMinH = agreeTop + (agreeBox.offsetHeight || 22) + 8;
+                const curMinH = parseFloat(profileHeaderMain.style.minHeight) || 0;
+                if (needMinH > curMinH) {
+                    profileHeaderMain.style.setProperty('min-height', `${needMinH}px`, 'important');
+                }
+            } else if (agreeBox) {
+                agreeBox.remove();
+            }
+        }
+
         listHeaders.forEach((lh) => {
             // 隐藏“我的视频 / 他的回答 / 我的文章”等冗余标题节点
             Array.from(lh.children).forEach((child) => {
@@ -9806,45 +10169,26 @@
             const placeholder = isMine ? '搜索我的动态' : '搜索他的动态';
 
             let achEl = lh.querySelector('.zh-profile-achievement-text');
-            if (achievementItems.length > 0 || agreeLinks.length > 0) {
+            if (achievementItems.length > 0) {
                 if (!achEl) {
                     achEl = document.createElement('div');
                     achEl.className = 'zh-profile-achievement-text';
                     lh.insertBefore(achEl, lh.firstChild);
                 }
-                const sig = JSON.stringify({ achievementItems, agreeLinks: agreeLinks.map((a) => ({ text: a.text, href: a.href })) });
+                const sig = JSON.stringify({ achievementItems });
                 if (achEl.getAttribute('data-zh-ach-sig') !== sig) {
                     achEl.setAttribute('data-zh-ach-sig', sig);
                     achEl.innerHTML = '';
-                    const parts = [];
-                    for (const item of achievementItems) {
-                        const span = document.createElement('span');
-                        span.innerHTML = `<b>${item.num}</b> ${item.label}`;
-                        parts.push(span);
-                    }
-                    for (const ag of agreeLinks) {
-                        const a = document.createElement('a');
-                        a.className = 'zh-profile-agree-link';
-                        a.textContent = ag.text;
-                        if (ag.href) a.href = ag.href;
-                        else a.href = 'javascript:void(0)';
-                        if (ag.target) a.target = ag.target;
-                        if (!ag.href || ag.href === '#' || ag.href.startsWith('javascript:')) {
-                            a.addEventListener('click', (e) => {
-                                e.preventDefault();
-                                ag.nativeEl?.click();
-                            });
-                        }
-                        parts.push(a);
-                    }
-                    parts.forEach((node, idx) => {
+                    achievementItems.forEach((item, idx) => {
                         if (idx > 0) {
                             const sep = document.createElement('span');
                             sep.className = 'zh-profile-achievement-sep';
                             sep.textContent = '·';
                             achEl.appendChild(sep);
                         }
-                        achEl.appendChild(node);
+                        const span = document.createElement('span');
+                        span.innerHTML = `<b>${item.num}</b> ${item.label}`;
+                        achEl.appendChild(span);
                     });
                 }
             } else if (achEl) {
@@ -9892,12 +10236,22 @@
         });
     }
 
-    let rafPending = false;
+    let enhanceTimer = null;
+    let lastEnhanceAt = 0;
+    let lastEnhancedHref = '';
+    const ENHANCE_THROTTLE_MS = 120;
+
     function runEnhancements() {
-        rafPending = false;
+        enhanceTimer = null;
+        lastEnhanceAt = Date.now();
+        const hrefChanged = location.href !== lastEnhancedHref;
+        if (hrefChanged) {
+            lastEnhancedHref = location.href;
+        }
+        const needApplyClasses = hrefChanged || (document.body && !document.body.classList.contains('zh-settings-applied'));
         const steps = [
-            applySettingsClasses,
-            parseInitialData,
+            ...(needApplyClasses ? [applySettingsClasses] : []),
+            ...(hrefChanged ? [parseInitialData] : []),
             tagLeftSidebar,
             syncSidebarUnreadBadges,
             enhanceTopHeader,
@@ -9928,9 +10282,15 @@
     }
 
     function scheduleEnhance() {
-        if (rafPending) return;
-        rafPending = true;
-        requestAnimationFrame(runEnhancements);
+        if (enhanceTimer !== null) return;
+        const elapsed = Date.now() - lastEnhanceAt;
+        if (elapsed >= ENHANCE_THROTTLE_MS) {
+            enhanceTimer = requestAnimationFrame(runEnhancements);
+        } else {
+            enhanceTimer = setTimeout(() => {
+                enhanceTimer = requestAnimationFrame(runEnhancements);
+            }, ENHANCE_THROTTLE_MS - elapsed);
+        }
     }
 
     function setupAiAssistantCloseFix() {
@@ -9993,8 +10353,32 @@
         }, true);
     }
 
+    function setupAllowCopyFix() {
+        if (window.__zhAllowCopyBound) return;
+        window.__zhAllowCopyBound = true;
+        const isEditableTarget = (el) => {
+            if (!(el instanceof Element)) return false;
+            return Boolean(el.closest('input, textarea, [contenteditable="true"], .Editable, .DraftEditor-root, .public-DraftEditor-content'));
+        };
+        window.addEventListener('copy', (e) => {
+            if (!settings.allowCopyProtected) return;
+            if (isEditableTarget(e.target)) return;
+            const sel = window.getSelection();
+            if (!sel || !sel.toString()) return;
+            e.stopImmediatePropagation();
+        }, true);
+        window.addEventListener('selectstart', (e) => {
+            if (!settings.allowCopyProtected) return;
+            if (!(e.target instanceof Element) || isEditableTarget(e.target)) return;
+            if (e.target.closest('.RichContent, .RichText, .Post-RichText, .QuestionRichText, .CommentContent, .CopyrightRichText-richText')) {
+                e.stopImmediatePropagation();
+            }
+        }, true);
+    }
+
     function init() {
         setupBlankClickCollapse();
+        setupAllowCopyFix();
         setupAiAssistantCloseFix();
         setupProfileTabSearchHook();
         if (!window.__zhAutoSidebarResizeHook) {
@@ -10011,6 +10395,14 @@
             childList: true,
             subtree: true
         });
+        if (document.body) {
+            const bodyClassObs = new MutationObserver(() => {
+                if (!document.body.classList.contains('zh-settings-applied')) {
+                    applySettingsClasses();
+                }
+            });
+            bodyClassObs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        }
     }
 
     if (document.readyState === 'loading') {

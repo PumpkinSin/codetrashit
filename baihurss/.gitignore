@@ -1,0 +1,11 @@
+# Sensitive configs & runtime data (NEVER commit!)
+.env
+*.env
+sources.yaml
+data/
+*.json
+!package.json
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db

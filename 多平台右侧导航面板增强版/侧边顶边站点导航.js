@@ -19,6 +19,32 @@
 (function () {
     'use strict';
 
+    // 被动桥接：仅当打开 push-server 管理前端时，响应其读取侧边栏书签数据的请求（不渲染侧边栏、不主动发请求）
+    if (document.querySelector('meta[name="baihurss-push-server"]')) {
+        const collectSidebarBookmarks = () => {
+            const items = [];
+            try {
+                for (const key of GM_listValues()) {
+                    if (!key.endsWith('_users')) continue;
+                    const arr = GM_getValue(key, []);
+                    if (!Array.isArray(arr)) continue;
+                    for (const u of arr) {
+                        if (u && typeof u.url === 'string') {
+                            items.push({ name: u.name || '', url: u.url });
+                        }
+                    }
+                }
+            } catch (e) { }
+            return items;
+        };
+        window.addEventListener('message', (ev) => {
+            if (ev.source !== window || !ev.data || ev.data.type !== 'BAIHURSS_REQ_BOOKMARKS') return;
+            window.postMessage({ type: 'BAIHURSS_RES_BOOKMARKS', items: collectSidebarBookmarks() }, '*');
+        });
+        window.postMessage({ type: 'BAIHURSS_BRIDGE_READY' }, '*');
+        return;
+    }
+
     // 全局启用/禁用设置
     const GLOBAL_ENABLE_KEY = 'navigation_panel_global_enable';
     // 展开/收起快捷键的全局存储键（跨站点共用一份）
